@@ -79,7 +79,8 @@ export function ClipStage({
           label="Source preview"
           compact
           spans={cutSpans}
-          frameStyle={{ aspectRatio: String(aspect), height: 'min(56vh, 480px)', width: 'auto' }}
+          aspect={aspect}
+          frameHeight="min(56vh, 480px)"
           videoStyle={videoStyle(settings.framing, settings.ratio, source)}
           onTimeUpdate={handleTimeUpdate}
           overlay={caption && <div className={styles.caption} style={{ fontSize: captionSize }}>{caption.text}</div>}
