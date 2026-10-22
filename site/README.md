@@ -25,11 +25,12 @@ from `build.nsis.artifactName` in the root `package.json`, so the link stays val
 
 ## Deploy
 
-`.github/workflows/site.yml` builds and deploys to Netlify on every push to `main` that touches `site/`.
-It needs two repository secrets:
+The site is deployed by Netlify's GitHub integration (project `ai-shorts-studio-demo`). Every push to
+`main` that touches `site/` triggers a build, and pull requests get preview deploys. The Netlify build
+settings are:
 
-- `NETLIFY_AUTH_TOKEN`: a personal access token from Netlify.
-- `NETLIFY_SITE_ID`: the API ID of the Netlify site.
+- Base directory: `site`
+- Build command and publish directory: in `netlify.toml` (`pnpm run build`, `dist`)
 
-Netlify's own Git integration stays off, so there is only one deploy path. Pull requests run a build
-check in `.github/workflows/ci.yml`, but they do not deploy.
+pnpm is pinned through the `packageManager` field in `package.json`. No repository secrets are needed.
+Pull requests also run a site build check in `.github/workflows/ci.yml`.

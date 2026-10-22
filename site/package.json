@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@12.13.0",
   "description": "Marketing site and download page for AI Shorts Studio.",
   "scripts": {
     "dev": "astro dev",

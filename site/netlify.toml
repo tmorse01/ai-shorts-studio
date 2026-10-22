@@ -1,0 +1,11 @@
+# Netlify reads this file from the base directory, which is set to "site" in the Netlify UI.
+# Deploys run from GitHub on every push to main. Preview deploys are created for pull requests.
+
+[build]
+  command = "pnpm run build"
+  publish = "dist"
+  # Skip the build when nothing under site/ changed since the last deploy.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+
+[build.environment]
+  NODE_VERSION = "22"
