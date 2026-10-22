@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join, basename } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -21,6 +21,8 @@ import { SecretStore } from './secrets'
 import { JobRunner, defaultSettings } from './jobs'
 import { binPath, probeMedia } from './ffmpeg'
 import { whisperFiles } from './transcribe'
+import { thumbDir, thumbnailStep, thumbsReady } from './thumbnails'
+import type { ThumbStatus } from '../shared/api'
 import { z } from 'zod'
 import type { OpenDialogOptions } from 'electron'
 
@@ -73,6 +75,7 @@ export function registerIpc(deps: IpcDeps): void {
       hasApiKey: secrets.has(),
       keyStorage: secrets.available() ? 'safeStorage' : 'unavailable',
       musicFolder: store.getMusicFolder(),
+      lastExport: store.getLastExport(),
       whisperAvailable: whisperFiles() !== null,
       ffmpegAvailable
     }
@@ -112,6 +115,16 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.projectImportMedia, idSchema, (id) => chooseSource(id))
   handle(IPC.projectRelinkMedia, idSchema, (id) => chooseSource(id))
   handle(IPC.projectMediaUrl, idSchema, (id) => `shorts-media://project/${id}`)
+
+  handle(IPC.thumbsEnsure, idSchema, (projectId): ThumbStatus => {
+    const project = store.getProject(projectId)
+    const duration = project.probe?.durationSec ?? 0
+    const ready = thumbsReady(thumbDir(userDataDir, projectId))
+    if (ready) return { ready: true, stepSec: ready.stepSec, count: ready.count }
+    // A busy runner means thumbnails wait; the renderer asks again when the running job finishes.
+    if (project.sourcePath && project.probe && !jobs.isBusy()) jobs.startThumbnails(projectId)
+    return { ready: false, stepSec: thumbnailStep(duration), count: 0 }
+  })
 
   handle(IPC.shortList, idSchema, (projectId) => store.listShorts(projectId))
 
@@ -195,10 +208,28 @@ export function registerIpc(deps: IpcDeps): void {
       const problem = validateShortDuration(short.segments)
       if (problem) throw new Error(`"${short.title}": ${problem}`)
     }
-    return jobs.startExport(req)
+    const job = jobs.startExport(req)
+    store.setLastExport({ outputDir: req.outputDir, options: req.options })
+    return job
   })
 
   handle(IPC.exportCancel, idSchema, (jobId) => jobs.cancel(jobId))
+
+  // Only a short's own finished export can be revealed or opened, never an arbitrary path from the renderer.
+  const exportedPathOf = (shortId: string): string => {
+    const short = store.getShort(shortId)
+    if (!short.exportedPath || !existsSync(short.exportedPath)) {
+      throw new Error('That export was moved or deleted.')
+    }
+    return short.exportedPath
+  }
+  handle(IPC.exportReveal, idSchema, (shortId) => {
+    shell.showItemInFolder(exportedPathOf(shortId))
+  })
+  handle(IPC.exportOpen, idSchema, async (shortId) => {
+    const problem = await shell.openPath(exportedPathOf(shortId))
+    if (problem) throw new Error(`Could not open the file: ${problem}`)
+  })
   handle(IPC.jobList, z.string().max(64).optional(), (projectId) => store.listJobs(projectId || undefined))
 
   handle(IPC.settingsGet, noPayload, () => settingsView())

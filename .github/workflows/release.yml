@@ -1,0 +1,68 @@
+name: Release
+
+# Pushing a tag such as v0.1.0 builds the Windows installer and attaches it to a GitHub Release.
+# The tag must match the version in package.json.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches package.json version
+        shell: pwsh
+        run: |
+          $tagVersion = '${{ github.ref_name }}'.TrimStart('v')
+          $pkgVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($tagVersion -ne $pkgVersion) {
+            throw "Tag $tagVersion does not match package.json version $pkgVersion"
+          }
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.13.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The Chocolatey ffmpeg package is a GPL "full" build. Check its licence before the first
+      # public release (see README "Licensing").
+      - name: Install FFmpeg
+        shell: pwsh
+        run: |
+          choco install ffmpeg -y --no-progress
+          $ffmpeg = (Get-Command ffmpeg.exe).Source
+          "FFMPEG_DIR=$(Split-Path $ffmpeg)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Fetch FFmpeg and whisper.cpp binaries
+        run: pnpm fetch:bin
+
+      - name: Build installer
+        run: pnpm package:win
+
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash release/AI-Shorts-Studio-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  AI-Shorts-Studio-Setup.exe" | Out-File -FilePath release/SHA256SUMS.txt -Encoding ascii
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/AI-Shorts-Studio-Setup.exe
+            release/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          generate_release_notes: true

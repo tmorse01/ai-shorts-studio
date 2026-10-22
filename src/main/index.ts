@@ -6,9 +6,16 @@ import { Store } from './store'
 import { SecretStore } from './secrets'
 import { JobRunner } from './jobs'
 import { registerIpc } from './ipc'
+import { thumbDir, thumbFileName } from './thumbnails'
 
 const MEDIA_SCHEME = 'shorts-media'
 const DEV_RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
+
+// Brand values mirrored from src/renderer/theme/tokens.css. Keep these in step with the tokens.
+const WINDOW_BACKGROUND = '#0a0a0a' // --ink-0
+const TITLE_BAR_COLOR = '#111111' // --surface-0
+const TITLE_BAR_SYMBOL = '#a3a3a3' // --text-2
+const TITLE_BAR_HEIGHT = 36 // --titlebar-h
 
 // Must run before app.ready: lets the renderer stream local footage via <video> with Range support.
 protocol.registerSchemesAsPrivileged([
@@ -23,9 +30,13 @@ function createWindow(): void {
     height: 900,
     minWidth: 1100,
     minHeight: 700,
-    backgroundColor: '#0b0d10',
+    backgroundColor: WINDOW_BACKGROUND,
     title: 'AI Shorts Studio',
     show: false,
+    // Custom title bar drawn by the renderer. Windows keeps its own min/max/close and Snap Layouts on top of it.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: TITLE_BAR_COLOR, symbolColor: TITLE_BAR_SYMBOL, height: TITLE_BAR_HEIGHT },
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -58,6 +69,18 @@ function isAllowedRendererUrl(url: string): boolean {
   return Boolean(DEV_RENDERER_URL && url.startsWith(DEV_RENDERER_URL))
 }
 
+/** Thumbnail images for the source strip: `shorts-media://thumb/<projectId>/<index>` only. */
+function serveThumbnail(url: URL, userDataDir: string): Response {
+  const [, projectId, index] = url.pathname.split('/')
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(projectId ?? '') || !/^\d{1,4}$/.test(index ?? '')) {
+    return new Response('Not found', { status: 404 })
+  }
+  const file = join(thumbDir(userDataDir, projectId), thumbFileName(Number(index)))
+  if (!existsSync(file)) return new Response('Not found', { status: 404 })
+  const body = Readable.toWeb(createReadStream(file)) as ReadableStream
+  return new Response(body, { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
+}
+
 const VIDEO_TYPES: Record<string, string> = {
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
@@ -69,9 +92,10 @@ const VIDEO_TYPES: Record<string, string> = {
  * Serve footage for an allowed project only: the renderer can ask for `shorts-media://project/<id>`
  * and nothing else. Supports byte ranges so scrubbing seeks instead of re-reading the whole file.
  */
-function registerMediaProtocol(store: Store): void {
+function registerMediaProtocol(store: Store, userDataDir: string): void {
   protocol.handle(MEDIA_SCHEME, (request) => {
     const url = new URL(request.url)
+    if (url.host === 'thumb') return serveThumbnail(url, userDataDir)
     const id = url.pathname.replace(/^\//, '')
     if (url.host !== 'project' || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
       return new Response('Not found', { status: 404 })
@@ -138,7 +162,7 @@ if (!app.requestSingleInstanceLock()) {
         for (const win of BrowserWindow.getAllWindows()) win.webContents.send('job:update', job)
       }
     })
-    registerMediaProtocol(store)
+    registerMediaProtocol(store, userData)
     registerIpc({ store, secrets, jobs, userDataDir: userData, getWindow: () => mainWindow })
     createWindow()
     app.on('activate', () => {

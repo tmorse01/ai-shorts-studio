@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, renameSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
-import type { Job, JobStatus, Project, Short } from '../shared/types'
+import type { ExportItem, ExportPrefs, Job, JobStatus, Project, Short } from '../shared/types'
 import type { Segment, Caption } from '../shared/timeline'
+import { exportOptionsSchema } from '../shared/schemas'
 
 const probeSchema = z.object({
   durationSec: z.number(),
@@ -28,7 +29,13 @@ const stateSchema = z.object({
   ),
   shorts: z.array(z.any()),
   jobs: z.array(z.any()),
-  settings: z.object({ musicFolder: z.string().nullable() })
+  settings: z.object({
+    musicFolder: z.string().nullable(),
+    lastExport: z
+      .object({ outputDir: z.string(), options: exportOptionsSchema })
+      .nullable()
+      .default(null)
+  })
 })
 
 interface State {
@@ -36,7 +43,7 @@ interface State {
   projects: Project[]
   shorts: Short[]
   jobs: Job[]
-  settings: { musicFolder: string | null }
+  settings: { musicFolder: string | null; lastExport: ExportPrefs | null }
 }
 
 const empty = (): State => ({
@@ -44,7 +51,7 @@ const empty = (): State => ({
   projects: [],
   shorts: [],
   jobs: [],
-  settings: { musicFolder: null }
+  settings: { musicFolder: null, lastExport: null }
 })
 
 const now = (): string => new Date().toISOString()
@@ -203,6 +210,7 @@ export class Store {
       progress: 0,
       message: 'Starting…',
       error: null,
+      items: null,
       createdAt: stamp,
       updatedAt: stamp
     }
@@ -214,7 +222,13 @@ export class Store {
 
   updateJob(
     id: string,
-    patch: { status?: JobStatus; progress?: number; message?: string; error?: string | null }
+    patch: {
+      status?: JobStatus
+      progress?: number
+      message?: string
+      error?: string | null
+      items?: ExportItem[] | null
+    }
   ): void {
     const job = this.state.jobs.find((j) => j.id === id)
     if (!job) return
@@ -229,6 +243,15 @@ export class Store {
 
   setMusicFolder(folder: string | null): void {
     this.state.settings.musicFolder = folder
+    this.save()
+  }
+
+  getLastExport(): ExportPrefs | null {
+    return this.state.settings.lastExport
+  }
+
+  setLastExport(prefs: ExportPrefs): void {
+    this.state.settings.lastExport = prefs
     this.save()
   }
 }

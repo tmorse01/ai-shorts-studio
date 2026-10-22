@@ -13,6 +13,8 @@ const api: StudioApi = {
   importMedia: (projectId) => ipcRenderer.invoke(IPC.projectImportMedia, projectId),
   relinkMedia: (projectId) => ipcRenderer.invoke(IPC.projectRelinkMedia, projectId),
   mediaUrl: (projectId) => `shorts-media://project/${projectId}`,
+  ensureThumbnails: (projectId) => ipcRenderer.invoke(IPC.thumbsEnsure, projectId),
+  thumbnailUrl: (projectId, index) => `shorts-media://thumb/${projectId}/${index}`,
 
   listShorts: (projectId) => ipcRenderer.invoke(IPC.shortList, projectId),
   createShort: (projectId, segments, title) =>
@@ -26,6 +28,8 @@ const api: StudioApi = {
   startAnalysis: (req) => ipcRenderer.invoke(IPC.analysisStart, req),
   startExport: (req) => ipcRenderer.invoke(IPC.exportStart, req),
   cancelJob: (jobId) => ipcRenderer.invoke(IPC.exportCancel, jobId),
+  revealExport: (shortId) => ipcRenderer.invoke(IPC.exportReveal, shortId),
+  openExport: (shortId) => ipcRenderer.invoke(IPC.exportOpen, shortId),
   listJobs: (projectId) => ipcRenderer.invoke(IPC.jobList, projectId),
   onJobUpdate: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, job: Job): void => callback(job)

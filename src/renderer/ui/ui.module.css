@@ -1,0 +1,161 @@
+/* Shared styling for the Radix-based controls: select, checkbox, tooltip. */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.selectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--space-2) 0 var(--space-2);
+  background: var(--ink-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-base);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.selectTrigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--ink-0);
+}
+
+.selectTrigger[data-state='open'] {
+  border-color: var(--primary);
+}
+
+.chevron {
+  color: var(--text-2);
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
+.selectContent {
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  padding: var(--space-1);
+  min-width: var(--radix-select-trigger-width);
+  z-index: 60;
+  overflow: hidden;
+}
+
+.selectItem {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--text-base);
+  cursor: pointer;
+  outline: none;
+}
+
+.selectItem[data-highlighted] {
+  background: var(--surface-2);
+}
+
+.selectItem[data-state='checked'] {
+  color: var(--primary-ink);
+}
+
+.checkRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.checkRow[data-disabled] {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+.checkBox {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: var(--ink-0);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  cursor: inherit;
+}
+
+.checkBox[data-state='checked'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-on);
+}
+
+.checkMark {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.switch {
+  flex: none;
+  width: 32px;
+  height: 18px;
+  padding: 0;
+  min-height: 0;
+  position: relative;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  cursor: inherit;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+.switch[data-state='checked'] {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.switchThumb {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--text);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.switch[data-state='checked'] .switchThumb {
+  transform: translateX(14px);
+  background: var(--primary-on);
+}
+
+.tip {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  box-shadow: var(--shadow-float);
+  z-index: 70;
+}

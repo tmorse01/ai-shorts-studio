@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_EXPORT_OPTIONS } from '../src/shared/export-math'
 
 // Electron's `app` is only needed to locate bundled binaries; point it at the repo instead.
 vi.mock('electron', () => ({
@@ -92,7 +93,8 @@ describe('real FFmpeg export', () => {
         musicPath: musicSrc,
         musicVolume: 0.3,
         musicDuck: true,
-        narrationPath: null
+        narrationPath: null,
+        options: DEFAULT_EXPORT_OPTIONS
       },
       outPath
     )
@@ -150,7 +152,8 @@ describe('real FFmpeg export', () => {
         musicPath: null,
         musicVolume: 0.3,
         musicDuck: false,
-        narrationPath: null
+        narrationPath: null,
+        options: DEFAULT_EXPORT_OPTIONS
       },
       outPath
     )
@@ -162,5 +165,41 @@ describe('real FFmpeg export', () => {
     expect(info.streams.find((s) => s.codec_type === 'video')).toMatchObject({ width: 1080, height: 1080 })
     expect(info.streams.some((s) => s.codec_type === 'audio')).toBe(true)
     expect(Number(info.format.duration)).toBeCloseTo(15, 0)
+  })
+
+  it('applies 720p, 30 fps and the audio bitrate option to the rendered file', async () => {
+    const probe = await probeMedia(withAudioSrc)
+    const outPath = join(workRoot, 'out-options.mp4')
+    const plan = buildExportArgs(
+      {
+        sourcePath: withAudioSrc,
+        probe,
+        segments: [{ startSec: 2, endSec: 8 }],
+        captions: [],
+        ratio: '9:16',
+        framing: { x: 0.5, y: 0.5, mode: 'crop' },
+        captionsEnabled: false,
+        captionFontSize: 72,
+        musicPath: null,
+        musicVolume: 0.3,
+        musicDuck: false,
+        narrationPath: null,
+        options: { quality: 'high', resolution: '720p', fps: 30, audioKbps: 192 }
+      },
+      outPath
+    )
+    const cwd = join(workRoot, 'work-options')
+    mkdirSync(cwd, { recursive: true })
+    await runProcess(binPath('ffmpeg'), plan.args, { cwd })
+
+    const info = ffprobeJson(outPath)
+    expect(info.streams.find((s) => s.codec_type === 'video')).toMatchObject({
+      width: 720,
+      height: 1280,
+      r_frame_rate: '30/1'
+    })
+    // AAC rate control lands below its target on short clips, so assert the requested rate, not the measured one.
+    expect(plan.args).toEqual(expect.arrayContaining(['-b:a', '192k']))
+    expect(info.streams.some((s) => s.codec_type === 'audio')).toBe(true)
   })
 })

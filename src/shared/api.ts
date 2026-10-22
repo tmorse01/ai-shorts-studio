@@ -2,6 +2,13 @@ import type { AnalysisRequest, ExportRequest, ShortPatch } from './schemas'
 import type { Job, Project, SettingsView, Short } from './types'
 import type { Segment } from './timeline'
 
+export interface ThumbStatus {
+  ready: boolean
+  /** Seconds of source time between thumbnails. */
+  stepSec: number
+  count: number
+}
+
 export interface ProjectView extends Project {
   /** True when the recorded source path no longer exists on disk. */
   sourceMissing: boolean
@@ -18,6 +25,8 @@ export interface StudioApi {
   importMedia(projectId: string): Promise<ProjectView | null>
   relinkMedia(projectId: string): Promise<ProjectView | null>
   mediaUrl(projectId: string): string
+  ensureThumbnails(projectId: string): Promise<ThumbStatus>
+  thumbnailUrl(projectId: string, index: number): string
 
   listShorts(projectId: string): Promise<Short[]>
   createShort(projectId: string, segments: Segment[], title?: string): Promise<Short>
@@ -29,6 +38,9 @@ export interface StudioApi {
   startAnalysis(req: AnalysisRequest): Promise<Job>
   startExport(req: ExportRequest): Promise<Job>
   cancelJob(jobId: string): Promise<boolean>
+  /** Show a finished short's export in its folder. Takes the short id, never a path. */
+  revealExport(shortId: string): Promise<void>
+  openExport(shortId: string): Promise<void>
   listJobs(projectId?: string): Promise<Job[]>
   onJobUpdate(callback: (job: Job) => void): () => void
 

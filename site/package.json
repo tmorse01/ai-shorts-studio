@@ -1,0 +1,16 @@
+{
+  "name": "ai-shorts-studio-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Marketing site and download page for AI Shorts Studio.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "3.7.4",
+    "astro": "5.18.2"
+  }
+}

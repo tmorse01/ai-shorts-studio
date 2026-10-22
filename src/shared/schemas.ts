@@ -53,11 +53,19 @@ export const analysisRequestSchema = z.object({
   ratio: ratioSchema
 })
 
+export const exportOptionsSchema = z.object({
+  quality: z.enum(['high', 'standard', 'small']).default('standard'),
+  resolution: z.enum(['1080p', '720p']).default('1080p'),
+  fps: z.union([z.literal('source'), z.literal(30), z.literal(60)]).default('source'),
+  audioKbps: z.union([z.literal(128), z.literal(160), z.literal(192)]).default(160)
+})
+
 export const exportRequestSchema = z.object({
   projectId: idSchema,
   shortIds: z.array(idSchema).min(1).max(20),
   outputDir: z.string().min(1).max(1024),
-  overwrite: z.boolean().default(false)
+  overwrite: z.boolean().default(false),
+  options: exportOptionsSchema.default({})
 })
 
 export const apiKeySchema = z.object({
@@ -73,4 +81,5 @@ export const narrationSchema = z.object({
 export type ShortSettings = z.infer<typeof shortSettingsSchema>
 export type ShortPatch = z.infer<typeof shortPatchSchema>
 export type AnalysisRequest = z.infer<typeof analysisRequestSchema>
+export type ExportOptions = z.infer<typeof exportOptionsSchema>
 export type ExportRequest = z.infer<typeof exportRequestSchema>

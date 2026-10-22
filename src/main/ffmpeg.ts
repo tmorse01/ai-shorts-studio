@@ -13,6 +13,8 @@ import {
   type Segment,
   type Size
 } from '../shared/timeline'
+import type { ExportOptions } from '../shared/schemas'
+import { qualityToCrf, shortSideFor } from '../shared/export-math'
 import type { ProbeInfo } from '../shared/types'
 
 /** Resolve a bundled binary in dev (resources/bin) and packaged builds (resources/bin next to app.asar). */
@@ -157,6 +159,7 @@ export interface ExportInput {
   musicDuck: boolean
   /** Absolute path to a recorded narration file, or null. */
   narrationPath: string | null
+  options: ExportOptions
 }
 
 export interface GraphPlan {
@@ -173,7 +176,11 @@ export interface GraphPlan {
  */
 export function buildExportArgs(input: ExportInput, outPath: string): GraphPlan {
   const total = input.segments.reduce((s, seg) => s + (seg.endSec - seg.startSec), 0)
-  const size = outputSize(input.ratio, { width: input.probe.width, height: input.probe.height })
+  const size = outputSize(
+    input.ratio,
+    { width: input.probe.width, height: input.probe.height },
+    shortSideFor(input.options.resolution)
+  )
   const args: string[] = ['-hide_banner', '-y', '-progress', 'pipe:1', '-nostats']
   const inputs: string[] = ['-i', input.sourcePath]
   let nextIndex = 1
@@ -271,13 +278,16 @@ export function buildExportArgs(input: ExportInput, outPath: string): GraphPlan 
     '-preset',
     'veryfast',
     '-crf',
-    '20',
+    String(qualityToCrf(input.options.quality)),
     '-pix_fmt',
-    'yuv420p',
+    'yuv420p'
+  )
+  if (input.options.fps !== 'source') args.push('-r', String(input.options.fps))
+  args.push(
     '-c:a',
     'aac',
     '-b:a',
-    '160k',
+    `${input.options.audioKbps}k`,
     '-ar',
     '48000',
     '-movflags',

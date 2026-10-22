@@ -1,3 +1,4 @@
+import type { ExportOptions } from './schemas'
 import type { Caption, Framing, Ratio, Segment } from './timeline'
 
 export type Provenance = 'ai' | 'heuristic' | 'manual'
@@ -48,11 +49,23 @@ export interface Short {
   updatedAt: string
 }
 
-export type JobKind = 'analysis' | 'export' | 'proxy'
+export type JobKind = 'analysis' | 'export' | 'proxy' | 'thumbs'
 
 /** Codecs Chromium plays directly; anything else gets an H.264 preview proxy. */
 export const PLAYABLE_VIDEO_CODECS = new Set(['h264', 'vp8', 'vp9', 'av1'])
 export type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
+
+export type ExportItemStatus = 'queued' | 'preparing' | 'encoding' | 'verifying' | 'done' | 'failed' | 'cancelled'
+
+/** Per-short state inside an export job, so the progress dialog can show each file on its own. */
+export interface ExportItem {
+  shortId: string
+  title: string
+  status: ExportItemStatus
+  /** 0-100 for this short only. */
+  progress: number
+  outPath: string | null
+}
 
 export interface Job {
   id: string
@@ -62,8 +75,16 @@ export interface Job {
   progress: number
   message: string
   error: string | null
+  /** Set only on export jobs. */
+  items: ExportItem[] | null
   createdAt: string
   updatedAt: string
+}
+
+/** Last export choices, pre-filled the next time the export dialog opens. */
+export interface ExportPrefs {
+  outputDir: string
+  options: ExportOptions
 }
 
 export interface MediaUrl {
@@ -75,6 +96,7 @@ export interface SettingsView {
   hasApiKey: boolean
   keyStorage: 'safeStorage' | 'unavailable'
   musicFolder: string | null
+  lastExport: ExportPrefs | null
   whisperAvailable: boolean
   ffmpegAvailable: boolean
 }
@@ -102,13 +124,16 @@ export const IPC = {
   analysisCancel: 'analysis:cancel',
   exportStart: 'export:start',
   exportCancel: 'export:cancel',
+  exportReveal: 'export:reveal',
+  exportOpen: 'export:open',
   jobList: 'job:list',
   settingsGet: 'settings:get',
   settingsSetApiKey: 'settings:setApiKey',
   settingsClearApiKey: 'settings:clearApiKey',
   settingsSetMusicFolder: 'settings:setMusicFolder',
   musicList: 'music:list',
-  dialogPickOutputDir: 'dialog:pickOutputDir'
+  dialogPickOutputDir: 'dialog:pickOutputDir',
+  thumbsEnsure: 'thumbs:ensure'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

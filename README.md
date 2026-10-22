@@ -34,6 +34,15 @@ stored with Windows DPAPI via Electron `safeStorage`. It is never written to dis
 | `pnpm package:win` | Build the NSIS installer into `release/` |
 | `pnpm e2e` | Drive the real Electron app over DevTools: import, export, AI error path, cancel, relaunch, crash recovery |
 
+## Website and releases
+
+- `site/` is the public Astro marketing site. See [site/README.md](site/README.md).
+- `.github/workflows/ci.yml` runs lint, typecheck and tests on Windows, and builds the site, on every push and PR.
+- `.github/workflows/site.yml` deploys the site to Netlify on every push to `main` that touches `site/`.
+  Secrets: `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID`.
+- `.github/workflows/release.yml` builds the installer on a `v*` tag and attaches it, with a SHA-256 checksum, to a GitHub Release.
+  The tag must match the `version` in `package.json`. Cut a release with `git tag v0.1.0 && git push --tags`.
+
 ## Known limitations
 
 - **Unsigned installer.** Windows SmartScreen will warn. Code signing is not configured.

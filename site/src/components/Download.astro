@@ -1,0 +1,53 @@
+---
+import { site } from '../config';
+
+interface Props {
+  id?: string;
+}
+
+const { id = 'download' } = Astro.props;
+---
+
+<section class="section download" id={id}>
+  <div class="container">
+    <p class="section-label">Download</p>
+    <h2>Install AI Shorts Studio for Windows</h2>
+    <p class="lead">
+      A single installer for Windows 10 or 11, 64-bit. Your footage stays on your PC. You can
+      edit and export without an API key. The key is only needed for AI ranking.
+    </p>
+
+    <div class="actions">
+      <a class="button button-primary" href={site.latestInstallerUrl}>Download for Windows</a>
+      <a class="button" href={site.releasesUrl}>All releases and checksums</a>
+    </div>
+
+    <p class="note">
+      The installer is not code-signed yet, so Windows SmartScreen will show a warning. Choose
+      <strong>More info</strong>, then <strong>Run anyway</strong>. Check the SHA-256 checksum on the
+      releases page if you want to verify the file.
+    </p>
+  </div>
+</section>
+
+<style>
+  .lead {
+    max-width: 62ch;
+    font-size: 16px;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 24px 0;
+  }
+
+  .note {
+    max-width: 62ch;
+    font-size: 13px;
+    color: var(--text-2);
+    border-left: 3px solid var(--border-strong);
+    padding-left: 12px;
+  }
+</style>

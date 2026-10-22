@@ -4,6 +4,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { buildAss } from '../shared/timeline'
 import type { Job, Project, Short } from '../shared/types'
 import type { AnalysisRequest, ExportRequest } from '../shared/schemas'
+import type { ExportItem } from '../shared/types'
 import { rankCandidates, AiError, type FrameSample } from './ai'
 import {
   captionsForSegments,
@@ -21,6 +22,7 @@ import {
 } from './analysis'
 import { binPath, buildExportArgs, probeMedia, ProcessCancelledError, runProcess } from './ffmpeg'
 import type { Store } from './store'
+import { buildThumbArgs, thumbDir, thumbnailStep, writeThumbMeta } from './thumbnails'
 
 export interface JobDeps {
   store: Store
@@ -61,14 +63,16 @@ export class JobRunner {
     return job
   }
 
-  private progress(job: Job, progress: number, message: string): void {
-    this.deps.store.updateJob(job.id, { progress: Math.round(progress), message })
-    this.deps.notify({ ...job, progress: Math.round(progress), message })
+  private progress(job: Job, progress: number, message: string, items?: ExportItem[]): void {
+    const extra = items ? { items } : {}
+    this.deps.store.updateJob(job.id, { progress: Math.round(progress), message, ...extra })
+    this.deps.notify({ ...job, progress: Math.round(progress), message, ...extra })
   }
 
-  private finish(job: Job, status: Job['status'], error: string | null, message: string): void {
-    this.deps.store.updateJob(job.id, { status, error, message, progress: status === 'completed' ? 100 : 0 })
-    this.deps.notify({ ...job, status, error, message })
+  private finish(job: Job, status: Job['status'], error: string | null, message: string, items?: ExportItem[]): void {
+    const extra = items ? { items } : {}
+    this.deps.store.updateJob(job.id, { status, error, message, progress: status === 'completed' ? 100 : 0, ...extra })
+    this.deps.notify({ ...job, status, error, message, progress: status === 'completed' ? 100 : 0, ...extra })
     this.active = null
   }
 
@@ -176,6 +180,51 @@ export class JobRunner {
     }
   }
 
+  /** One thumbnail every few seconds for the source strip. Cached per project; replaced on each run. */
+  startThumbnails(projectId: string): Job {
+    const project = this.deps.store.getProject(projectId)
+    if (!project.sourcePath || !project.probe) throw new Error('Import a video first.')
+    const job = this.begin(project.id, 'thumbs')
+    void this.runThumbnails(job, project)
+    return job
+  }
+
+  private async runThumbnails(job: Job, project: Project): Promise<void> {
+    const signal = this.active?.controller.signal
+    const dir = thumbDir(this.deps.userDataDir, project.id)
+    const step = thumbnailStep(project.probe!.durationSec)
+    const totalSec = project.probe!.durationSec
+    rmSync(dir, { recursive: true, force: true })
+    mkdirSync(dir, { recursive: true })
+    let lastPct = -1
+    try {
+      this.progress(job, 0, 'Generating thumbnails…')
+      await runProcess(binPath('ffmpeg'), buildThumbArgs(project.sourcePath!, dir, step), {
+        onSpawn: (c) => this.attachChild(c),
+        onStdoutLine: (line) => {
+          const m = /^out_time_us=(\d+)/.exec(line)
+          if (m && totalSec > 0) {
+            const pct = Math.min(99, Math.round((Number(m[1]) / 1e6 / totalSec) * 100))
+            if (pct !== lastPct) {
+              lastPct = pct
+              this.progress(job, pct, 'Generating thumbnails…')
+            }
+          }
+        }
+      })
+      const count = readdirSync(dir).filter((f) => f.startsWith('thumb-') && f.endsWith('.jpg')).length
+      writeThumbMeta(dir, { stepSec: step, count })
+      this.finish(job, 'completed', null, `${count} thumbnails ready.`)
+    } catch (err) {
+      rmSync(dir, { recursive: true, force: true })
+      if (err instanceof ProcessCancelledError || signal?.aborted) {
+        this.finish(job, 'cancelled', null, 'Thumbnails cancelled.')
+      } else {
+        this.finish(job, 'failed', (err as Error).message, 'Thumbnails failed.')
+      }
+    }
+  }
+
   /** Build a 720p H.264 preview for sources the renderer cannot decode directly. Cache only. */
   startProxy(projectId: string): Job {
     const project = this.deps.store.getProject(projectId)
@@ -242,11 +291,27 @@ export class JobRunner {
     const scratch = join(this.deps.userDataDir, 'cache', project.id, `export-${job.id}`)
     mkdirSync(scratch, { recursive: true })
     const exported: string[] = []
+    let items: ExportItem[] = shorts.map((s) => ({
+      shortId: s.id,
+      title: s.title,
+      status: 'queued',
+      progress: 0,
+      outPath: null
+    }))
+    // Replaces one short's row and reports the whole list, so the progress dialog never shows stale rows.
+    const update = (i: number, patch: Partial<ExportItem>, overall: number, message: string): void => {
+      items = items.map((it, j) => (j === i ? { ...it, ...patch } : it))
+      this.progress(job, overall, message, items)
+    }
+    let current = -1
     try {
       for (let i = 0; i < shorts.length; i++) {
+        current = i
         if (signal?.aborted) throw new ProcessCancelledError()
         const short = shorts[i]
         const label = `(${i + 1}/${shorts.length}) ${short.title}`
+        const share = (frac: number): number => ((i + frac) / shorts.length) * 100
+        update(i, { status: 'preparing', progress: 0 }, share(0), `Preparing ${label}…`)
         const outPath = chooseOutputPath(req.outputDir, short.title, req.overwrite)
         const musicPath = short.settings.musicEnabled ? this.pickMusic(short.id) : null
         const workDir = join(scratch, short.id)
@@ -265,7 +330,8 @@ export class JobRunner {
             musicPath,
             musicVolume: short.settings.musicVolume,
             musicDuck: short.settings.musicDuck,
-            narrationPath: short.narrationPath && existsSync(short.narrationPath) ? short.narrationPath : null
+            narrationPath: short.narrationPath && existsSync(short.narrationPath) ? short.narrationPath : null,
+            options: req.options
           },
           outPath
         )
@@ -278,7 +344,7 @@ export class JobRunner {
             })
           )
         }
-        this.progress(job, (i / shorts.length) * 100, `Exporting ${label}…`)
+        update(i, { status: 'encoding', progress: 0, outPath }, share(0), `Exporting ${label}…`)
         let lastPct = -1
         try {
           await runProcess(binPath('ffmpeg'), plan.args, {
@@ -288,10 +354,10 @@ export class JobRunner {
               const m = /^out_time_us=(\d+)/.exec(line)
               if (m && plan.totalSec > 0) {
                 const frac = Math.min(1, Number(m[1]) / 1e6 / plan.totalSec)
-                const pct = Math.round(((i + frac) / shorts.length) * 100)
+                const pct = Math.round(frac * 100)
                 if (pct !== lastPct) {
                   lastPct = pct
-                  this.progress(job, pct, `Exporting ${label}…`)
+                  update(i, { status: 'encoding', progress: pct }, share(frac), `Exporting ${label}…`)
                 }
               }
             }
@@ -300,17 +366,26 @@ export class JobRunner {
           rmSync(outPath, { force: true })
           throw err
         }
+        update(i, { status: 'verifying', progress: 100 }, share(1), `Checking ${label}…`)
         await verifyExport(outPath, plan.totalSec)
         this.deps.store.setShortExport(short.id, outPath)
         exported.push(outPath)
+        update(i, { status: 'done', progress: 100 }, share(1), `Finished ${label}`)
       }
-      this.finish(job, 'completed', null, `Exported ${exported.length} short${exported.length === 1 ? '' : 's'}.`)
+      this.finish(job, 'completed', null, `Exported ${exported.length} short${exported.length === 1 ? '' : 's'}.`, items)
     } catch (err) {
       // Shorts finished before the failure stay exported and valid; only the in-flight file is removed.
-      if (err instanceof ProcessCancelledError || signal?.aborted) {
-        this.finish(job, 'cancelled', null, 'Export cancelled. Partial file removed.')
+      const stopped = err instanceof ProcessCancelledError || Boolean(signal?.aborted)
+      // The short that was running gets the outcome; any short after it never started.
+      items = items.map((it, j) => {
+        if (j < current || it.status === 'done') return it
+        if (j === current) return { ...it, status: stopped ? 'cancelled' : 'failed' }
+        return { ...it, status: 'cancelled' }
+      })
+      if (stopped) {
+        this.finish(job, 'cancelled', null, 'Export cancelled. Partial file removed.', items)
       } else {
-        this.finish(job, 'failed', (err as Error).message, 'Export failed.')
+        this.finish(job, 'failed', (err as Error).message, 'Export failed.', items)
       }
     } finally {
       rmSync(scratch, { recursive: true, force: true })

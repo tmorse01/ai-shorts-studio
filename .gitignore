@@ -1,6 +1,9 @@
 node_modules
 out
 release
+site/dist
+site/.astro
+.netlify
 resources/bin
 resources/whisper
 .DS_Store

@@ -1,0 +1,301 @@
+---
+import Base from '../layouts/Base.astro';
+import Download from '../components/Download.astro';
+import { site } from '../config';
+
+const steps = [
+  {
+    title: 'Import',
+    body: 'Add an MP4 or MOV. The file is referenced where it is. It is not copied or uploaded.',
+  },
+  {
+    title: 'Analyze',
+    body: 'Scene detection and speech-to-text run locally. Optionally, Claude ranks one to five shorts of 30 to 60 seconds.',
+  },
+  {
+    title: 'Review',
+    body: 'Adjust cuts, choose crop or fit framing, edit captions, and add music or narration.',
+  },
+  {
+    title: 'Export',
+    body: 'Export the shorts you pick as H.264 and AAC MP4 files. Every export is probed afterwards.',
+  },
+];
+
+const features = [
+  {
+    title: 'Local first',
+    body: 'Scene detection, transcription and FFmpeg run on your computer. Your video does not leave it.',
+  },
+  {
+    title: 'Works without AI',
+    body: 'Set in and out points yourself to build shorts by hand. No API key needed.',
+  },
+  {
+    title: 'Vertical framing',
+    body: 'Crop to a vertical frame, or fit the whole picture with black bars, per short.',
+  },
+  {
+    title: 'Captions from speech',
+    body: 'Whisper transcribes the audio so AI-picked shorts come with captions you can edit.',
+  },
+  {
+    title: 'Music and narration',
+    body: 'Mix in tracks from a folder you choose, or record a voice-over in the app.',
+  },
+  {
+    title: 'Plain export',
+    body: 'Pick the shorts to export and get H.264 and AAC MP4 files in a folder you choose.',
+  },
+];
+
+const faqs = [
+  {
+    q: 'Does it upload my video?',
+    a: 'No. Only small sampled frames and speech excerpts go to Anthropic, and only when you run AI analysis. Manual editing and export never upload anything.',
+  },
+  {
+    q: 'Do I need an API key?',
+    a: 'Only for AI ranking. You can cut and export shorts by hand without one. Your key is stored with Windows DPAPI and is never written to disk in plain text.',
+  },
+  {
+    q: 'What languages does it understand?',
+    a: 'Speech-to-text is English only for now. Silent footage relies on sampled frames, which give weaker motion information.',
+  },
+  {
+    q: 'Which platforms does it run on?',
+    a: 'Windows 10 or 11, 64-bit. There is no macOS or Linux build yet.',
+  },
+];
+---
+
+<Base title={`${site.name}: short vertical clips from long footage`} description={site.description}>
+  <section class="hero">
+    <div class="container">
+      <p class="section-label">Local-first AI shorts maker for Windows</p>
+      <h1>{site.tagline}</h1>
+      <p class="hero-lead">
+        Import a long video, let AI find the moments worth keeping, then review and export 30 to 60
+        second vertical shorts. The footage stays on your machine.
+      </p>
+      <div class="actions">
+        <a class="button button-primary" href="#download">Download for Windows</a>
+        <a class="button" href="#how-it-works">See how it works</a>
+      </div>
+      <div class="frame" aria-hidden="true">
+        <div class="cut cut-1"></div>
+        <div class="cut cut-2"></div>
+        <div class="cut cut-3"></div>
+        <div class="playhead"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how-it-works">
+    <div class="container">
+      <p class="section-label">How it works</p>
+      <h2>Four steps from raw footage to a short</h2>
+      <ol class="steps">
+        {
+          steps.map((step, i) => (
+            <li class="card">
+              <span class="step-number">{String(i + 1).padStart(2, '0')}</span>
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <p class="section-label">Features</p>
+      <h2>Built for a quick, careful edit</h2>
+      <ul class="grid">
+        {
+          features.map((f) => (
+            <li class="card">
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <p class="section-label">Privacy</p>
+      <h2>Your footage is not uploaded</h2>
+      <p class="lead">
+        AI Shorts Studio is designed around a simple rule: the video stays on your PC. Read the
+        <a href="/privacy">full privacy details</a> for exactly what is sent when you run AI analysis.
+      </p>
+    </div>
+  </section>
+
+  <Download />
+
+  <section class="section">
+    <div class="container">
+      <p class="section-label">Known limitations</p>
+      <h2>What it does not do yet</h2>
+      <ul class="limits">
+        <li>The installer is unsigned, so Windows SmartScreen warns on first run.</li>
+        <li>Speech-to-text is English only.</li>
+        <li>AI suggestions are editable starting points. They are not calibrated or guaranteed.</li>
+        <li>Music comes only from a folder you choose. Use tracks you have rights to.</li>
+        <li>Very long footage takes a while to scan. Transcription is cached per project.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <p class="section-label">FAQ</p>
+      <h2>Questions</h2>
+      <dl class="faq">
+        {
+          faqs.map((item) => (
+            <div class="faq-item">
+              <dt>{item.q}</dt>
+              <dd>{item.a}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero {
+    padding: 72px 0 64px;
+  }
+
+  .hero-lead {
+    max-width: 58ch;
+    font-size: 18px;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 28px 0 40px;
+  }
+
+  /* A simple stand-in for the editor: three cuts in the brand greys with a white playhead. */
+  .frame {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    height: 88px;
+    max-width: 720px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--surface-1);
+    padding: 8px;
+    overflow: hidden;
+  }
+
+  .cut {
+    flex: 1;
+    border-radius: 6px;
+  }
+
+  .cut-1 {
+    flex: 3;
+    background: var(--cut-1, #f5f5f5);
+  }
+
+  .cut-2 {
+    flex: 2;
+    background: #b3b3b3;
+  }
+
+  .cut-3 {
+    flex: 1.5;
+    background: #8c8c8c;
+  }
+
+  .playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 42%;
+    width: 2px;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  }
+
+  .steps,
+  .grid,
+  .limits {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 20px;
+  }
+
+  .card p {
+    margin: 0;
+    font-size: 15px;
+  }
+
+  .step-number {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--text-2);
+    margin-bottom: 12px;
+  }
+
+  .lead {
+    max-width: 62ch;
+  }
+
+  .limits {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .limits li {
+    color: var(--text-2);
+    padding-left: 16px;
+    border-left: 3px solid var(--border-strong);
+  }
+
+  .faq {
+    margin: 0;
+    max-width: 72ch;
+  }
+
+  .faq-item {
+    border-top: 1px solid var(--border);
+    padding: 16px 0;
+  }
+
+  .faq dt {
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .faq dd {
+    margin: 0;
+    color: var(--text-2);
+  }
+</style>

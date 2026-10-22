@@ -98,12 +98,18 @@ const RATIO_SIZE: Record<Exclude<Ratio, 'original'>, Size> = {
   '16:9': { width: 1920, height: 1080 }
 }
 
-/** Output frame size for a ratio. `original` keeps the source size, rounded down to even numbers. */
-export function outputSize(ratio: Ratio, source: Size): Size {
+/**
+ * Output frame size for a ratio. `shortSide` sets the shorter edge of the frame (1080 by default).
+ * `original` keeps the source size, rounded down to even numbers, and ignores `shortSide`.
+ */
+export function outputSize(ratio: Ratio, source: Size, shortSide = 1080): Size {
   if (ratio === 'original') {
     return { width: even(source.width), height: even(source.height) }
   }
-  return RATIO_SIZE[ratio]
+  const base = RATIO_SIZE[ratio]
+  if (shortSide === 1080) return base
+  const scale = shortSide / Math.min(base.width, base.height)
+  return { width: even(base.width * scale), height: even(base.height * scale) }
 }
 
 const even = (n: number): number => Math.max(2, Math.floor(n / 2) * 2)

@@ -1,4 +1,4 @@
-/* global window, document */
+/* global window, document, Image */
 // End-to-end check against the real Electron app, driven over the DevTools protocol.
 // It uses a throwaway userData folder, a generated source video, and the real FFmpeg binaries.
 // Run with: pnpm e2e   (requires `pnpm build` first and resources/bin populated).
@@ -173,6 +173,10 @@ async function main() {
   const exp = await call(page, (s, pid, sid, dir) => s.startExport({ projectId: pid, shortIds: [sid], outputDir: dir, overwrite: false }), 'e2eproject', short.id, outDir)
   const expDone = await waitForJob(page, 'e2eproject', exp.id)
   check('export job completes', expDone.status === 'completed', expDone.error ?? expDone.message)
+  check(
+    'export job reports each short as done with a file path',
+    Array.isArray(expDone.items) && expDone.items.length === 1 && expDone.items[0].status === 'done' && Boolean(expDone.items[0].outPath)
+  )
   const outFile = join(outDir, 'E2E clip.mp4')
   if (existsSync(outFile)) {
     const o = probeOut(outFile)
@@ -183,6 +187,106 @@ async function main() {
   }
 
   // AI analysis with a deliberately invalid key: this is a real call, so the failure must be surfaced.
+  // Focus layout: reload so the renderer picks up the new shorts, select one, and check the stage.
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await sleep(2000)
+  // A second clip, so switching between clips can be checked.
+  await call(page, (s, pid) => s.createShort(pid, [{ startSec: 60, endSec: 70 }], 'Second clip'), 'e2eproject')
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await sleep(1500)
+  // Clips now live in the sidebar. Selecting one opens the focus stage, and the player shows that clip.
+  await page.evaluate(() => {
+    const list = document.querySelector('[aria-label="Shorts in this project"]')
+    const btn = [...(list?.querySelectorAll('button') ?? [])].find((b) => b.textContent?.includes('E2E clip'))
+    btn?.click()
+  })
+  await sleep(1000)
+  const focused = await page.evaluate(() =>
+    Boolean(document.querySelector('section[aria-label^="Editing"]') && document.querySelector('input[aria-label="Short title"]'))
+  )
+  check('selecting a clip in the sidebar opens the focus stage and inspector', focused)
+  const playerShowsProject = await page.evaluate(() => (document.querySelector('video')?.getAttribute('src') ?? '').startsWith('shorts-media://project/'))
+  check('the clip is loaded in the shared video player', playerShowsProject)
+  const pickClip = (name) =>
+    page.evaluate((n) => {
+      const list = document.querySelector('[aria-label="Shorts in this project"]')
+      const btn = [...(list?.querySelectorAll('button') ?? [])].find((b) => b.textContent?.includes(n))
+      btn?.click()
+    }, name)
+  await pickClip('Second clip')
+  await sleep(800)
+  const switched = await page.evaluate(() => document.querySelector('input[aria-label="Short title"]')?.value)
+  check('switching clips in the sidebar updates the editor', switched === 'Second clip', `title field: ${switched}`)
+  await pickClip('E2E clip')
+  await sleep(800)
+  const back = await page.evaluate(() => document.querySelector('input[aria-label="Short title"]')?.value)
+  check('switching back restores the first clip', back === 'E2E clip', `title field: ${back}`)
+  const hasPlayCuts = await page.evaluate(() => [...document.querySelectorAll('button')].some((b) => /play cuts|stop preview/i.test(b.textContent ?? '')))
+  check('there is no Play cuts or preview button', !hasPlayCuts)
+  const settingsKey = await page.evaluate(() => {
+    const details = document.querySelector('aside details')
+    if (details) details.open = true
+    return Boolean(document.querySelector('input[placeholder="sk-ant-…"], input[placeholder="sk-ant-..."]'))
+  })
+  check('Project settings holds the API key field', settingsKey)
+  await page.screenshot({ path: join(work, 'focus.png') })
+
+  // Timeline: drag cut 1's end handle left by 48px. At the default zoom (16px/s) that trims 3s.
+  const endHandle = await page.waitForSelector('[aria-label="Cut 1 end"]', { timeout: 5000 })
+  await endHandle.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'center' }))
+  await sleep(300)
+  const box = await endHandle.boundingBox()
+  const hx = box.x + box.width / 2
+  const hy = box.y + box.height / 2
+  await page.mouse.move(hx, hy)
+  await page.mouse.down()
+  await page.mouse.move(hx - 48, hy, { steps: 8 })
+  await page.mouse.up()
+  await sleep(300)
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Save changes')?.click())
+  await sleep(800)
+  const trimmed = await call(page, (s, id) => s.listShorts(id).then((list) => list.find((x) => x.title === 'E2E clip')), 'e2eproject')
+  // Source strip: thumbnails generate in the background, one image loads through the protocol, and a drag adds a cut.
+  let thumbStatus = await call(page, (s, pid) => s.ensureThumbnails(pid), 'e2eproject')
+  for (let i = 0; i < 60 && !thumbStatus.ready; i++) {
+    await sleep(2000)
+    thumbStatus = await call(page, (s, pid) => s.ensureThumbnails(pid), 'e2eproject')
+  }
+  check('source strip thumbnails are generated and ready', thumbStatus.ready && thumbStatus.count > 0, JSON.stringify(thumbStatus))
+  await sleep(500)
+  const thumbLoads = await page.evaluate(
+    (url) =>
+      new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => resolve(img.naturalWidth)
+        img.onerror = () => resolve(0)
+        img.src = url
+      }),
+    `shorts-media://thumb/e2eproject/0`
+  )
+  check('a thumbnail image loads through the scoped protocol', thumbLoads > 0, `width ${thumbLoads}`)
+
+  const track = await page.waitForSelector('section[aria-label="Source footage"] [class*="track"]', { timeout: 5000 })
+  await track.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'center' }))
+  await sleep(300)
+  const tBox = await track.boundingBox()
+  const y = tBox.y + tBox.height / 2
+  await page.mouse.move(tBox.x + tBox.width * 0.6, y)
+  await page.mouse.down()
+  await page.mouse.move(tBox.x + tBox.width * 0.65, y, { steps: 6 })
+  await page.mouse.up()
+  await sleep(300)
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Save changes')?.click())
+  await sleep(800)
+  const withStripCut = await call(page, (s, id) => s.listShorts(id).then((list) => list.find((x) => x.title === 'E2E clip')), 'e2eproject')
+  check('dragging across the source strip adds a cut', withStripCut.segments.length === 3, `${withStripCut.segments.length} cuts`)
+
+  check(
+    'timeline trim drag saves the new cut end (13s → ~10s)',
+    trimmed && Math.abs(trimmed.segments[0].endSec - 10) < 0.3 && trimmed.segments[0].startSec === 3,
+    trimmed ? `cut 1 = ${trimmed.segments[0].startSec.toFixed(2)}–${trimmed.segments[0].endSec.toFixed(2)}` : 'missing'
+  )
+
   const ana = await call(page, (s, pid) => s.startAnalysis({ projectId: pid, prompt: 'Find the best moments', count: 2, minSec: 30, maxSec: 60, ratio: '9:16' }), 'e2eproject')
   const anaDone = await waitForJob(page, 'e2eproject', ana.id, 900_000)
   check(
