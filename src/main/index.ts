@@ -8,6 +8,7 @@ import { JobRunner } from './jobs'
 import { registerIpc } from './ipc'
 import { thumbDir, thumbFileName } from './thumbnails'
 import { pickMusicTrack } from './music'
+import { posterFile } from './poster'
 
 const MEDIA_SCHEME = 'shorts-media'
 const DEV_RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
@@ -88,6 +89,21 @@ function serveThumbnail(url: URL, store: Store, userDataDir: string): Response {
   return new Response(body, { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
 }
 
+/** Card poster for a media asset: `shorts-media://poster/<assetId>` only. */
+function servePoster(url: URL, store: Store, userDataDir: string): Response {
+  const assetId = url.pathname.replace(/^\//, '')
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(assetId)) return new Response('Not found', { status: 404 })
+  let file: string
+  try {
+    file = posterFile(userDataDir, store.findMediaAsset(assetId).project.id, assetId)
+  } catch {
+    return new Response('Not found', { status: 404 })
+  }
+  if (!existsSync(file)) return new Response('Not found', { status: 404 })
+  const body = Readable.toWeb(createReadStream(file)) as ReadableStream
+  return new Response(body, { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
+}
+
 const MEDIA_TYPES: Record<string, string> = {
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
@@ -158,6 +174,7 @@ function registerMediaProtocol(store: Store, userDataDir: string): void {
   protocol.handle(MEDIA_SCHEME, (request) => {
     const url = new URL(request.url)
     if (url.host === 'thumb') return serveThumbnail(url, store, userDataDir)
+    if (url.host === 'poster') return servePoster(url, store, userDataDir)
     if (url.host === 'audio') return serveShortAudio(url, store, request.headers.get('range'))
     const id = url.pathname.replace(/^\//, '')
     if (url.host !== 'media' || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {

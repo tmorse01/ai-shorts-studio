@@ -268,6 +268,10 @@ export default function App() {
 
   const checkedShorts = shorts.filter((s) => checked.has(s.id))
   const visibleShorts = clipScope === 'all' ? shorts : shorts.filter((s) => s.sourceId === sourceId)
+  const clipCounts = shorts.reduce<Record<string, number>>((acc, s) => {
+    if (s.sourceId) acc[s.sourceId] = (acc[s.sourceId] ?? 0) + 1
+    return acc
+  }, {})
   const exportJob = jobs.find((j) => j.id === exportJobId) ?? null
 
   const startExport = async (prefs: ExportPrefs, overwrite: boolean): Promise<void> => {
@@ -420,6 +424,7 @@ export default function App() {
         shorts={visibleShorts}
         clipScope={clipScope}
         onClipScope={setClipScope}
+        clipCounts={clipCounts}
         totalClips={shorts.length}
         selectedId={selectedId}
         checked={checked}

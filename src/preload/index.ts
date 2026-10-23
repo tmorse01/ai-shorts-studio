@@ -17,6 +17,10 @@ const api: StudioApi = {
   removeMedia: (assetId) => ipcRenderer.invoke(IPC.mediaRemove, assetId),
   prepareMedia: (assetId) => ipcRenderer.invoke(IPC.mediaPrepare, assetId),
   mediaUrl: (assetId) => `shorts-media://media/${assetId}`,
+  ensurePosters: async (projectId) => {
+    await ipcRenderer.invoke(IPC.mediaPosters, projectId)
+  },
+  posterUrl: (assetId) => `shorts-media://poster/${assetId}`,
   ensureThumbnails: (assetId) => ipcRenderer.invoke(IPC.thumbsEnsure, assetId),
   thumbnailUrl: (assetId, index) => `shorts-media://thumb/${assetId}/${index}`,
   shortAudioUrl: (shortId, kind, version = '') => `shorts-media://audio/${shortId}/${kind}?v=${encodeURIComponent(version)}`,

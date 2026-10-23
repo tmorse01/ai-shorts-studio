@@ -23,6 +23,7 @@ import { JobRunner, defaultSettings } from './jobs'
 import { binPath, probeMedia } from './ffmpeg'
 import { whisperFiles } from './transcribe'
 import { thumbDir, thumbnailStep, thumbsReady } from './thumbnails'
+import { ensurePoster } from './poster'
 import { z } from 'zod'
 import type { OpenDialogOptions } from 'electron'
 
@@ -116,6 +117,7 @@ export function registerIpc(deps: IpcDeps): void {
       })
     }
     store.addMediaAssets(projectId, assets)
+    for (const asset of assets) await ensurePoster(userDataDir, projectId, asset)
     return projectView(projectId)
   }
 
@@ -159,6 +161,12 @@ export function registerIpc(deps: IpcDeps): void {
     if (asset.proxyPath) rmSync(asset.proxyPath, { force: true })
     store.updateMediaAsset(assetId, { name: basename(path), path, probe, proxyPath: null })
     return projectView(project.id)
+  })
+
+  /** Fill in missing posters, e.g. for files imported before posters existed. Resolves when all are ready. */
+  handle(IPC.mediaPosters, idSchema, async (projectId) => {
+    for (const asset of store.getProject(projectId).media) await ensurePoster(userDataDir, projectId, asset)
+    return null
   })
 
   handle(IPC.mediaRemove, idSchema, (assetId) => {

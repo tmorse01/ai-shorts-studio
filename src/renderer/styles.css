@@ -160,7 +160,7 @@ h2 {
 /* ---- App shell ---- */
 .layout {
   display: grid;
-  grid-template-columns: 296px minmax(420px, 1fr) 360px;
+  grid-template-columns: clamp(360px, 34vw, 520px) minmax(340px, 1fr) 360px;
   grid-template-rows: 1fr auto;
   height: 100%;
   padding-top: var(--titlebar-h);

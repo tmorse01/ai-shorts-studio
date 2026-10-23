@@ -137,6 +137,7 @@ export const IPC = {
   mediaRelink: 'media:relink',
   mediaRemove: 'media:remove',
   mediaPrepare: 'media:prepare',
+  mediaPosters: 'media:posters',
   shortList: 'short:list',
   shortCreate: 'short:create',
   shortUpdate: 'short:update',

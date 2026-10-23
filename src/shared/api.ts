@@ -32,6 +32,9 @@ export interface StudioApi {
   /** Start a playback preview for a video whose codec the renderer cannot decode, when one is needed. */
   prepareMedia(assetId: string): Promise<ProjectView>
   mediaUrl(assetId: string): string
+  /** Card poster for a video asset. Resolves once posters for the project exist, or were skipped. */
+  ensurePosters(projectId: string): Promise<void>
+  posterUrl(assetId: string): string
   ensureThumbnails(assetId: string): Promise<ThumbStatus>
   thumbnailUrl(assetId: string, index: number): string
   /** Preview audio for a short: its music bed or its recorded narration. `version` only busts the cache. */
