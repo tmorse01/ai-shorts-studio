@@ -1,7 +1,7 @@
-import type { RefObject } from 'react'
+import { useEffect, type RefObject } from 'react'
 import { normalizeSegments } from '../../shared/timeline'
 import type { ProjectView } from '../../shared/api'
-import type { MediaView, Short } from '../../shared/types'
+import type { MediaView, MusicClip, Short } from '../../shared/types'
 import { errorText } from '../util'
 import { ClipStage } from './ClipStage'
 import { Inspector } from './Inspector'
@@ -16,7 +16,6 @@ export interface ShortFocusProps {
   project: ProjectView
   /** The video this clip was cut from. */
   source: MediaView
-  musicFolderSet: boolean
   notice: { text: string; error: boolean } | null
   videoRef: RefObject<HTMLVideoElement>
   currentTime: number
@@ -37,10 +36,55 @@ export function ShortFocus(props: ShortFocusProps) {
   const { short, project, source, notice, videoRef, currentTime, onSeek, onSaved, onError, onNotice } = props
   const draft = useShortDraft(short)
   const sourceDurationSec = source.probe.durationSec
-  const musicUrl = props.musicFolderSet ? api.shortAudioUrl(short.id, 'music') : null
+  // The draft drives the preview, so music clips play before they are saved.
+  const musicClips = draft.settings.musicClips
+  const musicPreview = musicClips.flatMap((clip) => {
+    const asset = project.media.find((m) => m.id === clip.assetId && m.kind === 'music' && !m.missing)
+    return asset ? [{ ...clip, url: api.musicUrl(asset.id) }] : []
+  })
+  const timelineMusic = musicClips.map((clip) => {
+    const asset = project.media.find((m) => m.id === clip.assetId)
+    return { ...clip, name: asset?.name ?? 'Missing track', trackDurationSec: asset?.probe.durationSec ?? 0 }
+  })
   const narrationUrl = short.narrationPath
-    ? api.shortAudioUrl(short.id, 'narration', short.narrationPath.split(/[\\/]/).pop())
+    ? api.narrationUrl(short.id, short.narrationPath.split(/[\\/]/).pop())
     : null
+
+  /** A track dropped at a point on the timeline becomes one clip, from the start of the track. */
+  const assignMusic = (assetId: string, atSec: number): void => {
+    const asset = project.media.find((m) => m.id === assetId && m.kind === 'music' && !m.missing)
+    if (!asset || asset.probe.durationSec <= 0) return
+    const clip: MusicClip = {
+      id: crypto.randomUUID(),
+      assetId: asset.id,
+      startSec: atSec,
+      trackStartSec: 0,
+      lengthSec: asset.probe.durationSec
+    }
+    draft.setSettings({ ...draft.settings, musicClips: [...musicClips, clip] })
+  }
+
+  const setMusicClips = (next: MusicClip[]): void => draft.setSettings({ ...draft.settings, musicClips: next })
+
+  // Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes. Text fields keep their own undo.
+  const { undo, redo } = draft
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const tag = (e.target as HTMLElement).tagName
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+      const key = e.key.toLowerCase()
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      } else if ((key === 'z' && e.shiftKey) || key === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   const save = async (): Promise<void> => {
     try {
@@ -63,11 +107,12 @@ export function ShortFocus(props: ShortFocusProps) {
         {notice && <div className={`notice ${notice.error ? 'error' : ''}`}>{notice.text}</div>}
         <ClipStage
           title={draft.title}
+          posterUrl={api.clipFrameUrl(short.id, short.updatedAt)}
           segments={draft.segments}
           settings={draft.settings}
           captions={draft.captions}
           src={api.mediaUrl(source.id)}
-          musicUrl={musicUrl}
+          musicClips={musicPreview}
           narrationUrl={narrationUrl}
           sourceWidth={source.probe.width}
           sourceHeight={source.probe.height}
@@ -83,7 +128,15 @@ export function ShortFocus(props: ShortFocusProps) {
           captions={draft.captions}
           sourceDurationSec={sourceDurationSec}
           hasAudio={source.probe.hasAudio}
-          musicEnabled={draft.settings.musicEnabled}
+          musicClips={timelineMusic}
+          onMusicClipsChange={setMusicClips}
+          onAssignMusic={assignMusic}
+          onGestureStart={draft.beginGesture}
+          onGestureEnd={draft.endGesture}
+          canUndo={draft.canUndo}
+          canRedo={draft.canRedo}
+          onUndo={undo}
+          onRedo={redo}
           currentTime={currentTime}
           onSeek={onSeek}
         />
@@ -104,7 +157,7 @@ export function ShortFocus(props: ShortFocusProps) {
           draft={draft}
           projectId={project.id}
           hasAudio={source.probe.hasAudio}
-          musicFolderSet={props.musicFolderSet}
+          musicClipCount={musicClips.length}
           onSave={() => void save()}
           onDeleted={props.onDeleted}
           onSaved={onSaved}

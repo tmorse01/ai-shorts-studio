@@ -1,5 +1,6 @@
 import type { ExportOptions } from './schemas'
 import type { Caption, Framing, Ratio, Segment } from './timeline'
+import type { StageStatus } from './pipeline-graph'
 
 export type Provenance = 'ai' | 'heuristic' | 'manual'
 
@@ -43,12 +44,25 @@ export interface Project {
   updatedAt: string
 }
 
+/** A piece of a music-library track placed on the short's timeline. */
+export interface MusicClip {
+  id: string
+  /** The music library asset this clip plays from. */
+  assetId: string
+  /** Where the clip starts on the short's timeline, in seconds. */
+  startSec: number
+  /** Where in the track the clip starts, in seconds. */
+  trackStartSec: number
+  lengthSec: number
+}
+
 export interface ShortSettings {
   ratio: Ratio
   framing: Framing
   captionsEnabled: boolean
   captionFontSize: number
-  musicEnabled: boolean
+  /** Pieces of music-library tracks placed on the short's timeline. Empty for no music. */
+  musicClips: MusicClip[]
   musicVolume: number
   musicDuck: boolean
 }
@@ -99,6 +113,8 @@ export interface Job {
   error: string | null
   /** Set only on export jobs. */
   items: ExportItem[] | null
+  /** Set only on analysis jobs: the state of each node in the clip pipeline graph. */
+  stages: StageStatus[] | null
   createdAt: string
   updatedAt: string
 }
@@ -118,7 +134,7 @@ export interface SettingsView {
   hasApiKey: boolean
   keyStorage: 'safeStorage' | 'unavailable'
   lastExport: ExportPrefs | null
-  whisperAvailable: boolean
+  speechAvailable: boolean
   ffmpegAvailable: boolean
 }
 

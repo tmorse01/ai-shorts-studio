@@ -6,6 +6,7 @@ import { buildAss } from '../shared/timeline'
 import type { Job, MediaAsset, Project, ProbeInfo, Short } from '../shared/types'
 import type { AnalysisRequest, ExportRequest } from '../shared/schemas'
 import type { ExportItem } from '../shared/types'
+import { initialStages, setStage, type StageId, type StageState } from '../shared/pipeline-graph'
 import { rankCandidates, AiError, type FrameSample } from './ai'
 import {
   captionsForSegments,
@@ -22,7 +23,6 @@ import {
   removeScratch
 } from './analysis'
 import { binPath, buildExportArgs, probeMedia, ProcessCancelledError, runProcess } from './ffmpeg'
-import { pickMusicTrack } from './music'
 import type { Store } from './store'
 import { buildThumbArgs, thumbDir, thumbnailStep, writeThumbMeta } from './thumbnails'
 import { renderClipFrame } from './poster'
@@ -34,6 +34,9 @@ export interface JobDeps {
   /** Pushes job state to the renderer. */
   notify: (job: Job) => void
 }
+
+/** The fields a job update may change. Everything else on a job is fixed once it starts. */
+type JobPatch = Partial<Pick<Job, 'status' | 'progress' | 'message' | 'error' | 'items' | 'stages'>>
 
 /** A media asset together with the project that owns it. */
 interface Owned {
@@ -74,16 +77,45 @@ export class JobRunner {
     return job
   }
 
+  /** The newest copy of a job. Updates from different stages all merge into it, so none overwrite another. */
+  private latest(job: Job): Job {
+    return this.active?.job.id === job.id ? this.active.job : job
+  }
+
+  /** Saves a change to the job and tells the renderer the whole job, so no field goes stale. */
+  private emit(job: Job, patch: JobPatch): void {
+    const next = { ...this.latest(job), ...patch }
+    if (this.active?.job.id === next.id) this.active.job = next
+    this.deps.store.updateJob(next.id, patch)
+    this.deps.notify(next)
+  }
+
   private progress(job: Job, progress: number, message: string, items?: ExportItem[]): void {
-    const extra = items ? { items } : {}
-    this.deps.store.updateJob(job.id, { progress: Math.round(progress), message, ...extra })
-    this.deps.notify({ ...job, progress: Math.round(progress), message, ...extra })
+    this.emit(job, { progress: Math.round(progress), message, ...(items ? { items } : {}) })
+  }
+
+  /** Moves one node of the clip pipeline graph. Analysis jobs only. */
+  private stage(job: Job, id: StageId, state: StageState, detail: string | null = null): void {
+    const current = this.latest(job).stages ?? initialStages()
+    this.emit(job, { stages: setStage(current, id, state, detail) })
+  }
+
+  /** A stopped or failed run leaves no node spinning: anything still running is marked failed. */
+  private stopRunningStages(job: Job, detail: string): void {
+    const current = this.latest(job).stages
+    if (!current?.some((s) => s.state === 'running')) return
+    const stopped = current.map((s) => (s.state === 'running' ? { ...s, state: 'failed' as const, detail } : s))
+    this.emit(job, { stages: stopped })
   }
 
   private finish(job: Job, status: Job['status'], error: string | null, message: string, items?: ExportItem[]): void {
-    const extra = items ? { items } : {}
-    this.deps.store.updateJob(job.id, { status, error, message, progress: status === 'completed' ? 100 : 0, ...extra })
-    this.deps.notify({ ...job, status, error, message, progress: status === 'completed' ? 100 : 0, ...extra })
+    this.emit(job, {
+      status,
+      error,
+      message,
+      progress: status === 'completed' ? 100 : 0,
+      ...(items ? { items } : {})
+    })
     this.active = null
   }
 
@@ -124,6 +156,7 @@ export class JobRunner {
     const signal = this.active?.controller.signal
     try {
       const probe = asset.probe
+      this.emit(job, { stages: initialStages() })
       this.progress(
         job,
         3,
@@ -134,7 +167,11 @@ export class JobRunner {
       // Transcription (CPU) and scene detection (NVDEC when the codec allows it) read the same file but
       // do not depend on each other, so they run together.
       const speechTask = (async (): Promise<{ transcript: TranscriptSegment[]; speechNote: string | null }> => {
-        if (!probe.hasAudio) return { transcript: [], speechNote: null }
+        if (!probe.hasAudio) {
+          this.stage(job, 'speech', 'skipped', 'No audio track')
+          return { transcript: [], speechNote: null }
+        }
+        this.stage(job, 'speech', 'running', 'Listening…')
         try {
           const transcript = await transcribeSource({
             sourcePath: asset.path,
@@ -142,22 +179,35 @@ export class JobRunner {
             scratchDir: join(scratch, 'speech'),
             onSpawn: (c) => this.attachChild(c)
           })
+          this.stage(job, 'speech', 'done', `${transcript.length} speech segments`)
           return { transcript, speechNote: null }
         } catch (err) {
           if (err instanceof ProcessCancelledError) throw err
-          return { transcript: [], speechNote: `Speech-to-text skipped: ${(err as Error).message.split('\n')[0]}` }
+          const reason = (err as Error).message.split('\n')[0]
+          this.stage(job, 'speech', 'skipped', 'Speech-to-text skipped')
+          return { transcript: [], speechNote: `Speech-to-text skipped: ${reason}` }
         }
       })()
-      const cutsTask =
-        req.sceneDetection === 'off'
-          ? Promise.resolve<number[]>([])
-          : detectSceneCuts(asset.path, req.sceneDetection, probe.videoCodec, (c) => this.attachChild(c))
+      let cutsTask: Promise<number[]>
+      if (req.sceneDetection === 'off') {
+        this.stage(job, 'scenes', 'skipped', 'Scene detection is off')
+        cutsTask = Promise.resolve([])
+      } else {
+        this.stage(job, 'scenes', 'running', 'Scanning frames…')
+        cutsTask = detectSceneCuts(asset.path, req.sceneDetection, probe.videoCodec, (c) => this.attachChild(c)).then(
+          (cuts) => {
+            this.stage(job, 'scenes', 'done', `${cuts.length} scene changes`)
+            return cuts
+          }
+        )
+      }
       // Wait for both before continuing, then rethrow the first failure so the job fails cleanly.
       const [speechResult, cutsResult] = await Promise.allSettled([speechTask, cutsTask])
       if (speechResult.status === 'rejected') throw speechResult.reason
       if (cutsResult.status === 'rejected') throw cutsResult.reason
       const { transcript, speechNote } = speechResult.value
       const cuts = cutsResult.value
+      this.stage(job, 'candidates', 'running')
       this.progress(
         job,
         30,
@@ -167,14 +217,18 @@ export class JobRunner {
       )
 
       const candidates = makeCandidates(probe.durationSec, req.minSec, req.maxSec, cuts)
+      this.stage(job, 'candidates', 'done', `${candidates.length} windows`)
       const times = frameTimes(candidates)
       const frames: FrameSample[] = []
       for (let i = 0; i < times.length; i++) {
         this.progress(job, 30 + (i / times.length) * 25, `Sampling frame ${i + 1} of ${times.length}…`)
+        this.stage(job, 'frames', 'running', `${i + 1} of ${times.length}`)
         frames.push(await extractFrame(asset.path, times[i], scratch, i, (c) => this.attachChild(c)))
       }
+      this.stage(job, 'frames', 'done', `${times.length} frames`)
 
       this.progress(job, 60, 'Asking Claude to rank the moments…')
+      this.stage(job, 'rank', 'running', 'Reading frames and transcript')
       const suggestions = await rankCandidates({
         apiKey,
         prompt: req.prompt,
@@ -187,10 +241,12 @@ export class JobRunner {
         transcript: transcript.length > 0 ? transcriptForWindows(transcript, candidates) : null,
         signal
       })
+      this.stage(job, 'rank', 'done', `${suggestions.length} moments picked`)
       if (suggestions.length === 0) {
         throw new Error('Claude returned no shorts that fit the length rules. Try a wider length range.')
       }
 
+      this.stage(job, 'save', 'running')
       const saved = this.deps.store.addShorts(
         suggestions.map((s) => {
           const captions = captionsForSegments(transcript, s.segments)
@@ -210,14 +266,17 @@ export class JobRunner {
         })
       )
       for (const short of saved) await renderClipFrame(this.deps.userDataDir, short, asset)
+      this.stage(job, 'save', 'done', `${saved.length} saved`)
       const message = `Saved ${saved.length} suggested shorts.${speechNote ? ` ${speechNote}` : ''}`
       this.finish(job, 'completed', null, message)
     } catch (err) {
       const cancelled = err instanceof ProcessCancelledError || (err instanceof AiError && err.kind === 'cancelled')
       if (cancelled) {
+        this.stopRunningStages(job, 'Cancelled')
         this.finish(job, 'cancelled', null, 'Analysis cancelled.')
       } else {
         const message = (err as Error).message
+        this.stopRunningStages(job, 'Stopped by an error')
         this.finish(job, 'failed', message, 'Analysis failed.')
       }
     } finally {
@@ -363,7 +422,10 @@ export class JobRunner {
         const share = (frac: number): number => ((i + frac) / entries.length) * 100
         update(i, { status: 'preparing', progress: 0 }, share(0), `Preparing ${label}…`)
         const outPath = chooseOutputPath(req.outputDir, short.title, req.overwrite)
-        const musicPath = short.settings.musicEnabled ? pickMusicTrack(this.deps.store.musicPaths(project.id), short.id) : null
+        const music = (short.settings.musicClips ?? []).flatMap((clip) => {
+          const asset = project.media.find((m) => m.id === clip.assetId && m.kind === 'music' && existsSync(m.path))
+          return asset ? [{ path: asset.path, startSec: clip.startSec, trackStartSec: clip.trackStartSec, lengthSec: clip.lengthSec }] : []
+        })
         const workDir = join(scratch, short.id)
         mkdirSync(workDir, { recursive: true })
 
@@ -377,7 +439,7 @@ export class JobRunner {
             framing: short.settings.framing,
             captionsEnabled: short.settings.captionsEnabled,
             captionFontSize: short.settings.captionFontSize,
-            musicPath,
+            music,
             musicVolume: short.settings.musicVolume,
             musicDuck: short.settings.musicDuck,
             narrationPath: short.narrationPath && existsSync(short.narrationPath) ? short.narrationPath : null,
@@ -495,7 +557,7 @@ export function defaultSettings(ratio: Short['settings']['ratio']): Short['setti
     framing: { x: 0.5, y: 0.5, mode: 'crop' },
     captionsEnabled: true,
     captionFontSize: 72,
-    musicEnabled: false,
+    musicClips: [],
     musicVolume: 0.25,
     musicDuck: true
   }

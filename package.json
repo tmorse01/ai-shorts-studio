@@ -80,8 +80,8 @@
         ]
       },
       {
-        "from": "resources/whisper",
-        "to": "whisper",
+        "from": "resources/parakeet",
+        "to": "parakeet",
         "filter": [
           "**/*"
         ]

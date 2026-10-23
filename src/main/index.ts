@@ -7,7 +7,7 @@ import { SecretStore } from './secrets'
 import { JobRunner } from './jobs'
 import { registerIpc } from './ipc'
 import { thumbDir, thumbFileName } from './thumbnails'
-import { pickMusicTrack } from './music'
+import type { MediaAsset } from '../shared/types'
 import { clipFrameFile, posterFile } from './poster'
 
 const MEDIA_SCHEME = 'shorts-media'
@@ -162,17 +162,32 @@ function serveFile(source: string, range: string | null): Response {
 }
 
 /**
- * Preview audio for one short: `shorts-media://audio/<shortId>/music` or `.../narration`. The renderer
- * names only the short and the kind; the file comes from the store, never from a renderer path.
+ * A music track from the library for preview: `shorts-media://music/<assetId>`. Only music assets are
+ * served, so the renderer cannot reach any other file this way.
  */
-function serveShortAudio(url: URL, store: Store, range: string | null): Response {
+function serveMusic(url: URL, store: Store, range: string | null): Response {
+  const assetId = url.pathname.replace(/^\//, '')
+  if (!/^[a-zA-Z0-9-]{1,64}$/.test(assetId)) return new Response('Not found', { status: 404 })
+  let asset: MediaAsset
+  try {
+    asset = store.findMediaAsset(assetId).asset
+  } catch {
+    return new Response('Not found', { status: 404 })
+  }
+  if (asset.kind !== 'music' || !existsSync(asset.path)) return new Response('Not found', { status: 404 })
+  return serveFile(asset.path, range)
+}
+
+/**
+ * Preview narration for one short: `shorts-media://audio/<shortId>/narration`. The renderer names only the
+ * short; the file comes from the store, never from a renderer path.
+ */
+function serveNarration(url: URL, store: Store, range: string | null): Response {
   const [, shortId, kind] = url.pathname.split('/')
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(shortId ?? '')) return new Response('Not found', { status: 404 })
+  if (kind !== 'narration' || !/^[a-zA-Z0-9_-]{1,64}$/.test(shortId ?? '')) return new Response('Not found', { status: 404 })
   let file: string | null = null
   try {
-    const short = store.getShort(shortId)
-    if (kind === 'music') file = pickMusicTrack(store.musicPaths(short.projectId), shortId)
-    else if (kind === 'narration') file = short.narrationPath
+    file = store.getShort(shortId).narrationPath
   } catch {
     return new Response('Not found', { status: 404 })
   }
@@ -190,7 +205,8 @@ function registerMediaProtocol(store: Store, userDataDir: string): void {
     if (url.host === 'thumb') return serveThumbnail(url, store, userDataDir)
     if (url.host === 'poster') return servePoster(url, store, userDataDir)
     if (url.host === 'clip') return serveClipFrame(url, store, userDataDir)
-    if (url.host === 'audio') return serveShortAudio(url, store, request.headers.get('range'))
+    if (url.host === 'audio') return serveNarration(url, store, request.headers.get('range'))
+    if (url.host === 'music') return serveMusic(url, store, request.headers.get('range'))
     const id = url.pathname.replace(/^\//, '')
     if (url.host !== 'media' || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
       return new Response('Not found', { status: 404 })

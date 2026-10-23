@@ -5,5 +5,5 @@ site/dist
 site/.astro
 .netlify
 resources/bin
-resources/whisper
+resources/parakeet
 .DS_Store

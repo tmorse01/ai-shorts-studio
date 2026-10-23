@@ -1,5 +1,5 @@
 import { join, resolve } from 'node:path'
-import { mkdtempSync, existsSync } from 'node:fs'
+import { mkdtempSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,24 +7,38 @@ vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => resolve(process.cwd()) }
 }))
 
-const { parseWhisperJson, transcriptForWindows, captionsForSegments, transcribeSource, whisperFiles } =
-  await import('../src/main/transcribe')
+const { parseParakeetOutput, transcriptForWindows, captionsForSegments, transcribeSource, parakeetFiles } = await import(
+  '../src/main/transcribe'
+)
 
-describe('whisper output handling', () => {
-  it('parses whisper.cpp JSON offsets into seconds and drops empty segments', () => {
-    const raw = JSON.stringify({
-      transcription: [
-        { offsets: { from: 0, to: 3200 }, text: ' This is the first test sentence. ' },
-        { offsets: { from: 3200, to: 3300 }, text: '   ' },
-        { offsets: { from: 3400, to: 6480 }, text: 'Second line.' }
-      ]
-    })
-    expect(parseWhisperJson(raw)).toEqual([
-      { startSec: 0, endSec: 3.2, text: 'This is the first test sentence.' },
-      { startSec: 3.4, endSec: 6.48, text: 'Second line.' }
+describe('parakeet output handling', () => {
+  // Token lines in the exact format parakeet-cli -ps prints; t0/t1 are in 10 ms units.
+  const token = (t0: number, t1: number, start: boolean, text: string) =>
+    `  [ 0] id= 1 frame=  2 dur_idx= 1 dur_val= 1 p=0.9000 plog=-0.1000 t0=${String(t0).padStart(5)} t1=${String(t1).padStart(5)} word_start=${start} "${text}"`
+
+  it('merges tokens into words and splits segments at pauses', () => {
+    const stderr = [
+      'Segment 0: [0 -> 3980] "ignored summary line"',
+      token(16, 24, true, '▁Go'),
+      token(32, 40, true, '▁sho'),
+      token(56, 64, false, 'wer'),
+      token(328, 336, true, '▁Okay'),
+      token(340, 344, false, ','),
+      token(9000, 9008, true, '▁Long')
+    ].join('\n')
+    expect(parseParakeetOutput(stderr)).toEqual([
+      { startSec: 0.16, endSec: 0.64, text: 'Go shower' },
+      { startSec: 3.28, endSec: 3.44, text: 'Okay,' },
+      { startSec: 90, endSec: 90.08, text: 'Long' }
     ])
   })
 
+  it('returns no segments when the CLI printed no tokens', () => {
+    expect(parseParakeetOutput('parakeet_model_load: loaded\nnothing to see')).toEqual([])
+  })
+})
+
+describe('transcript handling', () => {
   it('builds bounded prompt excerpts only from windows that contain speech', () => {
     const segments = [
       { startSec: 1, endSec: 4, text: 'hello there' },
@@ -55,12 +69,11 @@ describe('whisper output handling', () => {
   })
 })
 
-describe('real speech-to-text with the bundled whisper.cpp', () => {
+describe('real speech-to-text with the bundled Parakeet', () => {
   it('transcribes a real speech clip and caches the result', async () => {
-    const files = whisperFiles()
-    expect(files, 'whisper binaries must be in resources/whisper (run pnpm fetch:bin)').not.toBeNull()
+    expect(parakeetFiles(), 'parakeet-cli and the model must be in resources/parakeet (run pnpm fetch:bin)').not.toBeNull()
 
-    const work = mkdtempSync(join(tmpdir(), 'whisper-test-'))
+    const work = mkdtempSync(join(tmpdir(), 'parakeet-test-'))
     const cacheFile = join(work, 'cache', 'transcript.json')
     const segments = await transcribeSource({
       sourcePath: resolve('tests/fixtures/speech.wav'),
@@ -73,8 +86,9 @@ describe('real speech-to-text with the bundled whisper.cpp', () => {
     expect(text).toContain('second line')
     expect(segments[0].startSec).toBeLessThan(0.5)
     expect(existsSync(cacheFile)).toBe(true)
+    expect(JSON.parse(readFileSync(cacheFile, 'utf8')).engine).toBe('parakeet')
 
-    // Second call is served from cache without running whisper again.
+    // Second call is served from cache without running Parakeet again.
     const again = await transcribeSource({
       sourcePath: resolve('tests/fixtures/speech.wav'),
       cacheFile,

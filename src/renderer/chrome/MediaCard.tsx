@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { MediaView } from '../../shared/types'
 import { fmt } from '../util'
+import { MUSIC_DRAG_TYPE } from '../media-drag'
 import styles from './MediaCard.module.css'
 
 const api = window.studio
@@ -38,6 +39,13 @@ export function MediaCard({ asset, selected, clipCount, posterRev, onSelect }: M
       aria-current={selected}
       title={asset.path}
       onClick={() => onSelect(asset.id)}
+      // Music is dragged onto a short's Music lane in the timeline.
+      draggable={asset.kind === 'music'}
+      onDragStart={(e) => {
+        if (asset.kind !== 'music') return
+        e.dataTransfer.setData(MUSIC_DRAG_TYPE, asset.id)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
     >
       <div className={styles.thumb}>
         {showPoster ? (

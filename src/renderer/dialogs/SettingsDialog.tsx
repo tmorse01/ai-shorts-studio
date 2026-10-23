@@ -72,7 +72,7 @@ export function SettingsDialog({ open, settings, onChange, onClose, onError }: S
           FFmpeg: {settings?.ffmpegAvailable ? 'ready' : 'missing (run pnpm fetch:bin)'}
         </div>
         <div className="muted">
-          Speech-to-text: {settings?.whisperAvailable ? 'ready' : 'missing (run pnpm fetch:bin)'}
+          Speech-to-text: {settings?.speechAvailable ? 'ready' : 'missing (run pnpm fetch:bin)'}
         </div>
       </section>
     </Modal>

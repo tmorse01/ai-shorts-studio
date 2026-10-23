@@ -46,7 +46,9 @@ jobs:
           $ffmpeg = (Get-Command ffmpeg.exe).Source
           "FFMPEG_DIR=$(Split-Path $ffmpeg)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Fetch FFmpeg and whisper.cpp binaries
+      # Builds parakeet-cli from the pinned whisper.cpp tag with the runner's Visual Studio and CMake,
+      # then downloads the Parakeet model. Takes several minutes on a cold cache.
+      - name: Fetch FFmpeg and build parakeet-cli
         run: pnpm fetch:bin
 
       - name: Build installer

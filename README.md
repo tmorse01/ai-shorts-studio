@@ -1,7 +1,7 @@
 # AI Shorts Studio
 
 A local-first Windows app that turns long footage into short vertical clips. Your video stays on your
-machine. Scene detection, speech-to-text (Whisper) and FFmpeg run locally. Only small sampled frames and
+machine. Scene detection, speech-to-text (Parakeet) and FFmpeg run locally. Only small sampled frames and
 speech excerpts go to Anthropic, and only when you run AI analysis.
 
 ## Flow
@@ -18,7 +18,7 @@ Manual selection (Set in / Set out / Add manual short) works without any API key
 
 ```bash
 pnpm install
-pnpm fetch:bin      # copies FFmpeg from PATH and downloads whisper.cpp + base.en model (SHA-256 verified)
+pnpm fetch:bin      # copies FFmpeg from PATH, builds parakeet-cli (whisper.cpp v1.9.5, CPU) and downloads the Parakeet model (SHA-256 verified). Needs git and CMake with Visual Studio C++ tools.
 pnpm dev            # run the app with hot reload
 ```
 
@@ -29,7 +29,7 @@ stored with Windows DPAPI via Electron `safeStorage`. It is never written to dis
 
 | Command | What it does |
 | --- | --- |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` | Lint, strict TypeScript, Vitest (unit + real FFmpeg + real Whisper) |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | Lint, strict TypeScript, Vitest (unit + real FFmpeg + real Parakeet) |
 | `pnpm build` | Compile main, preload and renderer with electron-vite |
 | `pnpm package:win` | Build the NSIS installer into `release/` |
 | `pnpm e2e` | Drive the real Electron app over DevTools: import, export, AI error path, cancel, relaunch, crash recovery |
@@ -48,12 +48,12 @@ stored with Windows DPAPI via Electron `safeStorage`. It is never written to dis
 - **Unsigned installer.** Windows SmartScreen will warn. Code signing is not configured.
 - **AI quality is unverified with a real key** in this build. The e2e test confirms the real API call and
   its auth-error path. A successful ranking has not been run against a live key yet.
-- **Speech-to-text is English only** (`ggml-base.en`). Silent footage relies on sampled frames, which give
+- **Speech-to-text** uses Parakeet TDT 0.6B v3 (Q8_0, CPU). Silent footage relies on sampled frames, which give
   weak motion information. Suggestions are editable, not calibrated.
-- **Captions** come from Whisper for AI-selected shorts. Manual shorts take typed captions.
+- **Captions** come from Parakeet for AI-selected shorts. Manual shorts take typed captions.
 - **Narration** is recorded in the app (mono WebM) and mixed over the source. It is not text-to-speech.
 - **Music** comes only from a folder you choose. Use tracks you have rights to.
 - **Very long footage** is slow: scene detection and transcription read the whole file once per project.
   Transcription is cached per project.
 - **Licensing.** The bundled FFmpeg build is a GPL-enabled "full" build. Check its licence before shipping.
-  whisper.cpp and the model are MIT.
+  parakeet-cli is built from whisper.cpp (MIT). The Parakeet model's licence is on its Hugging Face model card.

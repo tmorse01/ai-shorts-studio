@@ -1,0 +1,309 @@
+/* The clip pipeline graph. Colours come from theme/tokens.css; the --ai-* tokens are the one accent beyond the highlight. */
+
+/* Registered so the gradient border can rotate: a plain custom property cannot be animated. */
+@property --ai-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+/* A slow drifting wash of the AI gradient behind the nodes. */
+.aurora {
+  position: absolute;
+  inset: -35%;
+  background:
+    radial-gradient(closest-side at 28% 45%, var(--ai-from), transparent),
+    radial-gradient(closest-side at 72% 58%, var(--ai-to), transparent);
+  opacity: 0.16;
+  filter: blur(36px);
+  pointer-events: none;
+  animation: aurora-drift 14s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  to {
+    transform: translate3d(5%, -4%, 0) scale(1.1);
+  }
+}
+
+.canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+.svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+
+/* Track: the idle line under every edge. Always drawn, so it stays the motion path for particles. */
+.track {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+[data-edge-state='skipped'] .track {
+  stroke: var(--text-3);
+  stroke-dasharray: 2 7;
+}
+
+/* Done: the gradient settles in as a solid line. */
+.done {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+
+/* Active: a bright dashed gradient that streams along the edge. */
+.flow {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 8 12;
+  animation: flow 0.8s linear infinite;
+}
+
+/* The same stroke blurred underneath, so the active edge glows. */
+.glow {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.45;
+  filter: blur(5px);
+}
+
+@keyframes flow {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+.particle {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 4px var(--ai-mid));
+}
+
+/* Nodes */
+.node {
+  position: absolute;
+  isolation: isolate;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  transition:
+    opacity var(--dur-panel) var(--ease),
+    border-color var(--dur-panel) var(--ease),
+    box-shadow var(--dur-panel) var(--ease);
+}
+
+.node[data-state='pending'] {
+  opacity: 0.5;
+}
+
+.node[data-state='skipped'] {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.node[data-state='failed'] {
+  border-color: var(--danger);
+}
+
+.node[data-state='done'] {
+  border-color: color-mix(in srgb, var(--ai-mid) 45%, var(--border));
+  /* Runs each time the node enters the done state, because the rule starts to match then. */
+  animation: settle 0.6s var(--ease);
+}
+
+@keyframes settle {
+  0% {
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Active: a rotating gradient border, a soft glow and a shimmer sweep across the card. The card surface
+   is the padding-box layer and the spinning gradient shows only through the transparent border. */
+.node[data-state='running'] {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--surface-1), var(--surface-1)) padding-box,
+    conic-gradient(
+        from var(--ai-angle),
+        var(--ai-from),
+        var(--ai-mid),
+        var(--ai-to),
+        var(--ai-from)
+      )
+      border-box;
+  box-shadow: 0 0 30px -6px var(--ai-glow);
+  animation: spin-ring 2.4s linear infinite;
+}
+
+.node[data-state='running']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.09) 50%,
+    transparent 65%
+  );
+  background-size: 250% 100%;
+  animation: shimmer 1.8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes spin-ring {
+  to {
+    --ai-angle: 360deg;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Technology badge */
+.icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.node[data-state='running'] .icon {
+  color: var(--text);
+  border-color: transparent;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(236, 72, 153, 0.22));
+}
+
+.node[data-state='done'] .icon {
+  color: var(--text);
+}
+
+/* Breathing pulse while the technology works. */
+.icon[data-active='true'] {
+  animation: breathe 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+  to {
+    transform: scale(1.08);
+    box-shadow: 0 0 16px -2px var(--ai-glow);
+  }
+}
+
+/* Claude's mark turns while Claude is ranking. */
+.icon[data-tech='claude'][data-active='true'] {
+  animation: turn 3s linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Corner badge: a gradient tick when done, a red cross on failure, a dash when skipped. */
+.mark {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--ai-from), var(--ai-to));
+  color: #ffffff;
+}
+
+.mark[data-kind='failed'] {
+  background: var(--danger);
+  color: var(--primary-on);
+}
+
+.mark[data-kind='skipped'] {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-3);
+}
+
+.label {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.detail {
+  margin-top: auto;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 1em;
+}
+
+/* Reduced motion keeps every state and colour but stops the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .flow,
+  .glow,
+  .node[data-state='done'],
+  .node[data-state='running'],
+  .node[data-state='running']::after,
+  .icon[data-active='true'] {
+    animation: none;
+  }
+}

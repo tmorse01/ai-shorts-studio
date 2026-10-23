@@ -150,6 +150,36 @@
   white-space: nowrap;
 }
 
+/* The clip selected for splitting or deleting. */
+.musicSelected {
+  outline: 2px solid var(--text);
+  outline-offset: -1px;
+}
+
+/* Drag handles on a music clip's edges. They sit inside the clip, so the clip's own click still selects it. */
+.musicEdge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.musicEdgeStart {
+  left: 0;
+}
+
+.musicEdgeEnd {
+  right: 0;
+}
+
+/* Shown in an empty Music lane, so the lane reads as a drop target before a track is assigned. */
+.musicHint {
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+}
+
 .handle {
   flex: none;
   width: 8px;

@@ -23,12 +23,23 @@ export const captionSchema = z.object({
   text: z.string().max(500)
 })
 
+/** A piece of a music track placed on the short's timeline. */
+export const musicClipSchema = z.object({
+  id: z.string().min(1).max(64),
+  assetId: z.string().min(1).max(64),
+  /** Where the clip starts on the short's timeline, in seconds. */
+  startSec: z.number().finite().min(0),
+  /** Where in the track the clip starts, in seconds. */
+  trackStartSec: z.number().finite().min(0),
+  lengthSec: z.number().finite().positive()
+})
+
 export const shortSettingsSchema = z.object({
   ratio: ratioSchema,
   framing: framingSchema,
   captionsEnabled: z.boolean(),
   captionFontSize: z.number().int().min(24).max(160),
-  musicEnabled: z.boolean(),
+  musicClips: z.array(musicClipSchema).max(64).default([]),
   musicVolume: z.number().min(0).max(1),
   musicDuck: z.boolean()
 })

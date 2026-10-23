@@ -1,4 +1,4 @@
-import { useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useRef, useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
 import { segmentsDuration, type Caption, type Ratio, type Segment } from '../../shared/timeline'
 import type { Short, ShortSettings } from '../../shared/types'
@@ -18,7 +18,8 @@ export interface InspectorProps {
   draft: ShortDraft
   projectId: string
   hasAudio: boolean
-  musicFolderSet: boolean
+  /** How many music clips are on the short's Music lane. */
+  musicClipCount: number
   onSave: () => void
   onDeleted: () => void
   onSaved: (s: Short) => void
@@ -54,7 +55,7 @@ export function Inspector(props: InspectorProps) {
 
   return (
     <div className={styles.inspector}>
-      <input type="text" aria-label="Short title" value={draft.title} onChange={(e) => draft.setTitle(e.target.value)} />
+      <input type="text" aria-label="Short title" value={draft.title} onChange={(e) => draft.setTitle(e.target.value, 'title')} />
 
       <Tabs.Root value={tab} onValueChange={(v) => setTab(v as Tab)} className={styles.root}>
         <Tabs.List className={styles.tabs} aria-label="Inspector sections">
@@ -81,7 +82,7 @@ export function Inspector(props: InspectorProps) {
               settings={draft.settings}
               setSettings={draft.setSettings}
               hasAudio={props.hasAudio}
-              musicFolderSet={props.musicFolderSet}
+              musicClipCount={props.musicClipCount}
               short={short}
               projectId={projectId}
               onSaved={onSaved}
@@ -111,11 +112,11 @@ function CutsPanel({
   problem
 }: {
   segments: Segment[]
-  setSegments: Dispatch<SetStateAction<Segment[]>>
+  setSegments: ShortDraft['setSegments']
   problem: string | null
 }) {
   const setSeg = (i: number, patch: Partial<Segment>): void =>
-    setSegments((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
+    setSegments((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)), 'cut-edit')
 
   return (
     <div className="stack">
@@ -156,7 +157,7 @@ function FramePanel({
   setSettings
 }: {
   settings: ShortSettings
-  setSettings: Dispatch<SetStateAction<ShortSettings>>
+  setSettings: ShortDraft['setSettings']
 }) {
   return (
     <div className="stack">
@@ -176,11 +177,11 @@ function FramePanel({
         <div className="grid2">
           <label>
             Horizontal <span className="mono">{settings.framing.x.toFixed(2)}</span>
-            <input type="range" min={0} max={1} step={0.01} value={settings.framing.x} onChange={(e) => setSettings({ ...settings, framing: { ...settings.framing, x: Number(e.target.value) } })} />
+            <input type="range" min={0} max={1} step={0.01} value={settings.framing.x} onChange={(e) => setSettings({ ...settings, framing: { ...settings.framing, x: Number(e.target.value) } }, 'framing-x')} />
           </label>
           <label>
             Vertical <span className="mono">{settings.framing.y.toFixed(2)}</span>
-            <input type="range" min={0} max={1} step={0.01} value={settings.framing.y} onChange={(e) => setSettings({ ...settings, framing: { ...settings.framing, y: Number(e.target.value) } })} />
+            <input type="range" min={0} max={1} step={0.01} value={settings.framing.y} onChange={(e) => setSettings({ ...settings, framing: { ...settings.framing, y: Number(e.target.value) } }, 'framing-y')} />
           </label>
         </div>
       )}
@@ -195,12 +196,12 @@ function TextPanel({
   setCaptions
 }: {
   settings: ShortSettings
-  setSettings: Dispatch<SetStateAction<ShortSettings>>
+  setSettings: ShortDraft['setSettings']
   captions: Caption[]
-  setCaptions: Dispatch<SetStateAction<Caption[]>>
+  setCaptions: ShortDraft['setCaptions']
 }) {
   const patchCaption = (i: number, patch: Partial<Caption>): void =>
-    setCaptions((prev) => prev.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
+    setCaptions((prev) => prev.map((x, idx) => (idx === i ? { ...x, ...patch } : x)), 'caption-edit')
 
   return (
     <div className="stack">
@@ -211,7 +212,7 @@ function TextPanel({
         <>
           <label>
             Font size <span className="mono">{settings.captionFontSize}px</span>
-            <input type="range" min={36} max={120} value={settings.captionFontSize} onChange={(e) => setSettings({ ...settings, captionFontSize: Number(e.target.value) })} />
+            <input type="range" min={36} max={120} value={settings.captionFontSize} onChange={(e) => setSettings({ ...settings, captionFontSize: Number(e.target.value) }, 'caption-size')} />
           </label>
           {captions.map((c, i) => (
             <div key={i} className={styles.captionRow}>
@@ -233,7 +234,7 @@ function AudioPanel({
   settings,
   setSettings,
   hasAudio,
-  musicFolderSet,
+  musicClipCount,
   short,
   projectId,
   onSaved,
@@ -241,9 +242,9 @@ function AudioPanel({
   onNotice
 }: {
   settings: ShortSettings
-  setSettings: Dispatch<SetStateAction<ShortSettings>>
+  setSettings: ShortDraft['setSettings']
   hasAudio: boolean
-  musicFolderSet: boolean
+  musicClipCount: number
   short: Short
   projectId: string
   onSaved: (s: Short) => void
@@ -293,18 +294,18 @@ function AudioPanel({
 
   return (
     <div className="stack">
-      <Switch
-        checked={settings.musicEnabled}
-        disabled={!musicFolderSet}
-        onChange={(v) => setSettings({ ...settings, musicEnabled: v })}
-      >
-        Music bed {musicFolderSet ? '(from your music folder)' : '(add music files to the Media panel)'}
-      </Switch>
-      {settings.musicEnabled && (
+      <span className="label">Music</span>
+      <span>{musicClipCount === 0 ? 'None' : `${musicClipCount} clip${musicClipCount === 1 ? '' : 's'} on the Music lane`}</span>
+      <span className="muted">
+        Drag a track from the Media panel onto the Music lane. Click a clip, press S to split it at the playhead, then
+        Delete to remove a part.
+      </span>
+      {musicClipCount > 0 && (
         <>
+          <button onClick={() => setSettings({ ...settings, musicClips: [] })}>Remove all music</button>
           <label>
             Music volume <span className="mono">{Math.round(settings.musicVolume * 100)}%</span>
-            <input type="range" min={0} max={1} step={0.01} value={settings.musicVolume} onChange={(e) => setSettings({ ...settings, musicVolume: Number(e.target.value) })} />
+            <input type="range" min={0} max={1} step={0.01} value={settings.musicVolume} onChange={(e) => setSettings({ ...settings, musicVolume: Number(e.target.value) }, 'music-volume')} />
           </label>
           <Checkbox checked={settings.musicDuck} onChange={(v) => setSettings({ ...settings, musicDuck: v })}>
             Duck music under speech

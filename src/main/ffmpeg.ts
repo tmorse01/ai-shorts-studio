@@ -158,8 +158,8 @@ export interface ExportInput {
   framing: Framing
   captionsEnabled: boolean
   captionFontSize: number
-  /** Absolute path to a user-selected music track, or null. */
-  musicPath: string | null
+  /** Music pieces to lay under the short. Each plays `lengthSec` from `trackStartSec` in its file, from `startSec` on the short. */
+  music: { path: string; startSec: number; trackStartSec: number; lengthSec: number }[]
   musicVolume: number
   musicDuck: boolean
   /** Absolute path to a recorded narration file, or null. */
@@ -202,10 +202,10 @@ export function buildExportArgs(input: ExportInput, outPath: string): GraphPlan 
       'anullsrc=channel_layout=stereo:sample_rate=48000'
     )
   }
-  const musicIndex = input.musicPath ? nextIndex++ : null
-  if (input.musicPath) {
-    inputs.push('-stream_loop', '-1', '-i', input.musicPath)
-  }
+  const musicIndexes = input.music.map((clip) => {
+    inputs.push('-i', clip.path)
+    return nextIndex++
+  })
   const narrationIndex = input.narrationPath ? nextIndex++ : null
   if (input.narrationPath) {
     inputs.push('-i', input.narrationPath)
@@ -250,11 +250,26 @@ export function buildExportArgs(input: ExportInput, outPath: string): GraphPlan 
     chains.push(`[ac][nar]amix=inputs=2:duration=first:normalize=0[voice]`)
     voice = '[voice]'
   }
-  if (musicIndex !== null) {
+  if (input.music.length > 0) {
     const volume = Math.max(0, Math.min(1, input.musicVolume)).toFixed(3)
     const fadeStart = Math.max(0, total - 1.5).toFixed(3)
+    input.music.forEach((clip, i) => {
+      const from = Math.max(0, clip.trackStartSec).toFixed(3)
+      const to = (Math.max(0, clip.trackStartSec) + clip.lengthSec).toFixed(3)
+      const delayMs = Math.round(Math.max(0, clip.startSec) * 1000)
+      chains.push(
+        `[${musicIndexes[i]}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS,adelay=${delayMs}:all=1[mc${i}]`
+      )
+    })
+    // Pieces are summed without normalising, so each keeps its level. Gaps between pieces are silent.
+    const pieces = input.music.map((_, i) => `[mc${i}]`).join('')
     chains.push(
-      `[${musicIndex}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:${total.toFixed(3)},asetpts=PTS-STARTPTS,volume=${volume},afade=t=out:st=${fadeStart}:d=1.5[mus]`
+      input.music.length === 1
+        ? `[mc0]anull[mix]`
+        : `${pieces}amix=inputs=${input.music.length}:duration=longest:normalize=0[mix]`
+    )
+    chains.push(
+      `[mix]atrim=start=0:end=${total.toFixed(3)},asetpts=PTS-STARTPTS,volume=${volume},afade=t=out:st=${fadeStart}:d=1.5[mus]`
     )
     if (input.musicDuck) {
       chains.push(`${voice}asplit=2[vsc][vmix]`)

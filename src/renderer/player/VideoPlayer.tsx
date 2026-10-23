@@ -43,6 +43,8 @@ export interface VideoPlayerProps {
   /** In and out points to mark on the scrubber. */
   marks?: { inSec: number | null; outSec: number | null }
   onTimeUpdate?: () => void
+  /** Called the first time playback starts (play button, space, or clicking the frame). */
+  onPlay?: () => void
   /** Drawn above the video, under the controls. Used for burned-in caption previews. */
   overlay?: ReactNode
   /** Width over height of the frame. Fullscreen keeps this ratio and adds black bars around it. */
@@ -59,7 +61,7 @@ export interface VideoPlayerProps {
  * ref is the <video> element, so existing keyboard and loop-preview code keeps working unchanged.
  */
 export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(function VideoPlayer(props, forwarded) {
-  const { src, durationSec, label, spans = [], marks, onTimeUpdate, overlay, aspect = 16 / 9, frameHeight, videoStyle, compact = false } = props
+  const { src, durationSec, label, spans = [], marks, onTimeUpdate, onPlay, overlay, aspect = 16 / 9, frameHeight, videoStyle, compact = false } = props
 
   const videoEl = useRef<HTMLVideoElement | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -240,6 +242,7 @@ export const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(functi
           onPlay={() => {
             setPlaying(true)
             wake()
+            onPlay?.()
           }}
           onPause={() => {
             setPlaying(false)

@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync, mkdi
 import { dirname, join } from 'node:path'
 import type { ExportItem, ExportPrefs, Job, JobStatus, MediaAsset, Project, Short } from '../shared/types'
 import type { Segment, Caption } from '../shared/timeline'
+import type { StageStatus } from '../shared/pipeline-graph'
 import { migrateState, type PersistedState } from './migrate'
 
 type State = PersistedState
@@ -225,6 +226,7 @@ export class Store {
       message: 'Starting…',
       error: null,
       items: null,
+      stages: null,
       createdAt: stamp,
       updatedAt: stamp
     }
@@ -242,6 +244,7 @@ export class Store {
       message?: string
       error?: string | null
       items?: ExportItem[] | null
+      stages?: StageStatus[] | null
     }
   ): void {
     const job = this.state.jobs.find((j) => j.id === id)

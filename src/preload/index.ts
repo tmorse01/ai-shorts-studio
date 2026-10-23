@@ -24,7 +24,8 @@ const api: StudioApi = {
   clipFrameUrl: (shortId, version = '') => `shorts-media://clip/${shortId}?v=${encodeURIComponent(version)}`,
   ensureThumbnails: (assetId) => ipcRenderer.invoke(IPC.thumbsEnsure, assetId),
   thumbnailUrl: (assetId, index) => `shorts-media://thumb/${assetId}/${index}`,
-  shortAudioUrl: (shortId, kind, version = '') => `shorts-media://audio/${shortId}/${kind}?v=${encodeURIComponent(version)}`,
+  musicUrl: (assetId) => `shorts-media://music/${assetId}`,
+  narrationUrl: (shortId, version = '') => `shorts-media://audio/${shortId}/narration?v=${encodeURIComponent(version)}`,
 
   listShorts: (projectId) => ipcRenderer.invoke(IPC.shortList, projectId),
   createShort: (projectId, sourceId, segments, title) =>

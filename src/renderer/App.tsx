@@ -12,6 +12,7 @@ import { VideoPlayer } from './player/VideoPlayer'
 import { Select } from './ui/Select'
 import { ExportDialog } from './export/ExportDialog'
 import { ExportProgressDialog } from './export/ExportProgressDialog'
+import { AnalysisProgressDialog } from './analysis/AnalysisProgressDialog'
 import { NewProjectDialog } from './dialogs/NewProjectDialog'
 import { ProjectSettingsDialog } from './dialogs/ProjectSettingsDialog'
 import { SettingsDialog } from './dialogs/SettingsDialog'
@@ -60,6 +61,8 @@ export default function App() {
   const [exportView, setExportView] = useState<'settings' | 'progress' | null>(null)
   const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [exportStarting, setExportStarting] = useState(false)
+  const [analysisJobId, setAnalysisJobId] = useState<string | null>(null)
+  const [analysisOpen, setAnalysisOpen] = useState(false)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -71,6 +74,7 @@ export default function App() {
   const source: MediaView | null = project?.media.find((m) => m.id === sourceId) ?? null
   const selected = shorts.find((s) => s.id === selectedId) ?? null
   const activeJob = jobs.find((j) => j.status === 'running' || j.status === 'queued') ?? null
+  const analysisJob = jobs.find((j) => j.id === analysisJobId && j.kind === 'analysis') ?? null
 
   const say = useCallback((text: string, error = false) => setNotice({ text, error }), [])
   const run = useCallback(
@@ -440,7 +444,6 @@ export default function App() {
           short={selected}
           project={project}
           source={source}
-          musicFolderSet={project.media.some((m) => m.kind === 'music' && !m.missing)}
           notice={notice}
           videoRef={videoRef}
           currentTime={currentTime}
@@ -533,7 +536,9 @@ export default function App() {
                 busy={activeJob !== null}
                 onStarted={(job) => {
                   setJobs((prev) => [job, ...prev])
-                  say('Analysis started. Progress shows in the bar below.')
+                  setAnalysisJobId(job.id)
+                  setAnalysisOpen(true)
+                  say('Analysis started.')
                 }}
                 onError={(t) => say(t, true)}
               />
@@ -570,6 +575,15 @@ export default function App() {
         />
       )}
 
+      {analysisOpen && analysisJob && (
+        <AnalysisProgressDialog
+          job={analysisJob}
+          onCancel={() => void run(() => api.cancelJob(analysisJob.id))}
+          onMinimize={() => setAnalysisOpen(false)}
+          onClose={() => setAnalysisOpen(false)}
+        />
+      )}
+
       <NewProjectDialog
         open={newProjectOpen}
         defaultName={`Project ${projects.length + 1}`}
@@ -601,6 +615,16 @@ export default function App() {
             <span className="muted" style={{ whiteSpace: 'nowrap' }}>
               {activeJob.progress}% · {activeJob.message}
             </span>
+            {activeJob.kind === 'analysis' && (
+              <button
+                onClick={() => {
+                  setAnalysisJobId(activeJob.id)
+                  setAnalysisOpen(true)
+                }}
+              >
+                Show pipeline
+              </button>
+            )}
             <button className="danger" onClick={() => void run(() => api.cancelJob(activeJob.id))}>
               Cancel
             </button>

@@ -39,8 +39,10 @@ export interface StudioApi {
   clipFrameUrl(shortId: string, version?: string): string
   ensureThumbnails(assetId: string): Promise<ThumbStatus>
   thumbnailUrl(assetId: string, index: number): string
-  /** Preview audio for a short: its music bed or its recorded narration. `version` only busts the cache. */
-  shortAudioUrl(shortId: string, kind: 'music' | 'narration', version?: string): string
+  /** A music track from the library, for the preview. */
+  musicUrl(assetId: string): string
+  /** A short's recorded narration, for the preview. `version` only busts the cache. */
+  narrationUrl(shortId: string, version?: string): string
 
   listShorts(projectId: string): Promise<Short[]>
   createShort(projectId: string, sourceId: string, segments: Segment[], title?: string): Promise<Short>

@@ -30,6 +30,12 @@
   /* Secondary is neutral in this theme: manual and other non-live states use plain text colours. */
   --secondary: #a3a3a3;
 
+  /* AI accent: the clip pipeline graph only, while analysis runs. The one exception to the monochrome theme. */
+  --ai-from: #8b5cf6;
+  --ai-mid: #3b82f6;
+  --ai-to: #ec4899;
+  --ai-glow: rgba(139, 92, 246, 0.4);
+
   /* Status only. Never used as decoration. */
   --success: #4ade80;
   --warning: #facc15;

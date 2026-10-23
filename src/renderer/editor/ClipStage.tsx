@@ -1,9 +1,9 @@
-import type { RefObject } from 'react'
+import { useState, type RefObject } from 'react'
 import { fmt } from '../util'
 import type { Caption, Segment } from '../../shared/timeline'
 import type { ShortSettings } from '../../shared/types'
 import { VideoPlayer, type ScrubSpan } from '../player/VideoPlayer'
-import { PreviewAudio } from './PreviewAudio'
+import { PreviewAudio, type PreviewMusicClip } from './PreviewAudio'
 import { activeCaption, frameAspect, playbackStep, videoStyle } from './preview-math'
 import styles from './ClipStage.module.css'
 
@@ -13,10 +13,13 @@ export interface ClipStageProps {
   settings: ShortSettings
   captions: Caption[]
   src: string
-  /** Preview music bed for this short. Null when no music folder is set. Played only if music is enabled. */
-  musicUrl: string | null
+  /** Preview music bed for this short: the track assigned in the draft, or null for none. */
+  /** The music pieces on this short's timeline, with the library track each plays from. */
+  musicClips: PreviewMusicClip[]
   /** Recorded narration for this short, or null. */
   narrationUrl: string | null
+  /** The clip's own frame, shown over the video until playback starts. */
+  posterUrl: string
   sourceWidth: number
   sourceHeight: number
   videoRef: RefObject<HTMLVideoElement>
@@ -36,8 +39,9 @@ export function ClipStage({
   settings,
   captions,
   src,
-  musicUrl,
+  musicClips,
   narrationUrl,
+  posterUrl,
   sourceWidth,
   sourceHeight,
   videoRef,
@@ -50,6 +54,10 @@ export function ClipStage({
   const source = { width: sourceWidth, height: sourceHeight }
   const aspect = frameAspect(settings.ratio, source)
   const caption = settings.captionsEnabled ? activeCaption(captions, currentTime) : null
+  // The clip's frame stands in for the video until it first plays, so the preview shows the clip before play.
+  const [started, setStarted] = useState(false)
+  const [posterFailed, setPosterFailed] = useState(false)
+  const frameStyle = videoStyle(settings.framing, settings.ratio, source)
   // Export uses captionFontSize px on a 1080px-wide frame; express it in container units to match.
   const captionSize = `${(settings.captionFontSize / 1080) * 100}cqw`
   // Only while playing and not mid-seek: a scrub into a gap should stay where the user put it, and a
@@ -88,14 +96,29 @@ export function ClipStage({
           spans={cutSpans}
           aspect={aspect}
           frameHeight="min(56vh, 480px)"
-          videoStyle={videoStyle(settings.framing, settings.ratio, source)}
+          videoStyle={frameStyle}
           onTimeUpdate={handleTimeUpdate}
-          overlay={caption && <div className={styles.caption} style={{ fontSize: captionSize }}>{caption.text}</div>}
+          onPlay={() => setStarted(true)}
+          overlay={
+            <>
+              {!started && !posterFailed && (
+                <img
+                  className={styles.poster}
+                  src={posterUrl}
+                  alt=""
+                  draggable={false}
+                  style={frameStyle}
+                  onError={() => setPosterFailed(true)}
+                />
+              )}
+              {caption && <div className={styles.caption} style={{ fontSize: captionSize }}>{caption.text}</div>}
+            </>
+          }
         />
         <PreviewAudio
           videoRef={videoRef}
           segments={segments}
-          musicUrl={settings.musicEnabled ? musicUrl : null}
+          musicClips={musicClips}
           musicVolume={settings.musicVolume}
           musicDuck={settings.musicDuck}
           narrationUrl={narrationUrl}

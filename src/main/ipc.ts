@@ -21,7 +21,7 @@ import { Store } from './store'
 import { SecretStore } from './secrets'
 import { JobRunner, defaultSettings } from './jobs'
 import { binPath, probeMedia } from './ffmpeg'
-import { whisperFiles } from './transcribe'
+import { parakeetFiles } from './transcribe'
 import { thumbDir, thumbnailStep, thumbsReady } from './thumbnails'
 import { clipFrameFile, ensurePoster, renderClipFrame } from './poster'
 import { z } from 'zod'
@@ -89,7 +89,7 @@ export function registerIpc(deps: IpcDeps): void {
       hasApiKey: secrets.has(),
       keyStorage: secrets.available() ? 'safeStorage' : 'unavailable',
       lastExport: store.getLastExport(),
-      whisperAvailable: whisperFiles() !== null,
+      speechAvailable: parakeetFiles() !== null,
       ffmpegAvailable
     }
   }

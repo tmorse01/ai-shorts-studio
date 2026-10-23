@@ -1,8 +1,9 @@
-// Prepares resources/bin (FFmpeg + FFprobe) and resources/whisper (whisper.cpp + base English model)
+// Prepares resources/bin (FFmpeg + FFprobe) and resources/parakeet (parakeet-cli + Parakeet model)
 // so they ship inside the installer. Nothing is fetched at app launch.
 //
 // FFmpeg: copied from $FFMPEG_DIR, or from whichever ffmpeg is on PATH.
-// Whisper: downloaded from the pinned whisper.cpp release and Hugging Face model, verified by SHA-256.
+// Parakeet: parakeet-cli is built from a pinned whisper.cpp tag (CPU, CMake); the GGUF model is
+// downloaded from Hugging Face and verified by SHA-256. Set CMAKE to use a specific cmake.exe.
 import {
   copyFileSync,
   createWriteStream,
@@ -24,16 +25,18 @@ import { pipeline } from 'node:stream/promises'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const binDir = join(root, 'resources', 'bin')
-const whisperDir = join(root, 'resources', 'whisper')
+const parakeetDir = join(root, 'resources', 'parakeet')
 const exe = process.platform === 'win32' ? '.exe' : ''
 
-const WHISPER_ZIP = {
-  url: 'https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip',
-  sha256: '6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb'
+const PARAKEET_SRC = {
+  repo: 'https://github.com/ggml-org/whisper.cpp.git',
+  tag: 'v1.9.5',
+  commit: 'd1be6fde11ac6e0407606b4e42fe72d34add8037'
 }
-const WHISPER_MODEL = {
-  url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin',
-  sha256: 'a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002'
+const PARAKEET_MODEL = {
+  file: 'ggml-parakeet-tdt-0.6b-v3-q8_0.bin',
+  url: 'https://huggingface.co/ggml-org/parakeet-GGUF/resolve/main/ggml-parakeet-tdt-0.6b-v3-q8_0.bin',
+  sha256: '4d64e9e96c2792186d072fde0034df0ad670cf680a2f53069052ead827fd600e'
 }
 
 function locate(name) {
@@ -56,6 +59,38 @@ async function download(url, dest, sha256) {
   console.log(`verified ${basename(dest)} (${Math.round(statSync(dest).size / 1e6)} MB)`)
 }
 
+/** Find a file by name anywhere under dir. Multi-config generators put it in a Release subfolder. */
+function findFile(dir, name) {
+  const hit = readdirSync(dir, { recursive: true }).find((f) => basename(f) === name)
+  if (!hit) throw new Error(`${name} was not produced under ${dir}`)
+  return join(dir, hit)
+}
+
+/** Clone the pinned whisper.cpp tag, check its commit, and build only parakeet-cli on CPU. */
+function buildParakeetCli() {
+  const work = mkdtempSync(join(tmpdir(), 'parakeet-build-'))
+  const src = join(work, 'whisper.cpp')
+  execFileSync('git', ['clone', '--depth', '1', '--branch', PARAKEET_SRC.tag, PARAKEET_SRC.repo, src], { stdio: 'inherit' })
+  const head = execFileSync('git', ['-C', src, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  if (head !== PARAKEET_SRC.commit) {
+    throw new Error(`whisper.cpp ${PARAKEET_SRC.tag} resolved to ${head}, expected ${PARAKEET_SRC.commit}`)
+  }
+  const cmake = process.env.CMAKE ?? 'cmake'
+  const build = join(src, 'build')
+  execFileSync(
+    cmake,
+    ['-S', src, '-B', build, '-DCMAKE_BUILD_TYPE=Release', '-DGGML_CUDA=OFF', '-DWHISPER_BUILD_TESTS=OFF', '-DWHISPER_BUILD_SERVER=OFF'],
+    { stdio: 'inherit' }
+  )
+  execFileSync(cmake, ['--build', build, '--config', 'Release', '--target', 'parakeet-cli', '-j', '8'], { stdio: 'inherit' })
+  const cli = findFile(build, `parakeet-cli${exe}`)
+  const outDir = dirname(cli)
+  for (const f of readdirSync(outDir)) {
+    if (f === `parakeet-cli${exe}` || f.endsWith('.dll')) copyFileSync(join(outDir, f), join(parakeetDir, f))
+  }
+  console.log(`built parakeet-cli ${PARAKEET_SRC.tag} into ${parakeetDir}`)
+}
+
 // ---- FFmpeg ----
 mkdirSync(binDir, { recursive: true })
 for (const name of ['ffmpeg', 'ffprobe']) {
@@ -71,23 +106,20 @@ console.log(
     : 'No licence file found next to the FFmpeg build. Check the build licence before distributing.'
 )
 
-// ---- whisper.cpp ----
-if (!existsSync(join(whisperDir, `whisper-cli${exe}`)) || process.env.FORCE_WHISPER === '1') {
-  mkdirSync(whisperDir, { recursive: true })
-  const work = mkdtempSync(join(tmpdir(), 'whisper-fetch-'))
-  const zip = join(work, 'whisper-bin-x64.zip')
-  await download(WHISPER_ZIP.url, zip, WHISPER_ZIP.sha256)
-  // Use the system bsdtar on Windows: Git's GNU tar on PATH reads "C:" as a remote host.
-  const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
-  execFileSync(tar, ['-xf', zip, '-C', work])
-  const releaseDir = join(work, 'Release')
-  for (const f of readdirSync(releaseDir)) {
-    if (f === 'whisper-cli.exe' || f.endsWith('.dll')) copyFileSync(join(releaseDir, f), join(whisperDir, f))
-  }
-  console.log(`installed whisper-cli into ${whisperDir}`)
+// ---- Parakeet ----
+mkdirSync(parakeetDir, { recursive: true })
+if (!existsSync(join(parakeetDir, `parakeet-cli${exe}`)) || process.env.FORCE_PARAKEET === '1') {
+  buildParakeetCli()
 }
-const modelPath = join(whisperDir, 'ggml-base.en.bin')
+const modelPath = join(parakeetDir, PARAKEET_MODEL.file)
 if (!existsSync(modelPath)) {
-  await download(WHISPER_MODEL.url, modelPath, WHISPER_MODEL.sha256)
+  await download(PARAKEET_MODEL.url, modelPath, PARAKEET_MODEL.sha256)
 }
-writeFileSync(join(whisperDir, 'README.txt'), 'whisper.cpp (MIT licence) b5454 and ggml-base.en model (MIT). See https://github.com/ggml-org/whisper.cpp\n')
+writeFileSync(
+  join(parakeetDir, 'README.txt'),
+  [
+    `parakeet-cli built from whisper.cpp ${PARAKEET_SRC.tag} (${PARAKEET_SRC.commit}), MIT. https://github.com/ggml-org/whisper.cpp`,
+    `Model ${PARAKEET_MODEL.file}: NVIDIA Parakeet TDT 0.6B v3, converted to GGUF by ggml-org. Check the licence on the model card: https://huggingface.co/ggml-org/parakeet-GGUF`,
+    ''
+  ].join('\n')
+)

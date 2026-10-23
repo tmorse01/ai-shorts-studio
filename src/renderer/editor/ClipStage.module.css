@@ -32,6 +32,12 @@
   white-space: nowrap;
 }
 
+/* The clip's first frame over the video before play. Ignores clicks so the video still starts on a click. */
+.poster {
+  pointer-events: none;
+  object-fit: contain;
+}
+
 .frameWrap {
   display: flex;
   justify-content: center;

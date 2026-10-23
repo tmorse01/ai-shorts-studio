@@ -31,7 +31,7 @@ jobs:
       - name: Install FFmpeg
         run: choco install ffmpeg -y --no-progress
 
-      - name: Fetch FFmpeg and whisper.cpp binaries
+      - name: Fetch FFmpeg and build parakeet-cli
         run: pnpm fetch:bin
 
       - name: Lint
