@@ -3,6 +3,7 @@ import { fmt } from '../util'
 import type { Caption, Segment } from '../../shared/timeline'
 import type { ShortSettings } from '../../shared/types'
 import { VideoPlayer, type ScrubSpan } from '../player/VideoPlayer'
+import { PreviewAudio } from './PreviewAudio'
 import { activeCaption, frameAspect, playbackStep, videoStyle } from './preview-math'
 import styles from './ClipStage.module.css'
 
@@ -12,6 +13,10 @@ export interface ClipStageProps {
   settings: ShortSettings
   captions: Caption[]
   src: string
+  /** Preview music bed for this short. Null when no music folder is set. Played only if music is enabled. */
+  musicUrl: string | null
+  /** Recorded narration for this short, or null. */
+  narrationUrl: string | null
   sourceWidth: number
   sourceHeight: number
   videoRef: RefObject<HTMLVideoElement>
@@ -31,6 +36,8 @@ export function ClipStage({
   settings,
   captions,
   src,
+  musicUrl,
+  narrationUrl,
   sourceWidth,
   sourceHeight,
   videoRef,
@@ -84,6 +91,14 @@ export function ClipStage({
           videoStyle={videoStyle(settings.framing, settings.ratio, source)}
           onTimeUpdate={handleTimeUpdate}
           overlay={caption && <div className={styles.caption} style={{ fontSize: captionSize }}>{caption.text}</div>}
+        />
+        <PreviewAudio
+          videoRef={videoRef}
+          segments={segments}
+          musicUrl={settings.musicEnabled ? musicUrl : null}
+          musicVolume={settings.musicVolume}
+          musicDuck={settings.musicDuck}
+          narrationUrl={narrationUrl}
         />
       </div>
 

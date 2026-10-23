@@ -1,8 +1,9 @@
 import { mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
-import { binPath, runProcess } from './ffmpeg'
+import { binPath, ProcessCancelledError, runProcess } from './ffmpeg'
 import type { CandidateWindow, FrameSample } from './ai'
+import type { SceneDetection } from '../shared/schemas'
 
 /** Hard limits that keep cost and memory bounded regardless of footage length. */
 export const MAX_CANDIDATES = 40
@@ -76,26 +77,66 @@ export function parseSceneTimes(stderr: string): number[] {
   return sampleEvenly(times, MAX_SCENE_CUTS)
 }
 
+/** NVIDIA hardware decoder for a source codec, or null when NVDEC has no decoder for it. */
+export function gpuDecoderFor(videoCodec: string): string | null {
+  if (videoCodec === 'h264') return 'h264_cuvid'
+  if (videoCodec === 'hevc') return 'hevc_cuvid'
+  return null
+}
+
+/**
+ * ffmpeg argv for scene detection.
+ *
+ * - `gpuDecoder` (e.g. `h264_cuvid`) decodes on NVDEC and scales on the GPU, so only small frames
+ *   are copied back for the CPU `select` filter. `-surfaces 8` is needed: the default surface count
+ *   made decoder creation fail on the bundled build.
+ * - `keyframes` sets `-skip_frame nokey` as an input option so the CPU decoder only produces
+ *   I-frames. That is what makes it fast, and why it can miss mid-GOP cuts. NVDEC ignores it, so
+ *   the keyframe mode never uses the GPU path.
+ */
+export function sceneDetectArgs(
+  sourcePath: string,
+  mode: Exclude<SceneDetection, 'off'>,
+  gpuDecoder: string | null
+): string[] {
+  const select = `select='gt(scene,${SCENE_THRESHOLD})',showinfo`
+  const gpu = gpuDecoder !== null && mode === 'full'
+  return [
+    '-hide_banner',
+    '-nostats',
+    ...(gpu ? ['-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda', '-c:v', gpuDecoder, '-surfaces', '8'] : []),
+    ...(mode === 'keyframes' ? ['-skip_frame', 'nokey'] : []),
+    '-i',
+    sourcePath,
+    '-an',
+    '-vf',
+    gpu ? `scale_cuda=w=640:h=-2,hwdownload,format=nv12,${select}` : select,
+    '-f',
+    'null',
+    '-'
+  ]
+}
+
+/**
+ * Scene cut times for a source. Tries NVDEC first when the codec has a decoder, then falls back to
+ * the CPU if the GPU run fails. Cancellation is not a failure and is never retried.
+ */
 export async function detectSceneCuts(
   sourcePath: string,
+  mode: Exclude<SceneDetection, 'off'>,
+  videoCodec: string,
   onSpawn: (child: ChildProcessWithoutNullStreams) => void
 ): Promise<number[]> {
-  const stderr = await runProcess(
-    binPath('ffmpeg'),
-    [
-      '-hide_banner',
-      '-nostats',
-      '-i',
-      sourcePath,
-      '-an',
-      '-vf',
-      `select='gt(scene,${SCENE_THRESHOLD})',showinfo`,
-      '-f',
-      'null',
-      '-'
-    ],
-    { onSpawn }
-  )
+  const gpuDecoder = gpuDecoderFor(videoCodec)
+  if (gpuDecoder && mode === 'full') {
+    try {
+      const stderr = await runProcess(binPath('ffmpeg'), sceneDetectArgs(sourcePath, mode, gpuDecoder), { onSpawn })
+      return parseSceneTimes(stderr)
+    } catch (err) {
+      if (err instanceof ProcessCancelledError) throw err
+    }
+  }
+  const stderr = await runProcess(binPath('ffmpeg'), sceneDetectArgs(sourcePath, mode, null), { onSpawn })
   return parseSceneTimes(stderr)
 }
 

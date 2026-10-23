@@ -7,6 +7,7 @@ import { SecretStore } from './secrets'
 import { JobRunner } from './jobs'
 import { registerIpc } from './ipc'
 import { thumbDir, thumbFileName } from './thumbnails'
+import { pickMusicTrack } from './music'
 
 const MEDIA_SCHEME = 'shorts-media'
 const DEV_RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
@@ -69,74 +70,109 @@ function isAllowedRendererUrl(url: string): boolean {
   return Boolean(DEV_RENDERER_URL && url.startsWith(DEV_RENDERER_URL))
 }
 
-/** Thumbnail images for the source strip: `shorts-media://thumb/<projectId>/<index>` only. */
-function serveThumbnail(url: URL, userDataDir: string): Response {
-  const [, projectId, index] = url.pathname.split('/')
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(projectId ?? '') || !/^\d{1,4}$/.test(index ?? '')) {
+/** Thumbnail images for a source strip: `shorts-media://thumb/<assetId>/<index>` only. */
+function serveThumbnail(url: URL, store: Store, userDataDir: string): Response {
+  const [, assetId, index] = url.pathname.split('/')
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(assetId ?? '') || !/^\d{1,4}$/.test(index ?? '')) {
     return new Response('Not found', { status: 404 })
   }
-  const file = join(thumbDir(userDataDir, projectId), thumbFileName(Number(index)))
+  let projectId: string
+  try {
+    projectId = store.findMediaAsset(assetId).project.id
+  } catch {
+    return new Response('Not found', { status: 404 })
+  }
+  const file = join(thumbDir(userDataDir, projectId, assetId), thumbFileName(Number(index)))
   if (!existsSync(file)) return new Response('Not found', { status: 404 })
   const body = Readable.toWeb(createReadStream(file)) as ReadableStream
   return new Response(body, { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
 }
 
-const VIDEO_TYPES: Record<string, string> = {
+const MEDIA_TYPES: Record<string, string> = {
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
   '.m4v': 'video/mp4',
-  '.webm': 'video/webm'
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac'
+}
+
+/** Stream a local file. Supports byte ranges so scrubbing seeks instead of re-reading the whole file. */
+function serveFile(source: string, range: string | null): Response {
+  const ext = source.slice(source.lastIndexOf('.')).toLowerCase()
+  const type = MEDIA_TYPES[ext] ?? 'application/octet-stream'
+  const size = statSync(source).size
+  const match = range ? /bytes=(\d*)-(\d*)/.exec(range) : null
+  if (match && (match[1] || match[2])) {
+    const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]))
+    const end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1
+    if (start > end || start >= size) {
+      return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
+    }
+    const body = Readable.toWeb(createReadStream(source, { start, end })) as ReadableStream
+    return new Response(body, {
+      status: 206,
+      headers: {
+        'Content-Type': type,
+        'Content-Length': String(end - start + 1),
+        'Content-Range': `bytes ${start}-${end}/${size}`,
+        'Accept-Ranges': 'bytes'
+      }
+    })
+  }
+  const body = Readable.toWeb(createReadStream(source)) as ReadableStream
+  return new Response(body, {
+    status: 200,
+    headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' }
+  })
 }
 
 /**
- * Serve footage for an allowed project only: the renderer can ask for `shorts-media://project/<id>`
- * and nothing else. Supports byte ranges so scrubbing seeks instead of re-reading the whole file.
+ * Preview audio for one short: `shorts-media://audio/<shortId>/music` or `.../narration`. The renderer
+ * names only the short and the kind; the file comes from the store, never from a renderer path.
+ */
+function serveShortAudio(url: URL, store: Store, range: string | null): Response {
+  const [, shortId, kind] = url.pathname.split('/')
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(shortId ?? '')) return new Response('Not found', { status: 404 })
+  let file: string | null = null
+  try {
+    const short = store.getShort(shortId)
+    if (kind === 'music') file = pickMusicTrack(store.musicPaths(short.projectId), shortId)
+    else if (kind === 'narration') file = short.narrationPath
+  } catch {
+    return new Response('Not found', { status: 404 })
+  }
+  if (!file || !existsSync(file)) return new Response('Not found', { status: 404 })
+  return serveFile(file, range)
+}
+
+/**
+ * Serve footage for a known media asset only: the renderer can ask for `shorts-media://media/<assetId>`
+ * and nothing else.
  */
 function registerMediaProtocol(store: Store, userDataDir: string): void {
   protocol.handle(MEDIA_SCHEME, (request) => {
     const url = new URL(request.url)
-    if (url.host === 'thumb') return serveThumbnail(url, userDataDir)
+    if (url.host === 'thumb') return serveThumbnail(url, store, userDataDir)
+    if (url.host === 'audio') return serveShortAudio(url, store, request.headers.get('range'))
     const id = url.pathname.replace(/^\//, '')
-    if (url.host !== 'project' || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
+    if (url.host !== 'media' || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
       return new Response('Not found', { status: 404 })
     }
     // Prefer the H.264 preview when one exists; otherwise the original file.
     let source: string | null = null
     try {
-      const project = store.getProject(id)
-      source = project.proxyPath && existsSync(project.proxyPath) ? project.proxyPath : project.sourcePath
+      const { asset } = store.findMediaAsset(id)
+      source = asset.proxyPath && existsSync(asset.proxyPath) ? asset.proxyPath : asset.path
     } catch {
       return new Response('Not found', { status: 404 })
     }
     if (!source || !existsSync(source)) return new Response('Source missing', { status: 410 })
-
-    const ext = source.slice(source.lastIndexOf('.')).toLowerCase()
-    const type = VIDEO_TYPES[ext] ?? 'application/octet-stream'
-    const size = statSync(source).size
-    const range = request.headers.get('range')
-    const match = range ? /bytes=(\d*)-(\d*)/.exec(range) : null
-    if (match && (match[1] || match[2])) {
-      const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]))
-      const end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1
-      if (start > end || start >= size) {
-        return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } })
-      }
-      const body = Readable.toWeb(createReadStream(source, { start, end })) as ReadableStream
-      return new Response(body, {
-        status: 206,
-        headers: {
-          'Content-Type': type,
-          'Content-Length': String(end - start + 1),
-          'Content-Range': `bytes ${start}-${end}/${size}`,
-          'Accept-Ranges': 'bytes'
-        }
-      })
-    }
-    const body = Readable.toWeb(createReadStream(source)) as ReadableStream
-    return new Response(body, {
-      status: 200,
-      headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' }
-    })
+    return serveFile(source, request.headers.get('range'))
   })
 }
 

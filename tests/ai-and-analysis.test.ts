@@ -9,7 +9,9 @@ vi.mock('@anthropic-ai/sdk', () => ({
 vi.mock('electron', () => ({ app: { isPackaged: false, getAppPath: () => process.cwd() } }))
 
 const { rankCandidates, AiError } = await import('../src/main/ai')
-const { makeCandidates, parseSceneTimes, sampleEvenly, frameTimes } = await import('../src/main/analysis')
+const { makeCandidates, parseSceneTimes, sampleEvenly, frameTimes, sceneDetectArgs, gpuDecoderFor } = await import(
+  '../src/main/analysis'
+)
 const { safeFileName, chooseOutputPath } = await import('../src/main/jobs')
 const { mkdtempSync, writeFileSync } = await import('node:fs')
 const { tmpdir } = await import('node:os')
@@ -95,6 +97,28 @@ describe('candidate generation', () => {
     expect(sampled[9]).toBe(99)
     const cands = makeCandidates(7200, 30, 60, [])
     expect(frameTimes(cands).length).toBeLessThanOrEqual(40)
+  })
+
+  it('only adds keyframe-only decoding for the keyframes scene mode', () => {
+    expect(sceneDetectArgs('a.mp4', 'full', null)).not.toContain('-skip_frame')
+    const keyframes = sceneDetectArgs('a.mp4', 'keyframes', null)
+    const i = keyframes.indexOf('-skip_frame')
+    expect(keyframes.slice(i, i + 2)).toEqual(['-skip_frame', 'nokey'])
+    expect(keyframes.indexOf('-i')).toBeGreaterThan(i)
+  })
+
+  it('decodes full scans on NVDEC with GPU scaling, and never uses the GPU for keyframes', () => {
+    const gpu = sceneDetectArgs('a.mp4', 'full', 'h264_cuvid')
+    expect(gpu.slice(gpu.indexOf('-c:v'), gpu.indexOf('-c:v') + 2)).toEqual(['-c:v', 'h264_cuvid'])
+    expect(gpu.indexOf('-c:v')).toBeLessThan(gpu.indexOf('-i'))
+    expect(gpu[gpu.indexOf('-vf') + 1]).toContain('scale_cuda=w=640:h=-2,hwdownload,format=nv12,')
+    expect(sceneDetectArgs('a.mp4', 'keyframes', 'h264_cuvid')).not.toContain('-c:v')
+  })
+
+  it('maps source codecs to NVDEC decoders and leaves others on the CPU', () => {
+    expect(gpuDecoderFor('h264')).toBe('h264_cuvid')
+    expect(gpuDecoderFor('hevc')).toBe('hevc_cuvid')
+    expect(gpuDecoderFor('prores')).toBeNull()
   })
 
   it('parses ffmpeg showinfo scene timestamps', () => {

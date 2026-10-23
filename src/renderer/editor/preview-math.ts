@@ -50,3 +50,17 @@ export function playbackStep(segments: Segment[], sourceSec: number): PlaybackSt
   }
   return { kind: 'end' }
 }
+
+/**
+ * Where a source time falls on the exported timeline. The cuts play back to back, so the gaps between
+ * them take no time. A time in a gap maps to the start of the next cut.
+ */
+export function outputTimeAt(segments: Segment[], sourceSec: number): number {
+  let out = 0
+  for (const s of segments) {
+    if (sourceSec < s.startSec) return out
+    if (sourceSec < s.endSec) return out + (sourceSec - s.startSec)
+    out += s.endSec - s.startSec
+  }
+  return out
+}

@@ -112,19 +112,24 @@ export async function probeMedia(path: string): Promise<ProbeInfo> {
   ])
   const parsed = probeSchema.parse(JSON.parse(out))
   const video = parsed.streams.find((s) => s.codec_type === 'video')
-  if (!video || !video.width || !video.height) {
+  const hasAudio = parsed.streams.some((s) => s.codec_type === 'audio')
+  // Audio-only files are valid library entries too. They report no picture: width, height and codec are zero.
+  if (!video && !hasAudio) {
+    throw new Error('No readable video or audio stream. Is this a supported file?')
+  }
+  if (video && (!video.width || !video.height)) {
     throw new Error('No readable video stream. Is this a supported MP4/MOV file?')
   }
   const durationSec = Number(parsed.format.duration ?? 0)
   if (!Number.isFinite(durationSec) || durationSec <= 0) {
-    throw new Error('Could not read the video duration; the file may be corrupt.')
+    throw new Error('Could not read the duration; the file may be corrupt.')
   }
   return {
     durationSec,
-    width: video.width,
-    height: video.height,
-    videoCodec: video.codec_name ?? 'unknown',
-    hasAudio: parsed.streams.some((s) => s.codec_type === 'audio')
+    width: video?.width ?? 0,
+    height: video?.height ?? 0,
+    videoCodec: video ? (video.codec_name ?? 'unknown') : 'none',
+    hasAudio
   }
 }
 

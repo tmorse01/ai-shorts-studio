@@ -1,57 +1,18 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, renameSync, writeFileSync, mkdirSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { z } from 'zod'
-import type { ExportItem, ExportPrefs, Job, JobStatus, Project, Short } from '../shared/types'
+import type { ExportItem, ExportPrefs, Job, JobStatus, MediaAsset, Project, Short } from '../shared/types'
 import type { Segment, Caption } from '../shared/timeline'
-import { exportOptionsSchema } from '../shared/schemas'
+import { migrateState, type PersistedState } from './migrate'
 
-const probeSchema = z.object({
-  durationSec: z.number(),
-  width: z.number(),
-  height: z.number(),
-  videoCodec: z.string(),
-  hasAudio: z.boolean()
-})
-
-const stateSchema = z.object({
-  version: z.literal(1),
-  projects: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      sourcePath: z.string().nullable(),
-      probe: probeSchema.nullable(),
-      proxyPath: z.string().nullable().default(null),
-      createdAt: z.string(),
-      updatedAt: z.string()
-    })
-  ),
-  shorts: z.array(z.any()),
-  jobs: z.array(z.any()),
-  settings: z.object({
-    musicFolder: z.string().nullable(),
-    lastExport: z
-      .object({ outputDir: z.string(), options: exportOptionsSchema })
-      .nullable()
-      .default(null)
-  })
-})
-
-interface State {
-  version: 1
-  projects: Project[]
-  shorts: Short[]
-  jobs: Job[]
-  settings: { musicFolder: string | null; lastExport: ExportPrefs | null }
-}
+type State = PersistedState
 
 const empty = (): State => ({
-  version: 1,
+  version: 3,
   projects: [],
   shorts: [],
   jobs: [],
-  settings: { musicFolder: null, lastExport: null }
+  settings: { lastExport: null }
 })
 
 const now = (): string => new Date().toISOString()
@@ -67,20 +28,26 @@ export class Store {
   constructor(userDataDir: string) {
     mkdirSync(userDataDir, { recursive: true })
     this.file = join(userDataDir, 'state.json')
-    this.state = this.load()
+    const { state, migrated } = this.load()
+    this.state = state
+    if (migrated) {
+      // Keep the pre-migration file so a bad migration can be undone by hand.
+      const backup = join(dirname(this.file), 'state.before-migration.json')
+      if (!existsSync(backup)) copyFileSync(this.file, backup)
+      this.save()
+    }
     this.recoverInterruptedJobs()
   }
 
-  private load(): State {
-    if (!existsSync(this.file)) return empty()
+  private load(): { state: State; migrated: boolean } {
+    if (!existsSync(this.file)) return { state: empty(), migrated: false }
     try {
-      const parsed = stateSchema.parse(JSON.parse(readFileSync(this.file, 'utf8')))
-      return parsed as State
+      return migrateState(JSON.parse(readFileSync(this.file, 'utf8')))
     } catch {
       // Keep the unreadable file for inspection rather than silently discarding user data.
       const backup = join(dirname(this.file), `state.corrupt-${Date.now()}.json`)
       renameSync(this.file, backup)
-      return empty()
+      return { state: empty(), migrated: false }
     }
   }
 
@@ -120,9 +87,7 @@ export class Store {
     const project: Project = {
       id: randomUUID(),
       name,
-      sourcePath: null,
-      probe: null,
-      proxyPath: null,
+      media: [],
       createdAt: stamp,
       updatedAt: stamp
     }
@@ -131,20 +96,69 @@ export class Store {
     return project
   }
 
-  updateProject(id: string, patch: Partial<Pick<Project, 'name' | 'sourcePath' | 'probe' | 'proxyPath'>>): Project {
+  updateProject(id: string, patch: Partial<Pick<Project, 'name'>>): Project {
     const p = this.getProject(id)
     Object.assign(p, patch, { updatedAt: now() })
     this.save()
     return p
   }
 
-  /** Removes project metadata and its shorts. Never touches the user's source footage. */
+  /** Removes project metadata, its media entries and its shorts. Never touches the user's footage. */
   deleteProject(id: string): void {
     this.getProject(id)
     this.state.projects = this.state.projects.filter((p) => p.id !== id)
     this.state.shorts = this.state.shorts.filter((s) => s.projectId !== id)
     this.state.jobs = this.state.jobs.filter((j) => j.projectId !== id)
     this.save()
+  }
+
+  // ---- media ----
+  /** Music files in the project's library that are still on disk, oldest first. */
+  musicPaths(projectId: string): string[] {
+    return this.getProject(projectId)
+      .media.filter((m) => m.kind === 'music' && existsSync(m.path))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((m) => m.path)
+  }
+
+  /** Find a media entry by id across all projects, with the project that owns it. */
+  findMediaAsset(assetId: string): { project: Project; asset: MediaAsset } {
+    for (const project of this.state.projects) {
+      const asset = project.media.find((m) => m.id === assetId)
+      if (asset) return { project, asset }
+    }
+    throw new Error('Media not found')
+  }
+
+  addMediaAssets(projectId: string, assets: MediaAsset[]): Project {
+    const project = this.getProject(projectId)
+    project.media.push(...assets)
+    project.updatedAt = now()
+    this.save()
+    return project
+  }
+
+  updateMediaAsset(assetId: string, patch: Partial<Pick<MediaAsset, 'name' | 'path' | 'probe' | 'proxyPath'>>): void {
+    const { project, asset } = this.findMediaAsset(assetId)
+    Object.assign(asset, patch)
+    project.updatedAt = now()
+    this.save()
+  }
+
+  /**
+   * Drops a media entry from the library. Refused while clips still point at it, so no clip is left
+   * without its footage. The file on disk is never touched.
+   */
+  removeMediaAsset(assetId: string): Project {
+    const { project } = this.findMediaAsset(assetId)
+    const used = this.state.shorts.filter((s) => s.sourceId === assetId).length
+    if (used > 0) {
+      throw new Error(`${used} clip${used === 1 ? ' uses' : 's use'} this video. Delete ${used === 1 ? 'it' : 'them'} first.`)
+    }
+    project.media = project.media.filter((m) => m.id !== assetId)
+    project.updatedAt = now()
+    this.save()
+    return project
   }
 
   // ---- shorts ----
@@ -237,15 +251,6 @@ export class Store {
   }
 
   // ---- settings ----
-  getMusicFolder(): string | null {
-    return this.state.settings.musicFolder
-  }
-
-  setMusicFolder(folder: string | null): void {
-    this.state.settings.musicFolder = folder
-    this.save()
-  }
-
   getLastExport(): ExportPrefs | null {
     return this.state.settings.lastExport
   }

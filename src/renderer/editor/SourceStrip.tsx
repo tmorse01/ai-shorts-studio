@@ -10,6 +10,8 @@ const MIN_NEW_CUT_SEC = 1
 
 export interface SourceStripProps {
   projectId: string
+  /** The video the strip shows. Thumbnails are cached per video. */
+  assetId: string
   sourceDurationSec: number
   segments: Segment[]
   currentTime: number
@@ -24,6 +26,7 @@ export interface SourceStripProps {
  */
 export function SourceStrip({
   projectId,
+  assetId,
   sourceDurationSec,
   segments,
   currentTime,
@@ -40,10 +43,11 @@ export function SourceStrip({
     let cancelled = false
     const load = (): void => {
       api
-        .ensureThumbnails(projectId)
+        .ensureThumbnails(assetId)
         .then((status) => !cancelled && setThumbs(status))
         .catch(() => !cancelled && setThumbs(null))
     }
+    setThumbs(null)
     load()
     // A thumbnail job can be waiting behind another job; ask again whenever any job finishes.
     const unsubscribe = api.onJobUpdate((job) => {
@@ -53,7 +57,7 @@ export function SourceStrip({
       cancelled = true
       unsubscribe()
     }
-  }, [projectId])
+  }, [projectId, assetId])
 
   const timeAt = (clientX: number): number => {
     const rect = trackRef.current?.getBoundingClientRect()
@@ -118,7 +122,7 @@ export function SourceStrip({
         {ready && thumbs && (
           <div className={styles.thumbs} aria-hidden="true">
             {Array.from({ length: thumbs.count }, (_, i) => (
-              <img key={i} src={api.thumbnailUrl(projectId, i)} alt="" loading="lazy" draggable={false} />
+              <img key={i} src={api.thumbnailUrl(assetId, i)} alt="" loading="lazy" draggable={false} />
             ))}
           </div>
         )}

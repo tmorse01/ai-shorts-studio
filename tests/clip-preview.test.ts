@@ -70,3 +70,31 @@ describe('clip playback steps', () => {
     expect(playbackStep([], 5)).toEqual({ kind: 'end' })
   })
 })
+
+describe('output timeline', () => {
+  // Cuts play back to back: 10 s from the first cut, then 5 s from the second.
+  const cuts = [
+    { startSec: 10, endSec: 20 },
+    { startSec: 50, endSec: 55 }
+  ]
+
+  it('counts time from the start of the first cut and skips the gap', async () => {
+    const { outputTimeAt } = await import('../src/renderer/editor/preview-math')
+    expect(outputTimeAt(cuts, 10)).toBe(0)
+    expect(outputTimeAt(cuts, 14)).toBeCloseTo(4, 5)
+    expect(outputTimeAt(cuts, 50)).toBeCloseTo(10, 5)
+    expect(outputTimeAt(cuts, 53)).toBeCloseTo(13, 5)
+  })
+
+  it('maps a time in a gap to the start of the next cut', async () => {
+    const { outputTimeAt } = await import('../src/renderer/editor/preview-math')
+    expect(outputTimeAt(cuts, 25)).toBeCloseTo(10, 5)
+    expect(outputTimeAt(cuts, 3)).toBe(0)
+  })
+
+  it('stays at the total length past the last cut', async () => {
+    const { outputTimeAt } = await import('../src/renderer/editor/preview-math')
+    expect(outputTimeAt(cuts, 99)).toBeCloseTo(15, 5)
+    expect(outputTimeAt([], 5)).toBe(0)
+  })
+})

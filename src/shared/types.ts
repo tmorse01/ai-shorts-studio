@@ -11,14 +11,34 @@ export interface ProbeInfo {
   hasAudio: boolean
 }
 
+/** Which library filter a kind belongs to. Audio is only `music`; everything else is video. */
+export type MediaType = 'video' | 'audio'
+
+/**
+ * One file in a project's media library. `source` is footage the user imported; `export` is a clip
+ * rendered by this app and added back to the library; `music` is an audio file used for music beds.
+ */
+export interface MediaAsset {
+  id: string
+  name: string
+  kind: 'source' | 'export' | 'music'
+  /** Absolute path to the file. Never uploaded or copied. */
+  path: string
+  probe: ProbeInfo
+  /** Cache-only H.264 preview, present when the source codec cannot play in the renderer. */
+  proxyPath: string | null
+  createdAt: string
+}
+
+/** A library entry as the renderer sees it. `missing` is computed on each read, never stored. */
+export interface MediaView extends MediaAsset {
+  missing: boolean
+}
+
 export interface Project {
   id: string
   name: string
-  /** Absolute path to the user's original footage. Never uploaded or copied. */
-  sourcePath: string | null
-  probe: ProbeInfo | null
-  /** Cache-only H.264 preview, present when the source codec cannot play in the renderer. */
-  proxyPath: string | null
+  media: MediaAsset[]
   createdAt: string
   updatedAt: string
 }
@@ -36,6 +56,8 @@ export interface ShortSettings {
 export interface Short {
   id: string
   projectId: string
+  /** The media asset this clip was cut from. Null only for clips from a migrated project with no source. */
+  sourceId: string | null
   title: string
   reason: string
   provenance: Provenance
@@ -95,7 +117,6 @@ export interface MediaUrl {
 export interface SettingsView {
   hasApiKey: boolean
   keyStorage: 'safeStorage' | 'unavailable'
-  musicFolder: string | null
   lastExport: ExportPrefs | null
   whisperAvailable: boolean
   ffmpegAvailable: boolean
@@ -110,10 +131,12 @@ export interface AnalysisResultView {
 export const IPC = {
   projectList: 'project:list',
   projectCreate: 'project:create',
+  projectUpdate: 'project:update',
   projectDelete: 'project:delete',
-  projectImportMedia: 'project:importMedia',
-  projectRelinkMedia: 'project:relinkMedia',
-  projectMediaUrl: 'project:mediaUrl',
+  mediaImport: 'media:import',
+  mediaRelink: 'media:relink',
+  mediaRemove: 'media:remove',
+  mediaPrepare: 'media:prepare',
   shortList: 'short:list',
   shortCreate: 'short:create',
   shortUpdate: 'short:update',
@@ -130,8 +153,6 @@ export const IPC = {
   settingsGet: 'settings:get',
   settingsSetApiKey: 'settings:setApiKey',
   settingsClearApiKey: 'settings:clearApiKey',
-  settingsSetMusicFolder: 'settings:setMusicFolder',
-  musicList: 'music:list',
   dialogPickOutputDir: 'dialog:pickOutputDir',
   thumbsEnsure: 'thumbs:ensure'
 } as const

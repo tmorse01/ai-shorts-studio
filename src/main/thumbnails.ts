@@ -22,8 +22,9 @@ export function thumbnailStep(durationSec: number): number {
   return Math.max(MIN_THUMB_STEP_SEC, Math.ceil(durationSec / MAX_THUMBNAILS))
 }
 
-export function thumbDir(userDataDir: string, projectId: string): string {
-  return join(userDataDir, 'cache', projectId, 'thumbs')
+/** Thumbnails belong to one media asset, so each video in a project gets its own strip. */
+export function thumbDir(userDataDir: string, projectId: string, assetId: string): string {
+  return join(userDataDir, 'cache', projectId, assetId, 'thumbs')
 }
 
 /** File name for the Nth thumbnail (0-based index). FFmpeg writes them 1-based. */

@@ -1,27 +1,27 @@
 import { useState } from 'react'
 import type { ProjectView } from '../../shared/api'
-import type { SettingsView, Short } from '../../shared/types'
+import type { MediaView, Short } from '../../shared/types'
 import { ShortStrip } from '../editor/ShortStrip'
-import { errorText, fmt } from '../util'
+import { fmt } from '../util'
 import styles from './ProjectSidebar.module.css'
 
-const api = window.studio
+export type ClipScope = 'source' | 'all'
+type MediaFilter = 'all' | 'video' | 'audio'
 
 export interface ProjectSidebarProps {
-  projects: ProjectView[]
-  projectId: string | null
-  newName: string
-  onNewNameChange: (value: string) => void
-  onSelectProject: (id: string) => void
-  onCreateProject: () => void
   project: ProjectView | null
-  onImport: (relink: boolean) => void
-  onDeleteProject: (id: string) => void
-  settings: SettingsView | null
-  onSettingsChange: (s: SettingsView) => void
-  onPickMusic: () => void
-  onError: (t: string) => void
+  /** The video or track the centre column is showing. */
+  sourceId: string | null
+  onSelectSource: (id: string) => void
+  onImport: () => void
+  onNewProject: () => void
+  onRelink: (assetId: string) => void
+  onRemove: (assetId: string) => void
+  /** Clips shown in the list, already filtered by `clipScope`. */
   shorts: Short[]
+  clipScope: ClipScope
+  onClipScope: (scope: ClipScope) => void
+  totalClips: number
   selectedId: string | null
   checked: Set<string>
   exportBusy: boolean
@@ -31,141 +31,214 @@ export interface ProjectSidebarProps {
 }
 
 /**
- * Left column. Three working sections for the open project (Project, Source, Clips) and a collapsed
- * Project settings section for the API key, music folder and tool status.
+ * Left column. The project's media library: videos and exports on one side, music on the other, with a
+ * filter for each. The clips cut from the selected video sit underneath.
  */
 export function ProjectSidebar(props: ProjectSidebarProps) {
-  const { project, settings } = props
-  const fileName = project?.sourcePath?.replace(/\\/g, '/').split('/').pop() ?? null
+  const { project } = props
+  const [filter, setFilter] = useState<MediaFilter>('all')
+
+  if (!project) {
+    return (
+      <aside className={styles.sidebar} aria-label="Media library">
+        <section className={styles.section}>
+          <h2>Media</h2>
+          <div className="muted">No project open. Create one to start adding media.</div>
+          <div>
+            <button className="primary" onClick={props.onNewProject}>
+              New project…
+            </button>
+          </div>
+        </section>
+      </aside>
+    )
+  }
+
+  const videos = project.media.filter((m) => m.kind === 'source')
+  const exports = project.media.filter((m) => m.kind === 'export')
+  const music = project.media.filter((m) => m.kind === 'music')
+  const selected = project.media.find((m) => m.id === props.sourceId) ?? null
+  const showVideo = filter !== 'audio'
+  const showAudio = filter !== 'video'
 
   return (
-    <aside className={styles.sidebar} aria-label="Project sidebar">
-      <section className={styles.section} aria-labelledby="sb-project">
-        <h2 id="sb-project">Project</h2>
-        <div className={styles.row}>
-          <input
-            type="text"
-            aria-label="New project name"
-            placeholder="New project name"
-            value={props.newName}
-            onChange={(e) => props.onNewNameChange(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && props.onCreateProject()}
-          />
-          <button className="primary" onClick={props.onCreateProject}>
-            Add
-          </button>
+    <aside className={styles.sidebar} aria-label="Media library">
+      <section className={styles.section} aria-labelledby="sb-media">
+        <div className={styles.heading}>
+          <h2 id="sb-media">Media</h2>
+          <span className="muted">{project.media.length}</span>
         </div>
-        {props.projects.length === 0 && <div className="muted">No projects yet. Create one to begin.</div>}
-        <ul className={styles.projectList} aria-label="Projects">
-          {props.projects.map((p) => (
-            <li key={p.id}>
-              <button
-                className={styles.projectButton}
-                aria-current={p.id === props.projectId}
-                onClick={() => props.onSelectProject(p.id)}
-              >
-                <span>{p.name}</span>
-                <span className="muted">{p.sourcePath ? (p.sourceMissing ? 'Source missing' : 'Source linked') : 'No video yet'}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className={styles.row}>
+          <button className="primary" onClick={props.onImport}>
+            Add media…
+          </button>
+          <div className={styles.segmented} role="radiogroup" aria-label="Show media type">
+            <FilterButton value="all" current={filter} onChange={setFilter}>
+              All
+            </FilterButton>
+            <FilterButton value="video" current={filter} onChange={setFilter}>
+              Video
+            </FilterButton>
+            <FilterButton value="audio" current={filter} onChange={setFilter}>
+              Audio
+            </FilterButton>
+          </div>
+        </div>
+
+        {project.media.length === 0 && (
+          <div className="muted">No media yet. Add videos or music; the files stay where they are on disk.</div>
+        )}
+
+        {showVideo && videos.length > 0 && (
+          <MediaGroup label="Videos" items={videos} selectedId={props.sourceId} onSelect={props.onSelectSource} />
+        )}
+        {showVideo && exports.length > 0 && (
+          <MediaGroup label="Exports" items={exports} selectedId={props.sourceId} onSelect={props.onSelectSource} />
+        )}
+        {showAudio && music.length > 0 && (
+          <MediaGroup label="Music" items={music} selectedId={props.sourceId} onSelect={props.onSelectSource} />
+        )}
+        {filter !== 'all' && (filter === 'video' ? videos.length + exports.length : music.length) === 0 && (
+          <div className="muted">No {filter} files in this project yet.</div>
+        )}
+
+        {selected && (
+          <div className={styles.row}>
+            {selected.kind !== 'export' && (
+              <button onClick={() => props.onRelink(selected.id)}>{selected.missing ? 'Find file…' : 'Relink…'}</button>
+            )}
+            <button className="danger" onClick={() => props.onRemove(selected.id)}>
+              Remove from project
+            </button>
+          </div>
+        )}
+        {selected?.missing && (
+          <div className="notice error">{selected.name} was moved or deleted. Relink it to use it again.</div>
+        )}
       </section>
 
-      {project && (
-        <section className={styles.section} aria-labelledby="sb-source">
-          <h2 id="sb-source">Source</h2>
-          {project.sourcePath ? (
-            <div className={styles.facts}>
-              <span className={styles.fileName} title={project.sourcePath}>{fileName}</span>
-              {project.probe && (
-                <span className="muted">
-                  {project.probe.width}×{project.probe.height} · {fmt(project.probe.durationSec)} · {project.probe.videoCodec}
-                </span>
-              )}
-            </div>
-          ) : (
-            <div className="muted">Pick a local MP4 or MOV. The file stays where it is.</div>
-          )}
-          {project.sourceMissing && <div className="notice error">The file was moved or deleted. Relink it.</div>}
-          <div className={styles.row}>
-            <button onClick={() => props.onImport(Boolean(project.sourcePath))}>
-              {project.sourcePath ? 'Relink…' : 'Import…'}
-            </button>
-            <button className="danger" onClick={() => props.onDeleteProject(project.id)}>
-              Delete project
-            </button>
-          </div>
-        </section>
-      )}
-
-      {project && props.shorts.length > 0 && (
+      {props.totalClips > 0 ? (
         <section className={styles.section} aria-labelledby="sb-clips">
-          <h2 id="sb-clips">Clips · {props.shorts.length}</h2>
-          <ShortStrip
-            shorts={props.shorts}
-            selectedId={props.selectedId ?? ''}
-            checked={props.checked}
-            exportBusy={props.exportBusy}
-            onSelect={props.onSelectShort}
-            onToggle={props.onToggleChecked}
-            onExport={props.onExport}
-          />
+          <div className={styles.heading}>
+            <h2 id="sb-clips">Clips · {props.shorts.length}</h2>
+            <div className={styles.segmented} role="radiogroup" aria-label="Which clips to list">
+              <ScopeButton value="source" current={props.clipScope} onChange={props.onClipScope}>
+                This video
+              </ScopeButton>
+              <ScopeButton value="all" current={props.clipScope} onChange={props.onClipScope}>
+                All
+              </ScopeButton>
+            </div>
+          </div>
+          {props.shorts.length > 0 ? (
+            <ShortStrip
+              shorts={props.shorts}
+              selectedId={props.selectedId ?? ''}
+              checked={props.checked}
+              exportBusy={props.exportBusy}
+              onSelect={props.onSelectShort}
+              onToggle={props.onToggleChecked}
+              onExport={props.onExport}
+            />
+          ) : (
+            <div className="muted">No clips from this video yet. Generate clips with AI or mark a manual short.</div>
+          )}
+        </section>
+      ) : (
+        <section className={styles.section}>
+          <h2>Clips</h2>
+          <div className="muted">Clips you generate or mark will be listed here.</div>
         </section>
       )}
-
-      <details className={styles.settings}>
-        <summary>Project settings</summary>
-        <div className={styles.settingsBody}>
-          <ApiKeyBox settings={settings} onChange={props.onSettingsChange} onError={props.onError} />
-          <div className="muted">Music folder: {settings?.musicFolder ?? 'none set (music is optional)'}</div>
-          <button onClick={props.onPickMusic}>Choose music folder…</button>
-          <div className="muted">
-            FFmpeg: {settings?.ffmpegAvailable ? 'ready' : 'missing (run pnpm fetch:bin)'}. Speech-to-text:{' '}
-            {settings?.whisperAvailable ? 'ready' : 'missing (run pnpm fetch:bin)'}.
-          </div>
-        </div>
-      </details>
     </aside>
   )
 }
 
-function ApiKeyBox({
-  settings,
-  onChange,
-  onError
+function MediaGroup({
+  label,
+  items,
+  selectedId,
+  onSelect
 }: {
-  settings: SettingsView | null
-  onChange: (s: SettingsView) => void
-  onError: (t: string) => void
+  label: string
+  items: MediaView[]
+  selectedId: string | null
+  onSelect: (id: string) => void
 }) {
-  const [key, setKey] = useState('')
-  const save = async (): Promise<void> => {
-    try {
-      onChange(await api.setApiKey(key))
-      setKey('')
-    } catch (err) {
-      onError(errorText(err))
-    }
-  }
   return (
-    <div className="stack">
-      <div className="muted">
-        Anthropic API key: {settings?.hasApiKey ? 'saved (encrypted by Windows for this account)' : 'not set'}.
-        Frames and transcript excerpts are sent to Anthropic for analysis; full videos never are. Protection depends on
-        your Windows account security.
-      </div>
-      <div className="row">
-        <input type="text" placeholder="sk-ant-…" value={key} onChange={(e) => setKey(e.target.value)} />
-        <button disabled={key.trim().length < 20} onClick={() => void save()}>
-          Save
-        </button>
-      </div>
-      {settings?.hasApiKey && (
-        <button className="danger" onClick={() => void api.clearApiKey().then(onChange)}>
-          Remove key
-        </button>
-      )}
+    <div className={styles.group}>
+      <div className={styles.groupLabel}>{label}</div>
+      <ul className={styles.mediaList} aria-label={label}>
+        {items.map((m) => (
+          <li key={m.id}>
+            <button className={styles.mediaButton} aria-current={m.id === selectedId} onClick={() => onSelect(m.id)}>
+              <span className={styles.fileName} title={m.path}>
+                {m.kind === 'music' ? '♪ ' : ''}
+                {m.name}
+              </span>
+              <span className={styles.facts}>
+                {m.missing ? (
+                  <span className={styles.missing}>Missing</span>
+                ) : m.kind === 'music' ? (
+                  <>Audio · {fmt(m.probe.durationSec)}</>
+                ) : (
+                  <>
+                    {m.probe.width}×{m.probe.height} · {fmt(m.probe.durationSec)}
+                  </>
+                )}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
+  )
+}
+
+function FilterButton({
+  value,
+  current,
+  onChange,
+  children
+}: {
+  value: MediaFilter
+  current: MediaFilter
+  onChange: (filter: MediaFilter) => void
+  children: string
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={current === value}
+      className={styles.segment}
+      onClick={() => onChange(value)}
+    >
+      {children}
+    </button>
+  )
+}
+
+function ScopeButton({
+  value,
+  current,
+  onChange,
+  children
+}: {
+  value: ClipScope
+  current: ClipScope
+  onChange: (scope: ClipScope) => void
+  children: string
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={current === value}
+      className={styles.segment}
+      onClick={() => onChange(value)}
+    >
+      {children}
+    </button>
   )
 }

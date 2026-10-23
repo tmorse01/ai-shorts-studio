@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import { normalizeSegments } from '../../shared/timeline'
 import type { ProjectView } from '../../shared/api'
-import type { Short } from '../../shared/types'
+import type { MediaView, Short } from '../../shared/types'
 import { errorText } from '../util'
 import { ClipStage } from './ClipStage'
 import { Inspector } from './Inspector'
@@ -14,6 +14,8 @@ const api = window.studio
 export interface ShortFocusProps {
   short: Short
   project: ProjectView
+  /** The video this clip was cut from. */
+  source: MediaView
   musicFolderSet: boolean
   notice: { text: string; error: boolean } | null
   videoRef: RefObject<HTMLVideoElement>
@@ -32,9 +34,13 @@ export interface ShortFocusProps {
  * and the inspector all edit the same cuts, and renders the centre column and the right pane together.
  */
 export function ShortFocus(props: ShortFocusProps) {
-  const { short, project, notice, videoRef, currentTime, onSeek, onSaved, onError, onNotice } = props
+  const { short, project, source, notice, videoRef, currentTime, onSeek, onSaved, onError, onNotice } = props
   const draft = useShortDraft(short)
-  const sourceDurationSec = project.probe?.durationSec ?? 0
+  const sourceDurationSec = source.probe.durationSec
+  const musicUrl = props.musicFolderSet ? api.shortAudioUrl(short.id, 'music') : null
+  const narrationUrl = short.narrationPath
+    ? api.shortAudioUrl(short.id, 'narration', short.narrationPath.split(/[\\/]/).pop())
+    : null
 
   const save = async (): Promise<void> => {
     try {
@@ -60,9 +66,11 @@ export function ShortFocus(props: ShortFocusProps) {
           segments={draft.segments}
           settings={draft.settings}
           captions={draft.captions}
-          src={api.mediaUrl(project.id)}
-          sourceWidth={project.probe?.width ?? 16}
-          sourceHeight={project.probe?.height ?? 9}
+          src={api.mediaUrl(source.id)}
+          musicUrl={musicUrl}
+          narrationUrl={narrationUrl}
+          sourceWidth={source.probe.width}
+          sourceHeight={source.probe.height}
           videoRef={videoRef}
           sourceDurationSec={sourceDurationSec}
           currentTime={currentTime}
@@ -74,13 +82,14 @@ export function ShortFocus(props: ShortFocusProps) {
           onChange={draft.setSegments}
           captions={draft.captions}
           sourceDurationSec={sourceDurationSec}
-          hasAudio={project.probe?.hasAudio ?? false}
+          hasAudio={source.probe.hasAudio}
           musicEnabled={draft.settings.musicEnabled}
           currentTime={currentTime}
           onSeek={onSeek}
         />
         <SourceStrip
           projectId={project.id}
+          assetId={source.id}
           sourceDurationSec={sourceDurationSec}
           segments={draft.segments}
           currentTime={currentTime}
@@ -94,7 +103,7 @@ export function ShortFocus(props: ShortFocusProps) {
           short={short}
           draft={draft}
           projectId={project.id}
-          hasAudio={project.probe?.hasAudio ?? false}
+          hasAudio={source.probe.hasAudio}
           musicFolderSet={props.musicFolderSet}
           onSave={() => void save()}
           onDeleted={props.onDeleted}

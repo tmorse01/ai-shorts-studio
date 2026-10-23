@@ -44,14 +44,29 @@ export const shortPatchSchema = z
 
 export const createProjectSchema = z.object({ name: z.string().min(1).max(120) })
 
+/**
+ * How scene cuts are found. `full` decodes every frame (slowest, most cuts). `keyframes` decodes only
+ * I-frames (much faster, can miss cuts inside a GOP). `off` skips detection and uses the even grid.
+ */
+export const sceneDetectionSchema = z.enum(['off', 'keyframes', 'full'])
+
+export const projectUpdateSchema = z.object({
+  id: idSchema,
+  patch: z.object({ name: z.string().min(1).max(120) }).partial()
+})
+
 export const analysisRequestSchema = z.object({
   projectId: idSchema,
+  sourceId: idSchema,
   prompt: z.string().min(1).max(2000),
   count: z.number().int().min(1).max(5),
   minSec: z.number().min(10).max(90),
   maxSec: z.number().min(10).max(90),
-  ratio: ratioSchema
+  ratio: ratioSchema,
+  sceneDetection: sceneDetectionSchema.default('full')
 })
+
+export type SceneDetection = z.infer<typeof sceneDetectionSchema>
 
 export const exportOptionsSchema = z.object({
   quality: z.enum(['high', 'standard', 'small']).default('standard'),

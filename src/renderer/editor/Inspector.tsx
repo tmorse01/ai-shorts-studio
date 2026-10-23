@@ -264,7 +264,7 @@ function AudioPanel({
         const bytes = new Uint8Array(await new Blob(chunks, { type: 'audio/webm' }).arrayBuffer())
         try {
           onSaved(await api.saveNarration(projectId, short.id, bytes))
-          onNotice('Narration saved and will be mixed over the short on export.')
+          onNotice('Narration saved. It plays in the preview and is mixed over the short on export.')
         } catch (err) {
           onError(errorText(err))
         }
@@ -298,7 +298,7 @@ function AudioPanel({
         disabled={!musicFolderSet}
         onChange={(v) => setSettings({ ...settings, musicEnabled: v })}
       >
-        Music bed {musicFolderSet ? '(from your music folder)' : '(choose a folder in Settings)'}
+        Music bed {musicFolderSet ? '(from your music folder)' : '(add music files to the Media panel)'}
       </Switch>
       {settings.musicEnabled && (
         <>

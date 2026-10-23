@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { extname, join, basename } from 'node:path'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { ZodTypeAny } from 'zod'
 import {
@@ -10,25 +10,28 @@ import {
   exportRequestSchema,
   idSchema,
   narrationSchema,
+  projectUpdateSchema,
   segmentSchema,
   shortPatchSchema
 } from '../shared/schemas'
 import { normalizeSegments, validateShortDuration, type Segment } from '../shared/timeline'
-import type { ProjectView } from '../shared/api'
-import { IPC, PLAYABLE_VIDEO_CODECS, type SettingsView } from '../shared/types'
+import type { ProjectView, ThumbStatus } from '../shared/api'
+import { IPC, PLAYABLE_VIDEO_CODECS, type MediaAsset, type MediaView, type SettingsView } from '../shared/types'
 import { Store } from './store'
 import { SecretStore } from './secrets'
 import { JobRunner, defaultSettings } from './jobs'
 import { binPath, probeMedia } from './ffmpeg'
 import { whisperFiles } from './transcribe'
 import { thumbDir, thumbnailStep, thumbsReady } from './thumbnails'
-import type { ThumbStatus } from '../shared/api'
 import { z } from 'zod'
 import type { OpenDialogOptions } from 'electron'
 
-
 const VIDEO_EXTS = ['.mp4', '.mov', '.m4v']
-const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac'])
+const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac']
+/** Filter for the open dialogs: video and audio together. */
+const MEDIA_FILTERS = [
+  { name: 'Video and audio', extensions: [...VIDEO_EXTS, ...AUDIO_EXTS].map((e) => e.slice(1)) }
+]
 
 export interface IpcDeps {
   store: Store
@@ -56,11 +59,21 @@ function handle<S extends ZodTypeAny>(channel: string, schema: S, fn: (input: z.
 
 const noPayload = z.undefined()
 
+/** Throws unless the path is a video or audio type the app can read. Probing happens separately. */
+function assertMediaPath(path: string): void {
+  const ext = extname(path).toLowerCase()
+  if (![...VIDEO_EXTS, ...AUDIO_EXTS].includes(ext)) {
+    throw new Error('Only MP4, MOV or M4V video, and MP3, M4A, WAV, AAC, OGG or FLAC audio, are supported.')
+  }
+}
+
 export function registerIpc(deps: IpcDeps): void {
   const { store, secrets, jobs, userDataDir } = deps
+
+  const mediaView = (m: MediaAsset): MediaView => ({ ...m, missing: !existsSync(m.path) })
   const projectView = (id: string): ProjectView => {
     const p = store.getProject(id)
-    return { ...p, sourceMissing: Boolean(p.sourcePath && !existsSync(p.sourcePath)) }
+    return { ...p, media: p.media.map(mediaView) }
   }
 
   const settingsView = (): SettingsView => {
@@ -74,55 +87,110 @@ export function registerIpc(deps: IpcDeps): void {
     return {
       hasApiKey: secrets.has(),
       keyStorage: secrets.available() ? 'safeStorage' : 'unavailable',
-      musicFolder: store.getMusicFolder(),
       lastExport: store.getLastExport(),
       whisperAvailable: whisperFiles() !== null,
       ffmpegAvailable
     }
   }
 
-  async function chooseSource(projectId: string): Promise<ProjectView | null> {
-    const picked = await openDialog(deps.getWindow(), {
-      title: 'Choose a source video',
-      properties: ['openFile'],
-      filters: [{ name: 'Video', extensions: VIDEO_EXTS.map((e) => e.slice(1)) }]
-    })
-    if (picked.canceled || picked.filePaths.length === 0) return null
-    const path = picked.filePaths[0]
-    if (!VIDEO_EXTS.includes(extname(path).toLowerCase())) {
-      throw new Error('Only MP4, MOV or M4V files are supported.')
+  /** Length of a short's source video, or 0 when the short has none. */
+  const sourceDuration = (sourceId: string | null): number =>
+    sourceId ? store.findMediaAsset(sourceId).asset.probe.durationSec : 0
+
+  /** Probe each file and add it to the project's library as footage. */
+  async function importFiles(projectId: string, paths: string[]): Promise<ProjectView> {
+    const assets: MediaAsset[] = []
+    for (const path of paths) {
+      assertMediaPath(path)
+      // Probe real streams; never trust the extension alone.
+      const probe = await probeMedia(path)
+      assets.push({
+        id: randomUUID(),
+        name: basename(path),
+        // Audio-only files have no picture; they go to the music filter.
+        kind: probe.videoCodec === 'none' ? 'music' : 'source',
+        path,
+        probe,
+        proxyPath: null,
+        createdAt: new Date().toISOString()
+      })
     }
-    // Probe real streams; never trust the extension alone.
-    const probe = await probeMedia(path)
-    store.updateProject(projectId, { sourcePath: path, probe, proxyPath: null })
-    if (!PLAYABLE_VIDEO_CODECS.has(probe.videoCodec)) {
-      // Renderer cannot decode this codec directly; make a cache-only H.264 preview in the background.
-      jobs.startProxy(projectId)
-    }
+    store.addMediaAssets(projectId, assets)
     return projectView(projectId)
   }
 
   handle(IPC.projectList, noPayload, () => store.listProjects().map((p) => projectView(p.id)))
-  handle(IPC.projectCreate, createProjectSchema, ({ name }) =>
-    projectView(store.createProject(name).id)
-  )
+  handle(IPC.projectCreate, createProjectSchema, ({ name }) => projectView(store.createProject(name).id))
+  handle(IPC.projectUpdate, projectUpdateSchema, ({ id, patch }) => {
+    store.updateProject(id, patch)
+    return projectView(id)
+  })
   handle(IPC.projectDelete, idSchema, (id) => {
     if (jobs.isBusy()) throw new Error('Wait for the running job to finish before deleting a project.')
     store.deleteProject(id)
     rmSync(join(userDataDir, 'cache', id), { recursive: true, force: true })
     rmSync(join(userDataDir, 'narration', id), { recursive: true, force: true })
   })
-  handle(IPC.projectImportMedia, idSchema, (id) => chooseSource(id))
-  handle(IPC.projectRelinkMedia, idSchema, (id) => chooseSource(id))
-  handle(IPC.projectMediaUrl, idSchema, (id) => `shorts-media://project/${id}`)
 
-  handle(IPC.thumbsEnsure, idSchema, (projectId): ThumbStatus => {
-    const project = store.getProject(projectId)
-    const duration = project.probe?.durationSec ?? 0
-    const ready = thumbsReady(thumbDir(userDataDir, projectId))
+  handle(IPC.mediaImport, idSchema, async (projectId): Promise<ProjectView | null> => {
+    store.getProject(projectId)
+    const picked = await openDialog(deps.getWindow(), {
+      title: 'Add media to this project',
+      properties: ['openFile', 'multiSelections'],
+      filters: MEDIA_FILTERS
+    })
+    if (picked.canceled || picked.filePaths.length === 0) return null
+    return importFiles(projectId, picked.filePaths)
+  })
+
+  handle(IPC.mediaRelink, idSchema, async (assetId): Promise<ProjectView | null> => {
+    const { project, asset } = store.findMediaAsset(assetId)
+    const picked = await openDialog(deps.getWindow(), {
+      title: `Find ${asset.name}`,
+      properties: ['openFile'],
+      filters: MEDIA_FILTERS
+    })
+    if (picked.canceled || picked.filePaths.length === 0) return null
+    const path = picked.filePaths[0]
+    assertMediaPath(path)
+    const probe = await probeMedia(path)
+    // A different file can have different frames, so cached thumbnails and the preview are stale.
+    rmSync(join(userDataDir, 'cache', project.id, asset.id), { recursive: true, force: true })
+    if (asset.proxyPath) rmSync(asset.proxyPath, { force: true })
+    store.updateMediaAsset(assetId, { name: basename(path), path, probe, proxyPath: null })
+    return projectView(project.id)
+  })
+
+  handle(IPC.mediaRemove, idSchema, (assetId) => {
+    if (jobs.isBusy()) throw new Error('Wait for the running job to finish before removing a video.')
+    const { project, asset } = store.findMediaAsset(assetId)
+    store.removeMediaAsset(assetId)
+    // Only app-owned cache goes. The user's file is never touched.
+    rmSync(join(userDataDir, 'cache', project.id, asset.id), { recursive: true, force: true })
+    if (asset.proxyPath) rmSync(asset.proxyPath, { force: true })
+    return projectView(project.id)
+  })
+
+  /** Start the H.264 preview when the codec cannot play in the renderer and no preview exists yet. */
+  handle(IPC.mediaPrepare, idSchema, (assetId) => {
+    const { project, asset } = store.findMediaAsset(assetId)
+    const hasPicture = asset.probe.videoCodec !== 'none'
+    const needsProxy = hasPicture && !PLAYABLE_VIDEO_CODECS.has(asset.probe.videoCodec) && !asset.proxyPath
+    if (needsProxy && asset.kind === 'source' && existsSync(asset.path) && !jobs.isBusy()) {
+      jobs.startProxy(project.id, asset.id)
+    }
+    return projectView(project.id)
+  })
+
+  handle(IPC.thumbsEnsure, idSchema, (assetId): ThumbStatus => {
+    const { project, asset } = store.findMediaAsset(assetId)
+    const duration = asset.probe.durationSec
+    // Audio has no frames to thumbnail.
+    if (asset.probe.videoCodec === 'none') return { ready: true, stepSec: 1, count: 0 }
+    const ready = thumbsReady(thumbDir(userDataDir, project.id, asset.id))
     if (ready) return { ready: true, stepSec: ready.stepSec, count: ready.count }
     // A busy runner means thumbnails wait; the renderer asks again when the running job finishes.
-    if (project.sourcePath && project.probe && !jobs.isBusy()) jobs.startThumbnails(projectId)
+    if (existsSync(asset.path) && !jobs.isBusy()) jobs.startThumbnails(project.id, asset.id)
     return { ready: false, stepSec: thumbnailStep(duration), count: 0 }
   })
 
@@ -132,17 +200,22 @@ export function registerIpc(deps: IpcDeps): void {
     IPC.shortCreate,
     z.object({
       projectId: idSchema,
+      sourceId: idSchema,
       segments: z.array(segmentSchema).min(1).max(6),
       title: z.string().max(120).optional()
     }),
-    ({ projectId, segments, title }) => {
-      const project = store.getProject(projectId)
-      const clean = normalizeSegments(segments, project.probe?.durationSec ?? 0)
+    ({ projectId, sourceId, segments, title }) => {
+      const owner = store.findMediaAsset(sourceId)
+      if (owner.project.id !== projectId || owner.asset.kind !== 'source') {
+        throw new Error('Pick a source video in this project.')
+      }
+      const clean = normalizeSegments(segments, owner.asset.probe.durationSec)
       if (clean.length === 0) throw new Error('Those times are outside the video.')
       const settings = defaultSettings('9:16')
       const [created] = store.addShorts([
         {
           projectId,
+          sourceId,
           title: title ?? `Manual short ${store.listShorts(projectId).length + 1}`,
           reason: 'Added manually.',
           provenance: 'manual',
@@ -163,7 +236,7 @@ export function registerIpc(deps: IpcDeps): void {
     z.object({ id: idSchema, patch: shortPatchSchema }),
     ({ id, patch }) => {
       const short = store.getShort(id)
-      const duration = store.getProject(short.projectId).probe?.durationSec ?? 0
+      const duration = sourceDuration(short.sourceId)
       const next: Parameters<Store['updateShort']>[1] = {}
       if (patch.title !== undefined) next.title = patch.title
       if (patch.captions !== undefined) next.captions = patch.captions
@@ -240,19 +313,6 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.settingsClearApiKey, noPayload, () => {
     secrets.clear()
     return settingsView()
-  })
-  handle(IPC.settingsSetMusicFolder, noPayload, async () => {
-    const picked = await openDialog(deps.getWindow(), {
-      title: 'Choose a folder of music you own',
-      properties: ['openDirectory']
-    })
-    if (!picked.canceled && picked.filePaths[0]) store.setMusicFolder(picked.filePaths[0])
-    return settingsView()
-  })
-  handle(IPC.musicList, noPayload, () => {
-    const folder = store.getMusicFolder()
-    if (!folder || !existsSync(folder)) return []
-    return readdirSync(folder).filter((f) => AUDIO_EXTS.has(extname(f).toLowerCase())).map((f) => basename(f))
   })
   handle(IPC.dialogPickOutputDir, noPayload, async () => {
     const picked = await openDialog(deps.getWindow(), {

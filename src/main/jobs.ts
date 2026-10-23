@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, extname, join } from 'node:path'
+import { basename, join } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { buildAss } from '../shared/timeline'
-import type { Job, Project, Short } from '../shared/types'
+import type { Job, MediaAsset, Project, ProbeInfo, Short } from '../shared/types'
 import type { AnalysisRequest, ExportRequest } from '../shared/schemas'
 import type { ExportItem } from '../shared/types'
 import { rankCandidates, AiError, type FrameSample } from './ai'
@@ -21,6 +22,7 @@ import {
   removeScratch
 } from './analysis'
 import { binPath, buildExportArgs, probeMedia, ProcessCancelledError, runProcess } from './ffmpeg'
+import { pickMusicTrack } from './music'
 import type { Store } from './store'
 import { buildThumbArgs, thumbDir, thumbnailStep, writeThumbMeta } from './thumbnails'
 
@@ -32,15 +34,23 @@ export interface JobDeps {
   notify: (job: Job) => void
 }
 
-const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac'])
+/** A media asset together with the project that owns it. */
+interface Owned {
+  project: Project
+  asset: MediaAsset
+}
 
 /**
  * Runs at most one heavyweight job (analysis or export) at a time. Starting a second one while
  * one is active is refused rather than queued, so the UI never shows phantom queued work.
  */
 export class JobRunner {
-  private active: { job: Job; controller: AbortController; child: ChildProcessWithoutNullStreams | null } | null =
-    null
+  private active: {
+    job: Job
+    controller: AbortController
+    /** Every process the running job has started and not yet exited. Analysis can run several at once. */
+    children: Set<ChildProcessWithoutNullStreams>
+  } | null = null
 
   constructor(private readonly deps: JobDeps) {}
 
@@ -51,14 +61,14 @@ export class JobRunner {
   cancel(jobId: string): boolean {
     if (!this.active || this.active.job.id !== jobId) return false
     this.active.controller.abort()
-    this.active.child?.kill()
+    for (const child of this.active.children) child.kill()
     return true
   }
 
   private begin(projectId: string, kind: Job['kind']): Job {
     if (this.active) throw new Error('Another job is already running. Wait for it to finish or cancel it.')
     const job = this.deps.store.createJob({ projectId, kind })
-    this.active = { job, controller: new AbortController(), child: null }
+    this.active = { job, controller: new AbortController(), children: new Set() }
     this.deps.notify(job)
     return job
   }
@@ -77,58 +87,90 @@ export class JobRunner {
   }
 
   private attachChild(child: ChildProcessWithoutNullStreams): void {
-    if (this.active) this.active.child = child
+    const active = this.active
+    if (!active) return
+    active.children.add(child)
+    child.once('close', () => active.children.delete(child))
+  }
+
+  /** Resolve a media asset and check it belongs to the project the caller named. */
+  private sourceFor(projectId: string, assetId: string): Owned {
+    const found = this.deps.store.findMediaAsset(assetId)
+    if (found.project.id !== projectId) throw new Error('That video is not in this project.')
+    return found
   }
 
   /** Analysis: scene cuts → candidate windows → frames → Claude ranking → saved shorts. */
   async startAnalysis(req: AnalysisRequest): Promise<Job> {
-    const project = this.deps.store.getProject(req.projectId)
-    if (!project.sourcePath || !project.probe) throw new Error('Import a video first.')
+    const { project, asset } = this.sourceFor(req.projectId, req.sourceId)
+    if (asset.kind !== 'source') throw new Error('Only imported videos can be analysed.')
+    if (!existsSync(asset.path)) throw new Error('This video was moved or deleted. Relink it first.')
     const apiKey = this.deps.getApiKey()
     if (!apiKey) throw new Error('Add your Anthropic API key in Settings to run AI analysis.')
     const job = this.begin(project.id, 'analysis')
     const scratch = makeAnalysisScratch(this.deps.userDataDir, project.id, job.id)
-    void this.runAnalysis(job, project, req, apiKey, scratch)
+    void this.runAnalysis(job, { project, asset }, req, apiKey, scratch)
     return job
   }
 
   private async runAnalysis(
     job: Job,
-    project: Project,
+    { project, asset }: Owned,
     req: AnalysisRequest,
     apiKey: string,
     scratch: string
   ): Promise<void> {
     const signal = this.active?.controller.signal
     try {
-      const probe = project.probe!
-      let transcript: TranscriptSegment[] = []
-      let speechNote: string | null = null
-      if (probe.hasAudio) {
-        this.progress(job, 3, 'Transcribing speech locally (first run per project is slower)…')
+      const probe = asset.probe
+      this.progress(
+        job,
+        3,
+        probe.hasAudio
+          ? 'Transcribing speech and detecting scene changes (first run per video is slower)…'
+          : 'Detecting scene changes…'
+      )
+      // Transcription (CPU) and scene detection (NVDEC when the codec allows it) read the same file but
+      // do not depend on each other, so they run together.
+      const speechTask = (async (): Promise<{ transcript: TranscriptSegment[]; speechNote: string | null }> => {
+        if (!probe.hasAudio) return { transcript: [], speechNote: null }
         try {
-          transcript = await transcribeSource({
-            sourcePath: project.sourcePath!,
-            cacheFile: join(this.deps.userDataDir, 'cache', project.id, 'transcript.json'),
+          const transcript = await transcribeSource({
+            sourcePath: asset.path,
+            cacheFile: join(this.deps.userDataDir, 'cache', project.id, asset.id, 'transcript.json'),
             scratchDir: join(scratch, 'speech'),
             onSpawn: (c) => this.attachChild(c)
           })
+          return { transcript, speechNote: null }
         } catch (err) {
           if (err instanceof ProcessCancelledError) throw err
-          speechNote = `Speech-to-text skipped: ${(err as Error).message.split('\n')[0]}`
+          return { transcript: [], speechNote: `Speech-to-text skipped: ${(err as Error).message.split('\n')[0]}` }
         }
-      }
-
-      this.progress(job, 20, 'Detecting scene changes (this reads the whole file)…')
-      const cuts = await detectSceneCuts(project.sourcePath!, (c) => this.attachChild(c))
-      this.progress(job, 30, `Found ${cuts.length} scene changes. Building candidate windows…`)
+      })()
+      const cutsTask =
+        req.sceneDetection === 'off'
+          ? Promise.resolve<number[]>([])
+          : detectSceneCuts(asset.path, req.sceneDetection, probe.videoCodec, (c) => this.attachChild(c))
+      // Wait for both before continuing, then rethrow the first failure so the job fails cleanly.
+      const [speechResult, cutsResult] = await Promise.allSettled([speechTask, cutsTask])
+      if (speechResult.status === 'rejected') throw speechResult.reason
+      if (cutsResult.status === 'rejected') throw cutsResult.reason
+      const { transcript, speechNote } = speechResult.value
+      const cuts = cutsResult.value
+      this.progress(
+        job,
+        30,
+        req.sceneDetection === 'off'
+          ? 'Scene detection is off. Using an even grid of windows…'
+          : `Found ${cuts.length} scene changes. Building candidate windows…`
+      )
 
       const candidates = makeCandidates(probe.durationSec, req.minSec, req.maxSec, cuts)
       const times = frameTimes(candidates)
       const frames: FrameSample[] = []
       for (let i = 0; i < times.length; i++) {
         this.progress(job, 30 + (i / times.length) * 25, `Sampling frame ${i + 1} of ${times.length}…`)
-        frames.push(await extractFrame(project.sourcePath!, times[i], scratch, i, (c) => this.attachChild(c)))
+        frames.push(await extractFrame(asset.path, times[i], scratch, i, (c) => this.attachChild(c)))
       }
 
       this.progress(job, 60, 'Asking Claude to rank the moments…')
@@ -153,6 +195,7 @@ export class JobRunner {
           const captions = captionsForSegments(transcript, s.segments)
           return {
             projectId: project.id,
+            sourceId: asset.id,
             title: s.title,
             reason: s.reason,
             provenance: 'ai' as const,
@@ -180,26 +223,25 @@ export class JobRunner {
     }
   }
 
-  /** One thumbnail every few seconds for the source strip. Cached per project; replaced on each run. */
-  startThumbnails(projectId: string): Job {
-    const project = this.deps.store.getProject(projectId)
-    if (!project.sourcePath || !project.probe) throw new Error('Import a video first.')
-    const job = this.begin(project.id, 'thumbs')
-    void this.runThumbnails(job, project)
+  /** One thumbnail every few seconds for a video's strip. Cached per asset; replaced on each run. */
+  startThumbnails(projectId: string, assetId: string): Job {
+    const owned = this.sourceFor(projectId, assetId)
+    const job = this.begin(owned.project.id, 'thumbs')
+    void this.runThumbnails(job, owned)
     return job
   }
 
-  private async runThumbnails(job: Job, project: Project): Promise<void> {
+  private async runThumbnails(job: Job, { project, asset }: Owned): Promise<void> {
     const signal = this.active?.controller.signal
-    const dir = thumbDir(this.deps.userDataDir, project.id)
-    const step = thumbnailStep(project.probe!.durationSec)
-    const totalSec = project.probe!.durationSec
+    const dir = thumbDir(this.deps.userDataDir, project.id, asset.id)
+    const step = thumbnailStep(asset.probe.durationSec)
+    const totalSec = asset.probe.durationSec
     rmSync(dir, { recursive: true, force: true })
     mkdirSync(dir, { recursive: true })
     let lastPct = -1
     try {
       this.progress(job, 0, 'Generating thumbnails…')
-      await runProcess(binPath('ffmpeg'), buildThumbArgs(project.sourcePath!, dir, step), {
+      await runProcess(binPath('ffmpeg'), buildThumbArgs(asset.path, dir, step), {
         onSpawn: (c) => this.attachChild(c),
         onStdoutLine: (line) => {
           const m = /^out_time_us=(\d+)/.exec(line)
@@ -226,24 +268,23 @@ export class JobRunner {
   }
 
   /** Build a 720p H.264 preview for sources the renderer cannot decode directly. Cache only. */
-  startProxy(projectId: string): Job {
-    const project = this.deps.store.getProject(projectId)
-    if (!project.sourcePath || !project.probe) throw new Error('Import a video first.')
-    const job = this.begin(project.id, 'proxy')
-    void this.runProxy(job, project)
+  startProxy(projectId: string, assetId: string): Job {
+    const owned = this.sourceFor(projectId, assetId)
+    const job = this.begin(owned.project.id, 'proxy')
+    void this.runProxy(job, owned)
     return job
   }
 
-  private async runProxy(job: Job, project: Project): Promise<void> {
+  private async runProxy(job: Job, { project, asset }: Owned): Promise<void> {
     const signal = this.active?.controller.signal
     const dir = join(this.deps.userDataDir, 'cache', project.id)
     mkdirSync(dir, { recursive: true })
     const out = join(dir, `proxy-${job.id}.mp4`)
-    const totalSec = project.probe!.durationSec
+    const totalSec = asset.probe.durationSec
     let lastPct = -1
     try {
       this.progress(job, 0, 'Making an H.264 preview for smooth playback…')
-      await runProcess(binPath('ffmpeg'), buildProxyArgs(project.sourcePath!, out), {
+      await runProcess(binPath('ffmpeg'), buildProxyArgs(asset.path, out), {
         onSpawn: (c) => this.attachChild(c),
         onStdoutLine: (line) => {
           const m = /^out_time_us=(\d+)/.exec(line)
@@ -256,8 +297,8 @@ export class JobRunner {
           }
         }
       })
-      const previous = project.proxyPath
-      this.deps.store.updateProject(project.id, { proxyPath: out })
+      const previous = asset.proxyPath
+      this.deps.store.updateMediaAsset(asset.id, { proxyPath: out })
       if (previous && previous !== out) rmSync(previous, { force: true })
       this.finish(job, 'completed', null, 'Preview ready.')
     } catch (err) {
@@ -273,27 +314,34 @@ export class JobRunner {
   /** Export every chosen short as its own MP4 into the user's output folder. */
   startExport(req: ExportRequest): Job {
     const project = this.deps.store.getProject(req.projectId)
-    if (!project.sourcePath || !project.probe) throw new Error('Import a video first.')
-    if (!existsSync(project.sourcePath)) {
-      throw new Error('The source video was moved or deleted. Relink it before exporting.')
-    }
-    const shorts = req.shortIds.map((id) => this.deps.store.getShort(id))
-    for (const s of shorts) {
-      if (s.projectId !== project.id) throw new Error('Short does not belong to this project.')
-    }
+    const entries = req.shortIds.map((id) => {
+      const short = this.deps.store.getShort(id)
+      if (short.projectId !== project.id) throw new Error('Short does not belong to this project.')
+      if (!short.sourceId) throw new Error(`"${short.title}" has no source video. Relink or re-add it first.`)
+      const { asset } = this.sourceFor(project.id, short.sourceId)
+      if (!existsSync(asset.path)) {
+        throw new Error('The source video was moved or deleted. Relink it before exporting.')
+      }
+      return { short, asset }
+    })
     const job = this.begin(project.id, 'export')
-    void this.runExport(job, project, shorts, req)
+    void this.runExport(job, project, entries, req)
     return job
   }
 
-  private async runExport(job: Job, project: Project, shorts: Short[], req: ExportRequest): Promise<void> {
+  private async runExport(
+    job: Job,
+    project: Project,
+    entries: { short: Short; asset: MediaAsset }[],
+    req: ExportRequest
+  ): Promise<void> {
     const signal = this.active?.controller.signal
     const scratch = join(this.deps.userDataDir, 'cache', project.id, `export-${job.id}`)
     mkdirSync(scratch, { recursive: true })
     const exported: string[] = []
-    let items: ExportItem[] = shorts.map((s) => ({
-      shortId: s.id,
-      title: s.title,
+    let items: ExportItem[] = entries.map(({ short }) => ({
+      shortId: short.id,
+      title: short.title,
       status: 'queued',
       progress: 0,
       outPath: null
@@ -305,22 +353,22 @@ export class JobRunner {
     }
     let current = -1
     try {
-      for (let i = 0; i < shorts.length; i++) {
+      for (let i = 0; i < entries.length; i++) {
         current = i
         if (signal?.aborted) throw new ProcessCancelledError()
-        const short = shorts[i]
-        const label = `(${i + 1}/${shorts.length}) ${short.title}`
-        const share = (frac: number): number => ((i + frac) / shorts.length) * 100
+        const { short, asset } = entries[i]
+        const label = `(${i + 1}/${entries.length}) ${short.title}`
+        const share = (frac: number): number => ((i + frac) / entries.length) * 100
         update(i, { status: 'preparing', progress: 0 }, share(0), `Preparing ${label}…`)
         const outPath = chooseOutputPath(req.outputDir, short.title, req.overwrite)
-        const musicPath = short.settings.musicEnabled ? this.pickMusic(short.id) : null
+        const musicPath = short.settings.musicEnabled ? pickMusicTrack(this.deps.store.musicPaths(project.id), short.id) : null
         const workDir = join(scratch, short.id)
         mkdirSync(workDir, { recursive: true })
 
         const plan = buildExportArgs(
           {
-            sourcePath: project.sourcePath!,
-            probe: project.probe!,
+            sourcePath: asset.path,
+            probe: asset.probe,
             segments: short.segments,
             captions: short.captions,
             ratio: short.settings.ratio,
@@ -367,8 +415,20 @@ export class JobRunner {
           throw err
         }
         update(i, { status: 'verifying', progress: 100 }, share(1), `Checking ${label}…`)
-        await verifyExport(outPath, plan.totalSec)
+        const probe = await verifyExport(outPath, plan.totalSec)
         this.deps.store.setShortExport(short.id, outPath)
+        // The finished file joins the project's library under Exports, so it can be previewed or reused.
+        this.deps.store.addMediaAssets(project.id, [
+          {
+            id: randomUUID(),
+            name: basename(outPath),
+            kind: 'export',
+            path: outPath,
+            probe,
+            proxyPath: null,
+            createdAt: new Date().toISOString()
+          }
+        ])
         exported.push(outPath)
         update(i, { status: 'done', progress: 100 }, share(1), `Finished ${label}`)
       }
@@ -390,18 +450,6 @@ export class JobRunner {
     } finally {
       rmSync(scratch, { recursive: true, force: true })
     }
-  }
-
-  /** Deterministically choose a track from the music folder so each short keeps the same bed. */
-  private pickMusic(shortId: string): string | null {
-    const folder = this.deps.store.getMusicFolder()
-    if (!folder || !existsSync(folder)) return null
-    const tracks = readdirSync(folder)
-      .filter((f) => AUDIO_EXTS.has(extname(f).toLowerCase()))
-      .sort()
-    if (tracks.length === 0) return null
-    const hash = [...shortId].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
-    return join(folder, tracks[hash % tracks.length])
   }
 }
 
@@ -475,7 +523,7 @@ export function chooseOutputPath(dir: string, title: string, overwrite: boolean)
 }
 
 /** Probe every export and check it is playable with the requested streams and roughly the length. */
-export async function verifyExport(path: string, expectedSec: number): Promise<void> {
+export async function verifyExport(path: string, expectedSec: number): Promise<ProbeInfo> {
   const probe = await probeMedia(path)
   if (!probe.hasAudio) throw new Error(`Exported file has no audio stream: ${basename(path)}`)
   if (Math.abs(probe.durationSec - expectedSec) > 0.75) {
@@ -483,4 +531,5 @@ export async function verifyExport(path: string, expectedSec: number): Promise<v
       `Exported duration ${probe.durationSec.toFixed(2)}s differs from the expected ${expectedSec.toFixed(2)}s`
     )
   }
+  return probe
 }

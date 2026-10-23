@@ -9,16 +9,21 @@ import { IPC, type Job } from '../shared/types'
 const api: StudioApi = {
   listProjects: () => ipcRenderer.invoke(IPC.projectList),
   createProject: (name) => ipcRenderer.invoke(IPC.projectCreate, { name }),
+  renameProject: (projectId, name) => ipcRenderer.invoke(IPC.projectUpdate, { id: projectId, patch: { name } }),
   deleteProject: (projectId) => ipcRenderer.invoke(IPC.projectDelete, projectId),
-  importMedia: (projectId) => ipcRenderer.invoke(IPC.projectImportMedia, projectId),
-  relinkMedia: (projectId) => ipcRenderer.invoke(IPC.projectRelinkMedia, projectId),
-  mediaUrl: (projectId) => `shorts-media://project/${projectId}`,
-  ensureThumbnails: (projectId) => ipcRenderer.invoke(IPC.thumbsEnsure, projectId),
-  thumbnailUrl: (projectId, index) => `shorts-media://thumb/${projectId}/${index}`,
+
+  importMedia: (projectId) => ipcRenderer.invoke(IPC.mediaImport, projectId),
+  relinkMedia: (assetId) => ipcRenderer.invoke(IPC.mediaRelink, assetId),
+  removeMedia: (assetId) => ipcRenderer.invoke(IPC.mediaRemove, assetId),
+  prepareMedia: (assetId) => ipcRenderer.invoke(IPC.mediaPrepare, assetId),
+  mediaUrl: (assetId) => `shorts-media://media/${assetId}`,
+  ensureThumbnails: (assetId) => ipcRenderer.invoke(IPC.thumbsEnsure, assetId),
+  thumbnailUrl: (assetId, index) => `shorts-media://thumb/${assetId}/${index}`,
+  shortAudioUrl: (shortId, kind, version = '') => `shorts-media://audio/${shortId}/${kind}?v=${encodeURIComponent(version)}`,
 
   listShorts: (projectId) => ipcRenderer.invoke(IPC.shortList, projectId),
-  createShort: (projectId, segments, title) =>
-    ipcRenderer.invoke(IPC.shortCreate, { projectId, segments, title }),
+  createShort: (projectId, sourceId, segments, title) =>
+    ipcRenderer.invoke(IPC.shortCreate, { projectId, sourceId, segments, title }),
   updateShort: (shortId, patch) => ipcRenderer.invoke(IPC.shortUpdate, { id: shortId, patch }),
   deleteShort: (shortId) => ipcRenderer.invoke(IPC.shortDelete, shortId),
   saveNarration: (projectId, shortId, audio) =>
@@ -40,8 +45,6 @@ const api: StudioApi = {
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet),
   setApiKey: (key) => ipcRenderer.invoke(IPC.settingsSetApiKey, { key }),
   clearApiKey: () => ipcRenderer.invoke(IPC.settingsClearApiKey),
-  pickMusicFolder: () => ipcRenderer.invoke(IPC.settingsSetMusicFolder),
-  listMusic: () => ipcRenderer.invoke(IPC.musicList),
   pickOutputDir: () => ipcRenderer.invoke(IPC.dialogPickOutputDir)
 }
 
