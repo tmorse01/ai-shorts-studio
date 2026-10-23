@@ -156,6 +156,7 @@ export function ProjectSidebar(props: ProjectSidebarProps) {
               selectedId={props.selectedId ?? ''}
               checked={props.checked}
               exportBusy={props.exportBusy}
+              posterRev={posterRev}
               onSelect={props.onSelectShort}
               onToggle={props.onToggleChecked}
               onExport={props.onExport}
