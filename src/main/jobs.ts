@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:
 import { basename, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
-import { buildAss } from '../shared/timeline'
+import { buildAss, defaultLengthSec, placeBackToBack } from '../shared/timeline'
 import type { Job, MediaAsset, Project, ProbeInfo, Short } from '../shared/types'
 import type { AnalysisRequest, ExportRequest } from '../shared/schemas'
 import type { ExportItem } from '../shared/types'
@@ -257,10 +257,14 @@ export class JobRunner {
             reason: s.reason,
             provenance: 'ai' as const,
             rank: s.rank,
-            segments: s.segments,
+            segments: placeBackToBack(s.segments),
             captions,
             narrationPath: null,
-            settings: { ...defaultSettings(req.ratio), captionsEnabled: captions.length > 0 },
+            settings: {
+              ...defaultSettings(req.ratio),
+              captionsEnabled: captions.length > 0,
+              lengthSec: defaultLengthSec(s.segments)
+            },
             exportedPath: null
           }
         })
@@ -434,6 +438,7 @@ export class JobRunner {
             sourcePath: asset.path,
             probe: asset.probe,
             segments: short.segments,
+            lengthSec: short.settings.lengthSec,
             captions: short.captions,
             ratio: short.settings.ratio,
             framing: short.settings.framing,
@@ -557,6 +562,7 @@ export function defaultSettings(ratio: Short['settings']['ratio']): Short['setti
     framing: { x: 0.5, y: 0.5, mode: 'crop' },
     captionsEnabled: true,
     captionFontSize: 72,
+    lengthSec: 30,
     musicClips: [],
     musicVolume: 0.25,
     musicDuck: true

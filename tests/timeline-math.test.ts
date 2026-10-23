@@ -3,58 +3,30 @@ import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
   clampPixelsPerSecond,
-  moveSegment,
-  outputStarts,
   outputToSource,
   rulerStep,
-  sourceToOutput,
-  totalOutputSec,
-  trimEnd,
-  trimStart
+  sourceToOutput
 } from '../src/shared/timeline-math'
 
+// Cuts placed on the timeline with a blank stretch between them: 0–10 s is cut one, 10–15 s is blank,
+// and cut two plays from 15 s to 20 s on the timeline.
 const cuts = [
-  { startSec: 10, endSec: 20 },
-  { startSec: 50, endSec: 55 }
+  { startSec: 10, endSec: 20, atSec: 0 },
+  { startSec: 50, endSec: 55, atSec: 15 }
 ]
 
-describe('output and source time', () => {
-  it('lays cuts end to end in output time', () => {
-    expect(totalOutputSec(cuts)).toBe(15)
-    expect(outputStarts(cuts)).toEqual([0, 10])
-  })
-
-  it('maps source moments to output and back', () => {
+describe('timeline and source time', () => {
+  it('maps source moments onto the timeline and back', () => {
     expect(sourceToOutput(cuts, 12)).toBe(2)
-    expect(sourceToOutput(cuts, 52)).toBe(12)
+    expect(sourceToOutput(cuts, 52)).toBe(17)
     expect(sourceToOutput(cuts, 30)).toBeNull()
     expect(outputToSource(cuts, 2)).toBe(12)
-    expect(outputToSource(cuts, 12)).toBe(52)
+    expect(outputToSource(cuts, 17)).toBe(52)
   })
 
-  it('clamps output times past the end to the last cut', () => {
-    expect(outputToSource(cuts, 999)).toBe(55)
-    expect(outputToSource([], 3)).toBe(0)
-  })
-})
-
-describe('drag rules', () => {
-  it('trims the start but never past the end or the minimum length', () => {
-    expect(trimStart({ startSec: 10, endSec: 20 }, 3)).toEqual({ startSec: 13, endSec: 20 })
-    expect(trimStart({ startSec: 10, endSec: 20 }, 50)).toEqual({ startSec: 19.5, endSec: 20 })
-    expect(trimStart({ startSec: 1, endSec: 20 }, -50)).toEqual({ startSec: 0, endSec: 20 })
-  })
-
-  it('trims the end but never past the source or the minimum length', () => {
-    expect(trimEnd({ startSec: 10, endSec: 20 }, -3, 100)).toEqual({ startSec: 10, endSec: 17 })
-    expect(trimEnd({ startSec: 10, endSec: 20 }, -50, 100)).toEqual({ startSec: 10, endSec: 10.5 })
-    expect(trimEnd({ startSec: 10, endSec: 20 }, 500, 100)).toEqual({ startSec: 10, endSec: 100 })
-  })
-
-  it('slides a cut without changing its length, staying inside the source', () => {
-    expect(moveSegment({ startSec: 10, endSec: 20 }, 5, 100)).toEqual({ startSec: 15, endSec: 25 })
-    expect(moveSegment({ startSec: 10, endSec: 20 }, 500, 100)).toEqual({ startSec: 90, endSec: 100 })
-    expect(moveSegment({ startSec: 10, endSec: 20 }, -500, 100)).toEqual({ startSec: 0, endSec: 10 })
+  it('reports blank timeline time as no source at all', () => {
+    expect(outputToSource(cuts, 12)).toBeNull()
+    expect(outputToSource([], 3)).toBeNull()
   })
 })
 

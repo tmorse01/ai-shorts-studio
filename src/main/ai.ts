@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-import { dedupeCandidates, normalizeSegments, segmentsDuration, validateShortDuration, type Segment } from '../shared/timeline'
+import { dedupeCandidates, normalizeSegments, placeBackToBack, segmentsDuration, validateCuts, type Segment } from '../shared/timeline'
 
 /** Current Sonnet model ID. Confirm against the claude-api docs if this is changed. */
 export const ANTHROPIC_MODEL = 'claude-sonnet-5-5'
@@ -128,8 +128,8 @@ export async function rankCandidates(req: RankRequest): Promise<SuggestedShort[]
   const ranked: SuggestedShort[] = []
   parsed.data.shorts.forEach((short, i) => {
     const segments = normalizeSegments(short.segments, req.durationSec)
-    if (validateShortDuration(segments) !== null) return
     const total = segmentsDuration(segments)
+    if (validateCuts(placeBackToBack(segments), total) !== null) return
     if (total < req.minSec || total > req.maxSec) return
     ranked.push({ title: short.title, reason: short.reason, segments, rank: i + 1 })
   })

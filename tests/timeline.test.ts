@@ -6,8 +6,11 @@ import {
   formatAssTime,
   normalizeSegments,
   outputSize,
+  defaultLengthSec,
+  placeBackToBack,
   remapCaptions,
-  validateShortDuration
+  tidyCuts,
+  validateCuts
 } from '../src/shared/timeline'
 
 describe('normalizeSegments', () => {
@@ -38,22 +41,82 @@ describe('normalizeSegments', () => {
   })
 })
 
-describe('validateShortDuration', () => {
-  it('accepts a multi-cut short inside the length window', () => {
+describe('placing cuts on the timeline', () => {
+  it('places cuts one after another from zero, for shorts saved before cuts had places', () => {
     expect(
-      validateShortDuration([
-        { startSec: 0, endSec: 15 },
-        { startSec: 40, endSec: 55 }
+      placeBackToBack([
+        { startSec: 40, endSec: 45 },
+        { startSec: 0, endSec: 10 }
       ])
+    ).toEqual([
+      { startSec: 40, endSec: 45, atSec: 0 },
+      { startSec: 0, endSec: 10, atSec: 5 }
+    ])
+  })
+
+  it('takes a default length from the cuts, kept inside the allowed range', () => {
+    expect(defaultLengthSec([{ startSec: 0, endSec: 15 }, { startSec: 40, endSec: 55 }])).toBe(30)
+    expect(defaultLengthSec([{ startSec: 0, endSec: 2 }])).toBe(10)
+  })
+
+  it('keeps cuts inside the timeline, in placement order, and never overlapping', () => {
+    const out = tidyCuts(
+      [
+        { startSec: 0, endSec: 10, atSec: 20 },
+        { startSec: 50, endSec: 60, atSec: 5 },
+        { startSec: 0, endSec: 5, atSec: 28 }
+      ],
+      30
+    )
+    // The cut at 5 s comes first, then the cut at 20 s, which runs to 30 s. The last cut is pushed to 30 s,
+    // where there is no room left, so it is dropped.
+    expect(out).toEqual([
+      { startSec: 50, endSec: 60, atSec: 5 },
+      { startSec: 0, endSec: 10, atSec: 20 }
+    ])
+  })
+
+  it('pushes a cut that overlaps the one before it to start where that one ends', () => {
+    const out = tidyCuts(
+      [
+        { startSec: 0, endSec: 10, atSec: 0 },
+        { startSec: 20, endSec: 30, atSec: 5 }
+      ],
+      60
+    )
+    expect(out[1]).toEqual({ startSec: 25, endSec: 30, atSec: 10 })
+  })
+})
+
+describe('validateCuts', () => {
+  it('accepts cuts with blank space between them inside the length window', () => {
+    expect(
+      validateCuts(
+        [
+          { startSec: 0, endSec: 15, atSec: 0 },
+          { startSec: 40, endSec: 55, atSec: 20 }
+        ],
+        40
+      )
     ).toBeNull()
   })
 
-  it('rejects shorts that are too short, too long, or have too many cuts', () => {
-    expect(validateShortDuration([{ startSec: 0, endSec: 5 }])).toMatch(/at least/)
-    expect(validateShortDuration([{ startSec: 0, endSec: 100 }])).toMatch(/at most/)
-    const many = Array.from({ length: 7 }, (_, i) => ({ startSec: i * 10, endSec: i * 10 + 2 }))
-    expect(validateShortDuration(many)).toMatch(/segments/)
-    expect(validateShortDuration([])).toMatch(/at least one/)
+  it('rejects overlapping cuts, cuts past the end, and shorts that are too short, too long, or have too many cuts', () => {
+    expect(validateCuts([{ startSec: 0, endSec: 5, atSec: 0 }], 5)).toMatch(/at least/)
+    expect(validateCuts([{ startSec: 0, endSec: 5, atSec: 0 }], 100)).toMatch(/at most/)
+    const many = Array.from({ length: 7 }, (_, i) => ({ startSec: i * 10, endSec: i * 10 + 2, atSec: i * 3 }))
+    expect(validateCuts(many, 30)).toMatch(/cuts/)
+    expect(validateCuts([], 30)).toMatch(/at least one/)
+    expect(
+      validateCuts(
+        [
+          { startSec: 0, endSec: 10, atSec: 0 },
+          { startSec: 20, endSec: 30, atSec: 5 }
+        ],
+        30
+      )
+    ).toMatch(/overlap/)
+    expect(validateCuts([{ startSec: 0, endSec: 10, atSec: 25 }], 30)).toMatch(/outside/)
   })
 })
 
@@ -105,8 +168,8 @@ describe('remapCaptions', () => {
         { startSec: 30, endSec: 31, text: 'outside' }
       ],
       [
-        { startSec: 10, endSec: 20 },
-        { startSec: 40, endSec: 50 }
+        { startSec: 10, endSec: 20, atSec: 0 },
+        { startSec: 40, endSec: 50, atSec: 10 }
       ]
     )
     expect(out).toEqual([

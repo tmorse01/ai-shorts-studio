@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
-import { segmentsDuration, type Caption, type Ratio, type Segment } from '../../shared/timeline'
+import type { Caption, Ratio, TimelineCut } from '../../shared/timeline'
 import type { Short, ShortSettings } from '../../shared/types'
 import { errorText } from '../util'
 import { Checkbox } from '../ui/Checkbox'
 import { Select } from '../ui/Select'
 import { Switch } from '../ui/Switch'
+import { placeNewCut } from './timeline-model'
 import type { useShortDraft } from './useShortDraft'
 import styles from './Inspector.module.css'
 
@@ -20,6 +21,8 @@ export interface InspectorProps {
   hasAudio: boolean
   /** How many music clips are on the short's Music lane. */
   musicClipCount: number
+  /** Where the playhead is on the timeline, in seconds. */
+  playheadSec: number
   onSave: () => void
   onDeleted: () => void
   onSaved: (s: Short) => void
@@ -69,7 +72,14 @@ export function Inspector(props: InspectorProps) {
         {/* Panels stay mounted and are hidden, so a narration recording survives switching tabs. */}
         <div className={styles.body}>
           <Tabs.Content value="cuts" forceMount hidden={tab !== 'cuts'}>
-            <CutsPanel segments={draft.segments} setSegments={draft.setSegments} problem={draft.problem} />
+            <CutsPanel
+              segments={draft.segments}
+              setSegments={draft.setSegments}
+              problem={draft.problem}
+              settings={draft.settings}
+              setSettings={draft.setSettings}
+              playheadSec={props.playheadSec}
+            />
           </Tabs.Content>
           <Tabs.Content value="frame" forceMount hidden={tab !== 'frame'}>
             <FramePanel settings={draft.settings} setSettings={draft.setSettings} />
@@ -109,18 +119,38 @@ export function Inspector(props: InspectorProps) {
 function CutsPanel({
   segments,
   setSegments,
-  problem
+  problem,
+  settings,
+  setSettings,
+  playheadSec
 }: {
-  segments: Segment[]
+  segments: TimelineCut[]
   setSegments: ShortDraft['setSegments']
   problem: string | null
+  settings: ShortSettings
+  setSettings: ShortDraft['setSettings']
+  playheadSec: number
 }) {
-  const setSeg = (i: number, patch: Partial<Segment>): void =>
+  const setSeg = (i: number, patch: Partial<TimelineCut>): void =>
     setSegments((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)), 'cut-edit')
 
   return (
     <div className="stack">
-      <span className="muted">Cuts (source timestamps)</span>
+      <label>
+        Short length <span className="mono">{settings.lengthSec.toFixed(1)}s</span>
+        <input
+          type="number"
+          step={0.5}
+          min={10}
+          max={90}
+          value={settings.lengthSec}
+          onChange={(e) => {
+            const sec = Number(e.target.value)
+            if (Number.isFinite(sec)) setSettings({ ...settings, lengthSec: sec }, 'length')
+          }}
+        />
+      </label>
+      <span className="muted">Cut times are source timestamps. "At" is where the cut starts on the short's timeline.</span>
       {segments.map((seg, i) => (
         <div key={i} className={styles.segmentRow}>
           <label>
@@ -130,6 +160,10 @@ function CutsPanel({
           <label>
             End
             <input type="number" step={0.1} value={seg.endSec} onChange={(e) => setSeg(i, { endSec: Number(e.target.value) })} />
+          </label>
+          <label>
+            At
+            <input type="number" step={0.1} value={seg.atSec} onChange={(e) => setSeg(i, { atSec: Number(e.target.value) })} />
           </label>
           <button
             className="danger"
@@ -142,10 +176,17 @@ function CutsPanel({
         </div>
       ))}
       <div className="row">
-        <button disabled={segments.length >= 6} onClick={() => setSegments([...segments, { startSec: 0, endSec: 5 }])}>
+        <button
+          disabled={segments.length >= 6}
+          onClick={() => {
+            // A new cut goes into the first free space from the playhead, so it never lands on another cut.
+            const placed = placeNewCut(segments, { startSec: 0, endSec: 5 }, settings.lengthSec, playheadSec)
+            if (placed) setSegments([...segments, placed])
+          }}
+        >
           Add cut
         </button>
-        <span className="muted mono">Total {segmentsDuration(segments).toFixed(1)}s</span>
+        <span className="muted mono">Length {settings.lengthSec.toFixed(1)}s</span>
       </div>
       {problem && <div className="notice error">{problem}</div>}
     </div>

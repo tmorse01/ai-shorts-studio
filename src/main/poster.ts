@@ -39,8 +39,13 @@ export function posterTimeSec(durationSec: number): number {
  * The frame a clip shows: the first frame of its first cut, so the clip opens on what the short starts with.
  * Zero when the clip has no cuts.
  */
-export function clipFrameTimeSec(segments: { startSec: number }[]): number {
-  return segments[0]?.startSec ?? 0
+export function clipFrameTimeSec(segments: { startSec: number; atSec?: number }[]): number {
+  // The first cut to play is the one with the earliest place on the timeline.
+  const first = segments.reduce<{ startSec: number; atSec?: number } | null>(
+    (best, c) => (best === null || (c.atSec ?? 0) < (best.atSec ?? 0) ? c : best),
+    null
+  )
+  return first?.startSec ?? 0
 }
 
 /**

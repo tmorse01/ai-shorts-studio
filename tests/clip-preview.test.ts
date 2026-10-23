@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeCaption, frameAspect, videoStyle } from '../src/renderer/editor/preview-math'
+import { activeCaption, cutAt, frameAspect, nextCutAt, videoStyle } from '../src/renderer/editor/preview-math'
 
 const landscape = { width: 1280, height: 720 }
 
@@ -37,7 +37,7 @@ describe('caption lookup', () => {
     { startSec: 4, endSec: 6, text: 'second' }
   ]
 
-  it('returns the caption on screen at a source time, using a half-open interval', () => {
+  it('returns the caption on screen at a timeline time, using a half-open interval', () => {
     expect(activeCaption(captions, 3)?.text).toBe('first')
     expect(activeCaption(captions, 4)?.text).toBe('second')
     expect(activeCaption(captions, 6)).toBeNull()
@@ -45,56 +45,27 @@ describe('caption lookup', () => {
   })
 })
 
-describe('clip playback steps', () => {
+describe('cut under the playhead', () => {
+  // Cut one plays 0–10 s on the timeline, then 5 s of blank, then cut two plays 15–20 s.
   const cuts = [
-    { startSec: 10, endSec: 20 },
-    { startSec: 50, endSec: 55 }
+    { startSec: 10, endSec: 20, atSec: 0 },
+    { startSec: 50, endSec: 55, atSec: 15 }
   ]
 
-  it('keeps playing inside a cut', async () => {
-    const { playbackStep } = await import('../src/renderer/editor/preview-math')
-    expect(playbackStep(cuts, 12)).toEqual({ kind: 'play' })
-    expect(playbackStep(cuts, 50)).toEqual({ kind: 'play' })
+  it('finds the cut playing at a timeline time', () => {
+    expect(cutAt(cuts, 3)).toBe(0)
+    expect(cutAt(cuts, 16)).toBe(1)
   })
 
-  it('jumps across a gap to the next cut', async () => {
-    const { playbackStep } = await import('../src/renderer/editor/preview-math')
-    expect(playbackStep(cuts, 25)).toEqual({ kind: 'seek', sec: 50 })
-    expect(playbackStep(cuts, 3)).toEqual({ kind: 'seek', sec: 10 })
+  it('is -1 over blank space, and at the very end', () => {
+    expect(cutAt(cuts, 12)).toBe(-1)
+    expect(cutAt(cuts, 10)).toBe(-1)
+    expect(cutAt(cuts, 20)).toBe(-1)
   })
 
-  it('ends after the last cut and when there are no cuts', async () => {
-    const { playbackStep } = await import('../src/renderer/editor/preview-math')
-    expect(playbackStep(cuts, 55)).toEqual({ kind: 'end' })
-    expect(playbackStep(cuts, 99)).toEqual({ kind: 'end' })
-    expect(playbackStep([], 5)).toEqual({ kind: 'end' })
-  })
-})
-
-describe('output timeline', () => {
-  // Cuts play back to back: 10 s from the first cut, then 5 s from the second.
-  const cuts = [
-    { startSec: 10, endSec: 20 },
-    { startSec: 50, endSec: 55 }
-  ]
-
-  it('counts time from the start of the first cut and skips the gap', async () => {
-    const { outputTimeAt } = await import('../src/renderer/editor/preview-math')
-    expect(outputTimeAt(cuts, 10)).toBe(0)
-    expect(outputTimeAt(cuts, 14)).toBeCloseTo(4, 5)
-    expect(outputTimeAt(cuts, 50)).toBeCloseTo(10, 5)
-    expect(outputTimeAt(cuts, 53)).toBeCloseTo(13, 5)
-  })
-
-  it('maps a time in a gap to the start of the next cut', async () => {
-    const { outputTimeAt } = await import('../src/renderer/editor/preview-math')
-    expect(outputTimeAt(cuts, 25)).toBeCloseTo(10, 5)
-    expect(outputTimeAt(cuts, 3)).toBe(0)
-  })
-
-  it('stays at the total length past the last cut', async () => {
-    const { outputTimeAt } = await import('../src/renderer/editor/preview-math')
-    expect(outputTimeAt(cuts, 99)).toBeCloseTo(15, 5)
-    expect(outputTimeAt([], 5)).toBe(0)
+  it('finds the next cut to start after a time, for when a gap ends', () => {
+    expect(nextCutAt(cuts, 12)).toBe(1)
+    expect(nextCutAt(cuts, 0)).toBe(0)
+    expect(nextCutAt(cuts, 16)).toBe(-1)
   })
 })

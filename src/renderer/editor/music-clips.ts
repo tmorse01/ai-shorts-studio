@@ -42,6 +42,51 @@ export function removeMusicClip(clips: MusicClip[], id: string): MusicClip[] {
 }
 
 /**
+ * How far a clip may go on its lane: the end of the clip before it (or 0) and the start of the clip
+ * after it (or no limit). Clips on one lane never overlap, so only the nearest neighbours matter.
+ */
+export function neighbourBounds(clip: MusicClip, others: MusicClip[]): { lo: number; hi: number } {
+  let lo = 0
+  let hi = Infinity
+  const end = clip.startSec + clip.lengthSec
+  for (const o of others) {
+    if (o.startSec + o.lengthSec <= clip.startSec) lo = Math.max(lo, o.startSec + o.lengthSec)
+    else if (o.startSec >= end) hi = Math.min(hi, o.startSec)
+  }
+  return { lo, hi }
+}
+
+/**
+ * Move a group of clips along the lane by one delta. The group moves together, so the delta is limited by
+ * whichever member reaches a limit first: the timeline's start, or a neighbour outside the group.
+ */
+export function moveMusicClips(clips: MusicClip[], ids: string[], deltaSec: number): MusicClip[] {
+  const moving = new Set(ids)
+  const group = clips.filter((c) => moving.has(c.id))
+  const others = clips.filter((c) => !moving.has(c.id))
+  let lo = -Infinity
+  let hi = Infinity
+  for (const g of group) {
+    const b = neighbourBounds(g, others)
+    lo = Math.max(lo, b.lo - g.startSec)
+    hi = Math.min(hi, b.hi - (g.startSec + g.lengthSec))
+  }
+  if (lo > hi) return clips
+  const d = Math.min(Math.max(deltaSec, lo), hi)
+  return clips.map((c) => (moving.has(c.id) ? { ...c, startSec: c.startSec + d } : c))
+}
+
+/**
+ * Limit a trim so the moved edge stops at the neighbour on that side. Returns the delta to use with
+ * `resizeMusicClip`.
+ */
+export function clampResizeDelta(clip: MusicClip, edge: 'start' | 'end', deltaSec: number, others: MusicClip[]): number {
+  const b = neighbourBounds(clip, others)
+  if (edge === 'start') return Math.max(deltaSec, b.lo - clip.startSec)
+  return Math.min(deltaSec, b.hi - (clip.startSec + clip.lengthSec))
+}
+
+/**
  * Move one edge of a music clip. The end edge changes how much of the track plays, up to the end of the
  * track. The start edge moves the clip's start on the timeline and its in-point in the track together, so
  * the music under the clip stays where it was. Neither edge can pass the track's start or end, or the

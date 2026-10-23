@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MAX_SHORT_SEC, MIN_SHORT_SEC } from './timeline'
 
 export const idSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/, 'Invalid id')
 
@@ -16,6 +17,9 @@ export const segmentSchema = z
     endSec: z.number().finite().min(0).max(24 * 3600)
   })
   .refine((s) => s.endSec > s.startSec, 'endSec must be after startSec')
+
+/** A cut with its place on the short's timeline. */
+export const timelineCutSchema = segmentSchema.and(z.object({ atSec: z.number().finite().min(0).max(24 * 3600) }))
 
 export const captionSchema = z.object({
   startSec: z.number().finite().min(0),
@@ -40,6 +44,7 @@ export const shortSettingsSchema = z.object({
   captionsEnabled: z.boolean(),
   captionFontSize: z.number().int().min(24).max(160),
   musicClips: z.array(musicClipSchema).max(64).default([]),
+  lengthSec: z.number().finite().min(MIN_SHORT_SEC).max(MAX_SHORT_SEC).default(30),
   musicVolume: z.number().min(0).max(1),
   musicDuck: z.boolean()
 })
@@ -47,7 +52,7 @@ export const shortSettingsSchema = z.object({
 export const shortPatchSchema = z
   .object({
     title: z.string().min(1).max(120),
-    segments: z.array(segmentSchema).min(1).max(6),
+    segments: z.array(timelineCutSchema).min(1).max(6),
     captions: z.array(captionSchema).max(500),
     settings: shortSettingsSchema
   })

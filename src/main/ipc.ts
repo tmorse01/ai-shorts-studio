@@ -14,7 +14,14 @@ import {
   segmentSchema,
   shortPatchSchema
 } from '../shared/schemas'
-import { normalizeSegments, validateShortDuration, type Segment } from '../shared/timeline'
+import {
+  defaultLengthSec,
+  normalizeSegments,
+  placeBackToBack,
+  tidyCuts,
+  validateCuts,
+  type TimelineCut
+} from '../shared/timeline'
 import type { ProjectView, ThumbStatus } from '../shared/api'
 import { IPC, PLAYABLE_VIDEO_CODECS, type MediaAsset, type MediaView, type SettingsView } from '../shared/types'
 import { Store } from './store'
@@ -103,10 +110,6 @@ export function registerIpc(deps: IpcDeps): void {
       return null
     }
   }
-
-  /** Length of a short's source video, or 0 when the short has none. */
-  const sourceDuration = (sourceId: string | null): number =>
-    sourceId ? store.findMediaAsset(sourceId).asset.probe.durationSec : 0
 
   /** Probe each file and add it to the project's library as footage. */
   async function importFiles(projectId: string, paths: string[]): Promise<ProjectView> {
@@ -234,7 +237,6 @@ export function registerIpc(deps: IpcDeps): void {
       }
       const clean = normalizeSegments(segments, owner.asset.probe.durationSec)
       if (clean.length === 0) throw new Error('Those times are outside the video.')
-      const settings = defaultSettings('9:16')
       const [created] = store.addShorts([
         {
           projectId,
@@ -243,10 +245,10 @@ export function registerIpc(deps: IpcDeps): void {
           reason: 'Added manually.',
           provenance: 'manual',
           rank: null,
-          segments: clean,
+          segments: placeBackToBack(clean),
           captions: [],
           narrationPath: null,
-          settings,
+          settings: { ...defaultSettings('9:16'), lengthSec: defaultLengthSec(clean) },
           exportedPath: null
         }
       ])
@@ -260,14 +262,14 @@ export function registerIpc(deps: IpcDeps): void {
     z.object({ id: idSchema, patch: shortPatchSchema }),
     async ({ id, patch }) => {
       const short = store.getShort(id)
-      const duration = sourceDuration(short.sourceId)
       const next: Parameters<Store['updateShort']>[1] = {}
       if (patch.title !== undefined) next.title = patch.title
       if (patch.captions !== undefined) next.captions = patch.captions
       if (patch.settings !== undefined) next.settings = patch.settings
       if (patch.segments !== undefined) {
-        const clean = normalizeSegments(patch.segments as Segment[], duration)
-        const problem = validateShortDuration(clean)
+        const lengthSec = patch.settings?.lengthSec ?? short.settings.lengthSec
+        const clean = tidyCuts(patch.segments as TimelineCut[], lengthSec)
+        const problem = validateCuts(clean, lengthSec)
         if (problem) throw new Error(problem)
         next.segments = clean
       }
@@ -309,7 +311,7 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.exportStart, exportRequestSchema, (req) => {
     for (const id of req.shortIds) {
       const short = store.getShort(id)
-      const problem = validateShortDuration(short.segments)
+      const problem = validateCuts(short.segments, short.settings.lengthSec)
       if (problem) throw new Error(`"${short.title}": ${problem}`)
     }
     const job = jobs.startExport(req)

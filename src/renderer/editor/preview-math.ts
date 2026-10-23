@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { cropRect, outputSize, type Caption, type Framing, type Ratio, type Segment } from '../../shared/timeline'
+import { cropRect, cutEnd, outputSize, type Caption, type Framing, type Ratio, type TimelineCut } from '../../shared/timeline'
 
 /** Aspect ratio of the output frame, as CSS `width / height`. `original` follows the source. */
 export function frameAspect(ratio: Ratio, source: { width: number; height: number }): number {
@@ -30,37 +30,21 @@ export function videoStyle(
   }
 }
 
-/** The caption that should be on screen at a source time, if any. */
-export function activeCaption(captions: Caption[], sourceSec: number): Caption | null {
-  return captions.find((c) => sourceSec >= c.startSec && sourceSec < c.endSec) ?? null
+/** The caption on screen at a timeline time, if any. Captions are stored on the timeline, after export remapping. */
+export function activeCaption(captions: Caption[], timelineSec: number): Caption | null {
+  return captions.find((c) => timelineSec >= c.startSec && timelineSec < c.endSec) ?? null
 }
 
-export type PlaybackStep = { kind: 'play' } | { kind: 'seek'; sec: number } | { kind: 'end' }
-
-/**
- * What the player should do at a source time while a clip plays. Inside a cut it keeps playing. In a
- * gap it jumps to the next cut's start, and past the last cut it ends. Cuts are in source order, which
- * `normalizeSegments` guarantees before a short is saved.
- */
-export function playbackStep(segments: Segment[], sourceSec: number): PlaybackStep {
-  if (segments.length === 0) return { kind: 'end' }
-  for (const s of segments) {
-    if (sourceSec >= s.startSec && sourceSec < s.endSec) return { kind: 'play' }
-    if (sourceSec < s.startSec) return { kind: 'seek', sec: s.startSec }
-  }
-  return { kind: 'end' }
+/** The cut playing at a timeline time, or -1 over blank space. Cuts never overlap, so there is at most one. */
+export function cutAt(cuts: TimelineCut[], timelineSec: number): number {
+  return cuts.findIndex((c) => timelineSec >= c.atSec && timelineSec < cutEnd(c))
 }
 
-/**
- * Where a source time falls on the exported timeline. The cuts play back to back, so the gaps between
- * them take no time. A time in a gap maps to the start of the next cut.
- */
-export function outputTimeAt(segments: Segment[], sourceSec: number): number {
-  let out = 0
-  for (const s of segments) {
-    if (sourceSec < s.startSec) return out
-    if (sourceSec < s.endSec) return out + (sourceSec - s.startSec)
-    out += s.endSec - s.startSec
-  }
-  return out
+/** The first cut that starts at or after a timeline time, or -1 when none does. */
+export function nextCutAt(cuts: TimelineCut[], timelineSec: number): number {
+  let best = -1
+  cuts.forEach((c, i) => {
+    if (c.atSec >= timelineSec && (best < 0 || c.atSec < cuts[best].atSec)) best = i
+  })
+  return best
 }

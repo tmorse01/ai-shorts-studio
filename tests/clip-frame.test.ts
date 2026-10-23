@@ -56,7 +56,7 @@ describe('clip frame time', () => {
 
 describe('rendering a clip frame', () => {
   it('writes a JPEG from the clip source at the first cut, under the clip id', async () => {
-    const short = { id: 'short-1', projectId: 'proj-1', segments: [{ startSec: 2, endSec: 4 }] }
+    const short = { id: 'short-1', projectId: 'proj-1', segments: [{ startSec: 2, endSec: 4, atSec: 0 }] }
     const ok = await renderClipFrame(userData, short, asset(source))
     expect(ok).toBe(true)
     expect(existsSync(clipFrameFile(userData, 'proj-1', 'short-1', 'card'))).toBe(true)
@@ -64,15 +64,15 @@ describe('rendering a clip frame', () => {
   }, 120_000)
 
   it('replaces the frame when the clip is rendered again', async () => {
-    const short = { id: 'short-2', projectId: 'proj-1', segments: [{ startSec: 1, endSec: 3 }] }
+    const short = { id: 'short-2', projectId: 'proj-1', segments: [{ startSec: 1, endSec: 3, atSec: 0 }] }
     await renderClipFrame(userData, short, asset(source))
-    const again = await renderClipFrame(userData, { ...short, segments: [{ startSec: 3, endSec: 5 }] }, asset(source))
+    const again = await renderClipFrame(userData, { ...short, segments: [{ startSec: 3, endSec: 5, atSec: 0 }] }, asset(source))
     expect(again).toBe(true)
     expect(existsSync(clipFrameFile(userData, 'proj-1', 'short-2', 'card'))).toBe(true)
   }, 120_000)
 
   it('renders nothing for a clip with no source, audio-only source, or no cuts', async () => {
-    const withCut = { id: 'short-3', projectId: 'proj-1', segments: [{ startSec: 1, endSec: 3 }] }
+    const withCut = { id: 'short-3', projectId: 'proj-1', segments: [{ startSec: 1, endSec: 3, atSec: 0 }] }
     expect(await renderClipFrame(userData, withCut, null)).toBe(false)
     expect(await renderClipFrame(userData, withCut, asset(source, 'none'))).toBe(false)
     expect(await renderClipFrame(userData, { ...withCut, segments: [] }, asset(source))).toBe(false)

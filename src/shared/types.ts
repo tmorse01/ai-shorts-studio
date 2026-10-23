@@ -1,5 +1,5 @@
 import type { ExportOptions } from './schemas'
-import type { Caption, Framing, Ratio, Segment } from './timeline'
+import type { Caption, Framing, Ratio, TimelineCut } from './timeline'
 import type { StageStatus } from './pipeline-graph'
 
 export type Provenance = 'ai' | 'heuristic' | 'manual'
@@ -63,6 +63,8 @@ export interface ShortSettings {
   captionFontSize: number
   /** Pieces of music-library tracks placed on the short's timeline. Empty for no music. */
   musicClips: MusicClip[]
+  /** How long the short is, in seconds. Blank space between cuts counts toward it. */
+  lengthSec: number
   musicVolume: number
   musicDuck: boolean
 }
@@ -76,7 +78,8 @@ export interface Short {
   reason: string
   provenance: Provenance
   rank: number | null
-  segments: Segment[]
+  /** The short's cuts, each with its place on the timeline. */
+  segments: TimelineCut[]
   captions: Caption[]
   narrationPath: string | null
   settings: ShortSettings

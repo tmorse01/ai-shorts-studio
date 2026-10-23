@@ -10,7 +10,7 @@ import {
   type Caption,
   type Framing,
   type Ratio,
-  type Segment,
+  type TimelineCut,
   type Size
 } from '../shared/timeline'
 import type { ExportOptions } from '../shared/schemas'
@@ -152,7 +152,9 @@ function collectStdout(bin: string, args: string[]): Promise<string> {
 export interface ExportInput {
   sourcePath: string
   probe: ProbeInfo
-  segments: Segment[]
+  segments: TimelineCut[]
+  /** How long the short is. Blank space between cuts is filled with black and silence. */
+  lengthSec: number
   captions: Caption[]
   ratio: Ratio
   framing: Framing
@@ -179,8 +181,24 @@ export interface GraphPlan {
  * Build the ffmpeg argv for one short. Pure: no disk or process access, so the graph can be unit
  * tested. Inputs: 0 = source, then optional silence (no-audio sources), music, narration.
  */
+/** One stretch of the output: a cut's footage, or blank space between cuts (shown as black with silence). */
+export type TimelinePiece = { kind: 'cut'; seg: TimelineCut } | { kind: 'gap'; sec: number }
+
+/** Split the timeline into cuts and the blank stretches between them, in order, filling the whole length. */
+export function timelinePieces(cuts: TimelineCut[], lengthSec: number): TimelinePiece[] {
+  const pieces: TimelinePiece[] = []
+  let cursor = 0
+  for (const c of [...cuts].sort((a, b) => a.atSec - b.atSec)) {
+    if (c.atSec - cursor > 0.001) pieces.push({ kind: 'gap', sec: c.atSec - cursor })
+    pieces.push({ kind: 'cut', seg: c })
+    cursor = c.atSec + (c.endSec - c.startSec)
+  }
+  if (lengthSec - cursor > 0.001) pieces.push({ kind: 'gap', sec: lengthSec - cursor })
+  return pieces
+}
+
 export function buildExportArgs(input: ExportInput, outPath: string): GraphPlan {
-  const total = input.segments.reduce((s, seg) => s + (seg.endSec - seg.startSec), 0)
+  const total = input.lengthSec
   const size = outputSize(
     input.ratio,
     { width: input.probe.width, height: input.probe.height },
@@ -213,15 +231,24 @@ export function buildExportArgs(input: ExportInput, outPath: string): GraphPlan 
 
   const chains: string[] = []
   const concatPairs: string[] = []
-  input.segments.forEach((seg, i) => {
-    chains.push(
-      `[0:v]trim=start=${seg.startSec.toFixed(3)}:end=${seg.endSec.toFixed(3)},setpts=PTS-STARTPTS[v${i}]`
-    )
-    const audioSrc = silenceIndex !== null ? `[${silenceIndex}:a]atrim=start=${seg.startSec.toFixed(3)}:end=${seg.endSec.toFixed(3)}` : `[0:a]atrim=start=${seg.startSec.toFixed(3)}:end=${seg.endSec.toFixed(3)}`
-    chains.push(`${audioSrc},asetpts=PTS-STARTPTS[a${i}]`)
+  const pieces = timelinePieces(input.segments, total)
+  pieces.forEach((piece, i) => {
+    if (piece.kind === 'cut') {
+      const seg = piece.seg
+      chains.push(
+        `[0:v]trim=start=${seg.startSec.toFixed(3)}:end=${seg.endSec.toFixed(3)},setpts=PTS-STARTPTS[v${i}]`
+      )
+      const audioSrc = silenceIndex !== null ? `[${silenceIndex}:a]atrim=start=${seg.startSec.toFixed(3)}:end=${seg.endSec.toFixed(3)}` : `[0:a]atrim=start=${seg.startSec.toFixed(3)}:end=${seg.endSec.toFixed(3)}`
+      chains.push(`${audioSrc},asetpts=PTS-STARTPTS[a${i}]`)
+    } else {
+      // Blank space: black picture and silence, at the source's frame size so the cuts can join it.
+      const d = piece.sec.toFixed(3)
+      chains.push(`color=c=black:s=${input.probe.width}x${input.probe.height}:r=30:d=${d},format=yuv420p,setsar=1[v${i}]`)
+      chains.push(`anullsrc=channel_layout=stereo:sample_rate=48000:d=${d}[a${i}]`)
+    }
     concatPairs.push(`[v${i}][a${i}]`)
   })
-  const n = input.segments.length
+  const n = pieces.length
   chains.push(`${concatPairs.join('')}concat=n=${n}:v=1:a=1[vc][ac]`)
 
   // Video: crop (or fit with pad) to the target size, then burn captions.

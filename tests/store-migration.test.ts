@@ -117,7 +117,7 @@ describe('Store on disk', () => {
         reason: '',
         provenance: 'manual',
         rank: null,
-        segments: [{ startSec: 0, endSec: 15 }],
+        segments: [{ startSec: 0, endSec: 15, atSec: 0 }],
         captions: [],
         narrationPath: null,
         settings: {} as never,

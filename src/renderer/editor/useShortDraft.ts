@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type SetStateAction } from 'react'
-import { validateShortDuration, type Caption, type Segment } from '../../shared/timeline'
+import { tidyCuts, validateCuts, type Caption, type TimelineCut } from '../../shared/timeline'
 import type { Short, ShortSettings } from '../../shared/types'
 
 /** Undo steps kept per short. Older steps are dropped. */
@@ -14,7 +14,7 @@ function withDefaults(s: ShortSettings): ShortSettings {
 
 interface Doc {
   title: string
-  segments: Segment[]
+  segments: TimelineCut[]
   captions: Caption[]
   settings: ShortSettings
 }
@@ -88,7 +88,7 @@ export function useShortDraft(short: Short) {
   )
 
   const setSegments = useCallback(
-    (action: SetStateAction<Segment[]>, label: string | null = null): void =>
+    (action: SetStateAction<TimelineCut[]>, label: string | null = null): void =>
       edit((d) => {
         const next = resolve(action, d.segments)
         return next === d.segments ? d : { ...d, segments: next }
@@ -109,7 +109,10 @@ export function useShortDraft(short: Short) {
     (action: SetStateAction<ShortSettings>, label: string | null = null): void =>
       edit((d) => {
         const next = resolve(action, d.settings)
-        return next === d.settings ? d : { ...d, settings: next }
+        if (next === d.settings) return d
+        // A shorter short takes its cuts that run past the new end with it.
+        const segments = next.lengthSec === d.settings.lengthSec ? d.segments : tidyCuts(d.segments, next.lengthSec)
+        return { ...d, settings: next, segments }
       }, label),
     [edit]
   )
@@ -153,7 +156,7 @@ export function useShortDraft(short: Short) {
       JSON.stringify(settings) !== JSON.stringify(saved),
     [title, segments, captions, settings, short, saved]
   )
-  const problem = validateShortDuration(segments)
+  const problem = validateCuts(segments, settings.lengthSec)
 
   return {
     title,

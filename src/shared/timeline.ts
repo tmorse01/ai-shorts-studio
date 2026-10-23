@@ -30,6 +30,72 @@ export function segmentsDuration(segments: Segment[]): number {
 }
 
 /**
+ * A cut as it sits on a short's timeline. `startSec`/`endSec` are the footage it plays; `atSec` is where it
+ * starts on the timeline. Cuts keep their place, so trimming one never moves another. Blank space between
+ * cuts is allowed, and plays as black with silence.
+ */
+export interface TimelineCut extends Segment {
+  atSec: number
+}
+
+export const cutLength = (c: Segment): number => c.endSec - c.startSec
+export const cutEnd = (c: TimelineCut): number => c.atSec + cutLength(c)
+
+/** Place cuts one after another from zero. Used for shorts saved before cuts had a place of their own. */
+export function placeBackToBack(segments: Segment[]): TimelineCut[] {
+  let at = 0
+  return segments.map((s) => {
+    const cut = { startSec: s.startSec, endSec: s.endSec, atSec: at }
+    at += cutLength(s)
+    return cut
+  })
+}
+
+/** Length a short gets when it has none saved: its cuts end-to-end, kept inside the allowed range. */
+export function defaultLengthSec(cuts: Segment[]): number {
+  return Math.min(MAX_SHORT_SEC, Math.max(MIN_SHORT_SEC, segmentsDuration(cuts)))
+}
+
+/**
+ * Keep cuts inside the timeline: clamp them to [0, lengthSec], drop slivers, and put them in placement order.
+ * Where two cuts would overlap on the timeline, the later one starts where the earlier one ends, and is
+ * shortened from its end to fit. Cuts pushed past the end are dropped. Pure: never mutates input.
+ */
+export function tidyCuts(cuts: TimelineCut[], lengthSec: number): TimelineCut[] {
+  const sorted = cuts
+    .map((c) => ({ ...c, atSec: Math.max(0, c.atSec) }))
+    .filter((c) => c.atSec < lengthSec && cutLength(c) >= MIN_SEGMENT_SEC)
+    .sort((a, b) => a.atSec - b.atSec)
+  const out: TimelineCut[] = []
+  for (const c of sorted) {
+    const prev = out[out.length - 1]
+    let cut = c
+    if (prev && cut.atSec < cutEnd(prev)) {
+      const shift = cutEnd(prev) - cut.atSec
+      cut = { ...cut, atSec: cutEnd(prev), startSec: cut.startSec + shift }
+    }
+    const fitLength = Math.min(cutLength(cut), lengthSec - cut.atSec, cut.endSec - cut.startSec)
+    if (fitLength < MIN_SEGMENT_SEC) continue
+    out.push({ ...cut, endSec: cut.startSec + fitLength })
+  }
+  return out
+}
+
+/** Every cut must be within the timeline, and no two may overlap. Returns a message for the first problem. */
+export function validateCuts(cuts: TimelineCut[], lengthSec: number): string | null {
+  if (cuts.length === 0) return 'A short needs at least one cut.'
+  if (cuts.length > MAX_SEGMENTS_PER_SHORT) return `A short can use at most ${MAX_SEGMENTS_PER_SHORT} cuts.`
+  if (lengthSec < MIN_SHORT_SEC) return `Shorts must be at least ${MIN_SHORT_SEC}s long.`
+  if (lengthSec > MAX_SHORT_SEC) return `Shorts must be at most ${MAX_SHORT_SEC}s long.`
+  const sorted = [...cuts].sort((a, b) => a.atSec - b.atSec)
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].atSec < 0 || cutEnd(sorted[i]) > lengthSec + 1e-6) return 'A cut sits outside the short.'
+    if (i > 0 && sorted[i].atSec < cutEnd(sorted[i - 1]) - 1e-6) return 'Two cuts overlap.'
+  }
+  return null
+}
+
+/**
  * Clamp segments to [0, duration], drop slivers, sort, and merge overlaps.
  * Pure: never mutates input.
  */
@@ -52,17 +118,6 @@ export function normalizeSegments(segments: Segment[], durationSec: number): Seg
     }
   }
   return merged
-}
-
-export function validateShortDuration(segments: Segment[]): string | null {
-  if (segments.length === 0) return 'A short needs at least one segment.'
-  if (segments.length > MAX_SEGMENTS_PER_SHORT) {
-    return `A short can use at most ${MAX_SEGMENTS_PER_SHORT} segments.`
-  }
-  const total = segmentsDuration(segments)
-  if (total < MIN_SHORT_SEC) return `Shorts must be at least ${MIN_SHORT_SEC}s long.`
-  if (total > MAX_SHORT_SEC) return `Shorts must be at most ${MAX_SHORT_SEC}s long.`
-  return null
 }
 
 export interface Candidate extends Segment {
@@ -158,21 +213,19 @@ export const clamp01 = (n: number): number => Math.max(0, Math.min(1, Number.isF
  * Remap caption times from source timeline onto the concatenated output timeline produced by the
  * segments, dropping captions that fall outside every kept segment and clipping those that straddle a cut.
  */
-export function remapCaptions(captions: Caption[], segments: Segment[]): Caption[] {
+export function remapCaptions(captions: Caption[], cuts: TimelineCut[]): Caption[] {
   const out: Caption[] = []
-  let offset = 0
-  for (const seg of segments) {
+  for (const cut of cuts) {
     for (const c of captions) {
-      const start = Math.max(c.startSec, seg.startSec)
-      const end = Math.min(c.endSec, seg.endSec)
+      const start = Math.max(c.startSec, cut.startSec)
+      const end = Math.min(c.endSec, cut.endSec)
       if (end - start <= 0.05) continue
       out.push({
-        startSec: round3(offset + (start - seg.startSec)),
-        endSec: round3(offset + (end - seg.startSec)),
+        startSec: round3(cut.atSec + (start - cut.startSec)),
+        endSec: round3(cut.atSec + (end - cut.startSec)),
         text: c.text
       })
     }
-    offset += seg.endSec - seg.startSec
   }
   return out.sort((a, b) => a.startSec - b.startSec)
 }

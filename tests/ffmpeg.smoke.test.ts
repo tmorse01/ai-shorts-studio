@@ -82,9 +82,10 @@ describe('real FFmpeg export', () => {
         sourcePath: withAudioSrc,
         probe,
         segments: [
-          { startSec: 3, endSec: 13 },
-          { startSec: 25, endSec: 40 }
+          { startSec: 3, endSec: 13, atSec: 0 },
+          { startSec: 25, endSec: 40, atSec: 15 }
         ],
+        lengthSec: 30,
         captions,
         ratio: '9:16',
         framing: { x: 0.5, y: 0.5, mode: 'crop' },
@@ -98,7 +99,8 @@ describe('real FFmpeg export', () => {
       },
       outPath
     )
-    expect(plan.totalSec).toBeCloseTo(25, 3)
+    // The 5 s of blank between the cuts counts toward the short's length, and is filled in the export.
+    expect(plan.totalSec).toBeCloseTo(30, 3)
     const cwd = join(workRoot, 'work-multicut')
     mkdirSync(cwd, { recursive: true })
     if (plan.captions.length > 0) {
@@ -112,8 +114,8 @@ describe('real FFmpeg export', () => {
     const audio = info.streams.find((s) => s.codec_type === 'audio')
     expect(video).toMatchObject({ width: 1080, height: 1920 })
     expect(audio).toBeDefined()
-    expect(Number(info.format.duration)).toBeGreaterThan(24.5)
-    expect(Number(info.format.duration)).toBeLessThan(25.5)
+    expect(Number(info.format.duration)).toBeGreaterThan(29.5)
+    expect(Number(info.format.duration)).toBeLessThan(30.5)
   })
 
   it('detects an HEVC source and makes a playable 720p H.264 preview proxy', async () => {
@@ -143,7 +145,8 @@ describe('real FFmpeg export', () => {
       {
         sourcePath: noAudioSrc,
         probe,
-        segments: [{ startSec: 5, endSec: 20 }],
+        segments: [{ startSec: 5, endSec: 20, atSec: 0 }],
+        lengthSec: 15,
         captions: [],
         ratio: '1:1',
         framing: { x: 0.5, y: 0.5, mode: 'fit' },
@@ -174,7 +177,8 @@ describe('real FFmpeg export', () => {
       {
         sourcePath: withAudioSrc,
         probe,
-        segments: [{ startSec: 2, endSec: 8 }],
+        segments: [{ startSec: 2, endSec: 8, atSec: 0 }],
+        lengthSec: 6,
         captions: [],
         ratio: '9:16',
         framing: { x: 0.5, y: 0.5, mode: 'crop' },

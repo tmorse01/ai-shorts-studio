@@ -150,10 +150,21 @@
   white-space: nowrap;
 }
 
-/* The clip selected for splitting or deleting. */
-.musicSelected {
+/* Selected clips, on either lane. */
+.musicSelected,
+.cutSelected {
   outline: 2px solid var(--text);
   outline-offset: -1px;
+}
+
+/* The middle of a music clip, where a drag moves it. Edges are the handles beside it. */
+.musicBody {
+  display: block;
+  padding: 0 6px;
+  cursor: grab;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  touch-action: none;
 }
 
 /* Drag handles on a music clip's edges. They sit inside the clip, so the clip's own click still selects it. */

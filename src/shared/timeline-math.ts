@@ -1,8 +1,9 @@
-import { MIN_SEGMENT_SEC, type Segment } from './timeline'
+import type { TimelineCut } from './timeline'
 
 /**
  * Pure helpers for the timeline editor. Two clocks matter here: source time (where a cut sits in the
- * original footage) and output time (where it plays in the finished short, cuts laid end to end).
+ * original footage) and timeline time (where it plays in the short, measured from the short's start).
+ * Blank timeline time between cuts maps to no source time at all.
  */
 
 export const MIN_PIXELS_PER_SECOND = 4
@@ -11,60 +12,24 @@ export const DEFAULT_PIXELS_PER_SECOND = 16
 
 const RULER_STEPS = [1, 2, 5, 10, 15, 30, 60]
 
-export function totalOutputSec(segments: Segment[]): number {
-  return segments.reduce((sum, s) => sum + (s.endSec - s.startSec), 0)
-}
-
-/** Output-time start of each segment. Index i begins where segment i-1 ends in the output. */
-export function outputStarts(segments: Segment[]): number[] {
-  const starts: number[] = []
-  let offset = 0
-  for (const s of segments) {
-    starts.push(offset)
-    offset += s.endSec - s.startSec
-  }
-  return starts
-}
-
-/** Map a source time to output time, or null when that source moment is not in any cut. */
-export function sourceToOutput(segments: Segment[], sourceSec: number): number | null {
-  const starts = outputStarts(segments)
-  for (let i = 0; i < segments.length; i++) {
-    const s = segments[i]
-    if (sourceSec >= s.startSec && sourceSec < s.endSec) return starts[i] + (sourceSec - s.startSec)
+/** Map a source time to timeline time, or null when that source moment is not in any cut. */
+export function sourceToOutput(cuts: TimelineCut[], sourceSec: number): number | null {
+  for (const c of cuts) {
+    if (sourceSec >= c.startSec && sourceSec < c.endSec) return c.atSec + (sourceSec - c.startSec)
   }
   return null
 }
 
-/** Map an output time to source time. Times past the end clamp to the last cut's end. */
-export function outputToSource(segments: Segment[], outputSec: number): number {
-  if (segments.length === 0) return 0
-  const starts = outputStarts(segments)
-  for (let i = 0; i < segments.length; i++) {
-    const len = segments[i].endSec - segments[i].startSec
-    if (outputSec < starts[i] + len) return segments[i].startSec + Math.max(0, outputSec - starts[i])
+/** Map a timeline time to source time, or null when that moment is blank. */
+export function outputToSource(cuts: TimelineCut[], outputSec: number): number | null {
+  for (const c of cuts) {
+    if (outputSec >= c.atSec && outputSec < c.atSec + (c.endSec - c.startSec)) {
+      return c.startSec + (outputSec - c.atSec)
+    }
   }
-  return segments[segments.length - 1].endSec
+  return null
 }
 
-/** Drag the left edge of a cut. It cannot pass the right edge or leave the source. */
-export function trimStart(seg: Segment, deltaSec: number): Segment {
-  const startSec = Math.max(0, Math.min(seg.startSec + deltaSec, seg.endSec - MIN_SEGMENT_SEC))
-  return { startSec, endSec: seg.endSec }
-}
-
-/** Drag the right edge of a cut. It cannot pass the left edge or run past the source. */
-export function trimEnd(seg: Segment, deltaSec: number, durationSec: number): Segment {
-  const endSec = Math.min(durationSec, Math.max(seg.endSec + deltaSec, seg.startSec + MIN_SEGMENT_SEC))
-  return { startSec: seg.startSec, endSec }
-}
-
-/** Slide a cut along the source without changing its length. */
-export function moveSegment(seg: Segment, deltaSec: number, durationSec: number): Segment {
-  const len = seg.endSec - seg.startSec
-  const startSec = Math.max(0, Math.min(seg.startSec + deltaSec, durationSec - len))
-  return { startSec, endSec: startSec + len }
-}
 
 export function secondsToPixels(sec: number, pixelsPerSecond: number): number {
   return sec * pixelsPerSecond
@@ -76,6 +41,43 @@ export function pixelsToSeconds(px: number, pixelsPerSecond: number): number {
 
 export function clampPixelsPerSecond(pps: number): number {
   return Math.max(MIN_PIXELS_PER_SECOND, Math.min(MAX_PIXELS_PER_SECOND, pps))
+}
+
+/** How close, in pixels, a moving edge must be to a target before it locks to it. */
+export const SNAP_PX = 8
+
+/** Snap a time to the nearest target within the threshold. Returns the time unchanged when none is close. */
+export function snapTime(candidate: number, targets: number[], thresholdSec: number): number {
+  let best = candidate
+  let bestDist = thresholdSec
+  for (const t of targets) {
+    const dist = Math.abs(t - candidate)
+    if (dist <= bestDist) {
+      best = t
+      bestDist = dist
+    }
+  }
+  return best
+}
+
+/**
+ * Adjust a drag's time delta so one of its moving points lands on a target, if one is close enough. The
+ * points are the times the drag moves (a clip's start, its end, or both). The point that snaps closest
+ * wins. With no close target, the delta is returned unchanged.
+ */
+export function snapDelta(points: number[], deltaSec: number, targets: number[], thresholdSec: number): number {
+  let best = deltaSec
+  let bestShift = thresholdSec
+  for (const p of points) {
+    const candidate = p + deltaSec
+    const snapped = snapTime(candidate, targets, thresholdSec)
+    const shift = Math.abs(snapped - candidate)
+    if (shift > 0 && shift <= bestShift) {
+      best = snapped - p
+      bestShift = shift
+    }
+  }
+  return best
 }
 
 /** Smallest ruler step whose ticks are at least `minTickPx` apart. */

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { z } from 'zod'
 import { exportOptionsSchema } from '../shared/schemas'
+import { defaultLengthSec, placeBackToBack, type Segment, type TimelineCut } from '../shared/timeline'
 import type { Job, MediaAsset, Project, Short } from '../shared/types'
 
 const probeSchema = z.object({
@@ -74,6 +75,25 @@ const stateSchemaV1 = z.object({
     lastExport: lastExportSchema
   })
 })
+
+/**
+ * Shorts saved before cuts had places on the timeline play back to back from zero, and take their length
+ * from their cuts. Shorts that already have both are returned as they are.
+ */
+export function placeLegacyShorts(shorts: Short[]): { shorts: Short[]; changed: boolean } {
+  let changed = false
+  const out = shorts.map((s) => {
+    const cuts = s.segments as Array<Segment & { atSec?: number }>
+    const needsPlace = cuts.some((c) => typeof c.atSec !== 'number')
+    const needsLength = typeof s.settings.lengthSec !== 'number'
+    if (!needsPlace && !needsLength) return s
+    changed = true
+    const segments = needsPlace ? placeBackToBack(cuts) : (cuts as TimelineCut[])
+    const settings = needsLength ? { ...s.settings, lengthSec: defaultLengthSec(segments) } : s.settings
+    return { ...s, segments, settings }
+  })
+  return { shorts: out, changed }
+}
 
 export interface PersistedState {
   version: 3

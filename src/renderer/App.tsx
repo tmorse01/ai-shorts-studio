@@ -448,9 +448,6 @@ export default function App() {
           videoRef={videoRef}
           currentTime={currentTime}
           onTimeUpdate={onTimeUpdate}
-          onSeek={(sec) => {
-            if (videoRef.current) videoRef.current.currentTime = sec
-          }}
           onBack={() => setSelectedId(null)}
           onSaved={(updated) => setShorts((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))}
           onDeleted={() => {

@@ -1,5 +1,5 @@
-import { useEffect, type RefObject } from 'react'
-import { normalizeSegments } from '../../shared/timeline'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { tidyCuts, type Segment } from '../../shared/timeline'
 import type { ProjectView } from '../../shared/api'
 import type { MediaView, MusicClip, Short } from '../../shared/types'
 import { errorText } from '../util'
@@ -8,6 +8,8 @@ import { Inspector } from './Inspector'
 import { SourceStrip } from './SourceStrip'
 import { Timeline } from './Timeline'
 import { useShortDraft } from './useShortDraft'
+import type { PreviewEngine } from './preview-engine'
+import { placeNewCut } from './timeline-model'
 
 const api = window.studio
 
@@ -18,9 +20,9 @@ export interface ShortFocusProps {
   source: MediaView
   notice: { text: string; error: boolean } | null
   videoRef: RefObject<HTMLVideoElement>
+  /** Source time of the video, which the source strip shows. */
   currentTime: number
   onTimeUpdate: () => void
-  onSeek: (sourceSec: number) => void
   onBack: () => void
   onSaved: (s: Short) => void
   onDeleted: () => void
@@ -33,9 +35,14 @@ export interface ShortFocusProps {
  * and the inspector all edit the same cuts, and renders the centre column and the right pane together.
  */
 export function ShortFocus(props: ShortFocusProps) {
-  const { short, project, source, notice, videoRef, currentTime, onSeek, onSaved, onError, onNotice } = props
+  const { short, project, source, notice, videoRef, currentTime, onSaved, onError, onNotice } = props
   const draft = useShortDraft(short)
   const sourceDurationSec = source.probe.durationSec
+  // The playhead is on the timeline, so it is kept here and the stage reports it as it moves.
+  const [playheadSec, setPlayheadSec] = useState(0)
+  const engineRef = useRef<PreviewEngine | null>(null)
+  const lengthSec = draft.settings.lengthSec
+
   // The draft drives the preview, so music clips play before they are saved.
   const musicClips = draft.settings.musicClips
   const musicPreview = musicClips.flatMap((clip) => {
@@ -66,6 +73,23 @@ export function ShortFocus(props: ShortFocusProps) {
 
   const setMusicClips = (next: MusicClip[]): void => draft.setSettings({ ...draft.settings, musicClips: next })
 
+  /** A source-strip cut goes into the first free space on the timeline, from the playhead. */
+  const addCut = (seg: Segment): void => {
+    const placed = placeNewCut(draft.segments, seg, lengthSec, playheadSec)
+    if (!placed) {
+      onError('There is no free space on the timeline for that cut. Make the short longer or move a cut.')
+      return
+    }
+    draft.setSegments((prev) => [...prev, placed])
+  }
+
+  /** The source strip works in source time. Move to the timeline point that plays that footage, if there is one. */
+  const seekSource = (sourceSec: number): void => {
+    const cut = draft.segments.find((c) => sourceSec >= c.startSec && sourceSec < c.endSec)
+    if (cut && engineRef.current) engineRef.current.seekOutput(cut.atSec + (sourceSec - cut.startSec))
+    else if (videoRef.current) videoRef.current.currentTime = sourceSec
+  }
+
   // Ctrl+Z undoes, Ctrl+Shift+Z or Ctrl+Y redoes. Text fields keep their own undo.
   const { undo, redo } = draft
   useEffect(() => {
@@ -90,7 +114,7 @@ export function ShortFocus(props: ShortFocusProps) {
     try {
       const updated = await api.updateShort(short.id, {
         title: draft.title,
-        segments: normalizeSegments(draft.segments, sourceDurationSec),
+        segments: tidyCuts(draft.segments, lengthSec),
         captions: draft.captions,
         settings: draft.settings
       })
@@ -107,24 +131,28 @@ export function ShortFocus(props: ShortFocusProps) {
         {notice && <div className={`notice ${notice.error ? 'error' : ''}`}>{notice.text}</div>}
         <ClipStage
           title={draft.title}
-          posterUrl={api.clipFrameUrl(short.id, short.updatedAt, 'preview')}
           segments={draft.segments}
+          lengthSec={lengthSec}
           settings={draft.settings}
           captions={draft.captions}
           src={api.mediaUrl(source.id)}
+          posterUrl={api.clipFrameUrl(short.id, short.updatedAt, 'preview')}
           musicClips={musicPreview}
           narrationUrl={narrationUrl}
           sourceWidth={source.probe.width}
           sourceHeight={source.probe.height}
           videoRef={videoRef}
           sourceDurationSec={sourceDurationSec}
-          currentTime={currentTime}
+          playheadSec={playheadSec}
+          onPlayhead={setPlayheadSec}
+          engineRef={engineRef}
           onTimeUpdate={props.onTimeUpdate}
           onBack={props.onBack}
         />
         <Timeline
           segments={draft.segments}
           onChange={draft.setSegments}
+          lengthSec={lengthSec}
           captions={draft.captions}
           sourceDurationSec={sourceDurationSec}
           hasAudio={source.probe.hasAudio}
@@ -137,8 +165,8 @@ export function ShortFocus(props: ShortFocusProps) {
           canRedo={draft.canRedo}
           onUndo={undo}
           onRedo={redo}
-          currentTime={currentTime}
-          onSeek={onSeek}
+          playheadSec={playheadSec}
+          onSeekOutput={(sec) => engineRef.current?.seekOutput(sec)}
         />
         <SourceStrip
           projectId={project.id}
@@ -147,8 +175,8 @@ export function ShortFocus(props: ShortFocusProps) {
           segments={draft.segments}
           currentTime={currentTime}
           canAddCut={draft.segments.length < 6}
-          onSeek={onSeek}
-          onAddCut={(seg) => draft.setSegments((prev) => normalizeSegments([...prev, seg], sourceDurationSec))}
+          onSeek={seekSource}
+          onAddCut={addCut}
         />
       </main>
       <aside className="pane">
@@ -158,6 +186,7 @@ export function ShortFocus(props: ShortFocusProps) {
           projectId={project.id}
           hasAudio={source.probe.hasAudio}
           musicClipCount={musicClips.length}
+          playheadSec={playheadSec}
           onSave={() => void save()}
           onDeleted={props.onDeleted}
           onSaved={onSaved}

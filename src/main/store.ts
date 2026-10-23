@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import type { ExportItem, ExportPrefs, Job, JobStatus, MediaAsset, Project, Short } from '../shared/types'
 import type { Segment, Caption } from '../shared/timeline'
 import type { StageStatus } from '../shared/pipeline-graph'
-import { migrateState, type PersistedState } from './migrate'
+import { migrateState, placeLegacyShorts, type PersistedState } from './migrate'
 
 type State = PersistedState
 
@@ -43,7 +43,9 @@ export class Store {
   private load(): { state: State; migrated: boolean } {
     if (!existsSync(this.file)) return { state: empty(), migrated: false }
     try {
-      return migrateState(JSON.parse(readFileSync(this.file, 'utf8')))
+      const result = migrateState(JSON.parse(readFileSync(this.file, 'utf8')))
+      const placed = placeLegacyShorts(result.state.shorts)
+      return { state: { ...result.state, shorts: placed.shorts }, migrated: result.migrated || placed.changed }
     } catch {
       // Keep the unreadable file for inspection rather than silently discarding user data.
       const backup = join(dirname(this.file), `state.corrupt-${Date.now()}.json`)
