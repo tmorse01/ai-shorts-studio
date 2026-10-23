@@ -107,7 +107,7 @@ export function ShortFocus(props: ShortFocusProps) {
         {notice && <div className={`notice ${notice.error ? 'error' : ''}`}>{notice.text}</div>}
         <ClipStage
           title={draft.title}
-          posterUrl={api.clipFrameUrl(short.id, short.updatedAt)}
+          posterUrl={api.clipFrameUrl(short.id, short.updatedAt, 'preview')}
           segments={draft.segments}
           settings={draft.settings}
           captions={draft.captions}

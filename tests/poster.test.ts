@@ -5,7 +5,7 @@ vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => resolve(process.cwd()) }
 }))
 
-const { buildPosterArgs, posterFile, posterTimeSec, POSTER_WIDTH } = await import('../src/main/poster')
+const { buildPosterArgs, posterFile, posterTimeSec, POSTER_WIDTH, CLIP_FRAME_SIZES } = await import('../src/main/poster')
 
 describe('poster frames', () => {
   it('takes the frame one second in, or the midpoint of very short clips', () => {
@@ -18,8 +18,17 @@ describe('poster frames', () => {
     expect(args.slice(args.indexOf('-ss'), args.indexOf('-ss') + 2)).toEqual(['-ss', '1.000'])
     expect(args.indexOf('-ss')).toBeLessThan(args.indexOf('-i'))
     expect(args).toContain('-frames:v')
-    expect(args).toContain(`scale=${POSTER_WIDTH}:-2`)
+    expect(args).toContain(`scale='min(${POSTER_WIDTH},iw)':-2`)
     expect(args.at(-1)).toBe('C:\\cache\\poster.jpg')
+  })
+
+  it('renders the preview frame larger and at higher quality than the card', () => {
+    const card = buildPosterArgs('in.mp4', 'card.jpg', 1)
+    const preview = buildPosterArgs('in.mp4', 'preview.jpg', 1, CLIP_FRAME_SIZES.preview, 2)
+    expect(preview).toContain(`scale='min(${CLIP_FRAME_SIZES.preview},iw)':-2`)
+    expect(CLIP_FRAME_SIZES.preview).toBeGreaterThan(CLIP_FRAME_SIZES.card)
+    expect(preview[preview.indexOf('-q:v') + 1]).toBe('2')
+    expect(card[card.indexOf('-q:v') + 1]).toBe('5')
   })
 
   it('keeps each asset poster in its own cache folder', () => {

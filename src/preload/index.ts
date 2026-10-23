@@ -21,7 +21,8 @@ const api: StudioApi = {
     await ipcRenderer.invoke(IPC.mediaPosters, projectId)
   },
   posterUrl: (assetId) => `shorts-media://poster/${assetId}`,
-  clipFrameUrl: (shortId, version = '') => `shorts-media://clip/${shortId}?v=${encodeURIComponent(version)}`,
+  clipFrameUrl: (shortId, version = '', size = 'card') =>
+    `shorts-media://clip/${shortId}?size=${size}&v=${encodeURIComponent(version)}`,
   ensureThumbnails: (assetId) => ipcRenderer.invoke(IPC.thumbsEnsure, assetId),
   thumbnailUrl: (assetId, index) => `shorts-media://thumb/${assetId}/${index}`,
   musicUrl: (assetId) => `shorts-media://music/${assetId}`,

@@ -35,8 +35,8 @@ export interface StudioApi {
   /** Card poster for a video asset. Resolves once posters for the project exist, or were skipped. */
   ensurePosters(projectId: string): Promise<void>
   posterUrl(assetId: string): string
-  /** A clip's card frame, cut from its own source. `version` busts the cache when the clip changes. */
-  clipFrameUrl(shortId: string, version?: string): string
+  /** A clip's frame, cut from its own source. `size` picks the card or the larger preview frame. `version` busts the cache. */
+  clipFrameUrl(shortId: string, version?: string, size?: 'card' | 'preview'): string
   ensureThumbnails(assetId: string): Promise<ThumbStatus>
   thumbnailUrl(assetId: string, index: number): string
   /** A music track from the library, for the preview. */

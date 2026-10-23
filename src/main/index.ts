@@ -8,7 +8,7 @@ import { JobRunner } from './jobs'
 import { registerIpc } from './ipc'
 import { thumbDir, thumbFileName } from './thumbnails'
 import type { MediaAsset } from '../shared/types'
-import { clipFrameFile, posterFile } from './poster'
+import { clipFrameFile, posterFile, CLIP_FRAME_SIZES, type ClipFrameSize } from './poster'
 
 const MEDIA_SCHEME = 'shorts-media'
 const DEV_RENDERER_URL = process.env['ELECTRON_RENDERER_URL']
@@ -112,7 +112,10 @@ function serveClipFrame(url: URL, store: Store, userDataDir: string): Response {
   const shortId = url.pathname.replace(/^\//, '')
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(shortId)) return new Response('Not found', { status: 404 })
   try {
-    return serveJpeg(clipFrameFile(userDataDir, store.getShort(shortId).projectId, shortId))
+    // `?size=preview` asks for the large frame; anything else gets the card size.
+    const requested = url.searchParams.get('size')
+    const size: ClipFrameSize = requested && requested in CLIP_FRAME_SIZES ? (requested as ClipFrameSize) : 'card'
+    return serveJpeg(clipFrameFile(userDataDir, store.getShort(shortId).projectId, shortId, size))
   } catch {
     return new Response('Not found', { status: 404 })
   }

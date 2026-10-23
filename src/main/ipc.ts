@@ -23,7 +23,7 @@ import { JobRunner, defaultSettings } from './jobs'
 import { binPath, probeMedia } from './ffmpeg'
 import { parakeetFiles } from './transcribe'
 import { thumbDir, thumbnailStep, thumbsReady } from './thumbnails'
-import { clipFrameFile, ensurePoster, renderClipFrame } from './poster'
+import { clipFrameFile, ensurePoster, removeClipFrames, renderClipFrame } from './poster'
 import { z } from 'zod'
 import type { OpenDialogOptions } from 'electron'
 
@@ -177,7 +177,7 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.mediaPosters, idSchema, async (projectId) => {
     for (const asset of store.getProject(projectId).media) await ensurePoster(userDataDir, projectId, asset)
     for (const short of store.listShorts(projectId)) {
-      if (!existsSync(clipFrameFile(userDataDir, projectId, short.id))) {
+      if (!existsSync(clipFrameFile(userDataDir, projectId, short.id, 'card'))) {
         await renderClipFrame(userDataDir, short, assetOf(short.sourceId))
       }
     }
@@ -281,7 +281,7 @@ export function registerIpc(deps: IpcDeps): void {
   handle(IPC.shortDelete, idSchema, (id) => {
     const { projectId } = store.getShort(id)
     store.deleteShort(id)
-    rmSync(clipFrameFile(userDataDir, projectId, id), { force: true })
+    removeClipFrames(userDataDir, projectId, id)
   })
 
   handle(IPC.shortNarrate, narrationSchema, ({ projectId, shortId, audio }) => {
