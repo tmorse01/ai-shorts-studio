@@ -1,6 +1,6 @@
 {
   "name": "ai-shorts-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first AI shorts maker: long footage in, vertical clips out.",
   "author": "Owner",
   "main": "out/main/index.js",
