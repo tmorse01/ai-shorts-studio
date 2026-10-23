@@ -23,7 +23,7 @@ import { JobRunner, defaultSettings } from './jobs'
 import { binPath, probeMedia } from './ffmpeg'
 import { whisperFiles } from './transcribe'
 import { thumbDir, thumbnailStep, thumbsReady } from './thumbnails'
-import { ensurePoster } from './poster'
+import { clipFrameFile, ensurePoster, renderClipFrame } from './poster'
 import { z } from 'zod'
 import type { OpenDialogOptions } from 'electron'
 
@@ -91,6 +91,16 @@ export function registerIpc(deps: IpcDeps): void {
       lastExport: store.getLastExport(),
       whisperAvailable: whisperFiles() !== null,
       ffmpegAvailable
+    }
+  }
+
+  /** The source video a clip was cut from, or null when there is none. */
+  const assetOf = (sourceId: string | null): MediaAsset | null => {
+    if (!sourceId) return null
+    try {
+      return store.findMediaAsset(sourceId).asset
+    } catch {
+      return null
     }
   }
 
@@ -166,6 +176,11 @@ export function registerIpc(deps: IpcDeps): void {
   /** Fill in missing posters, e.g. for files imported before posters existed. Resolves when all are ready. */
   handle(IPC.mediaPosters, idSchema, async (projectId) => {
     for (const asset of store.getProject(projectId).media) await ensurePoster(userDataDir, projectId, asset)
+    for (const short of store.listShorts(projectId)) {
+      if (!existsSync(clipFrameFile(userDataDir, projectId, short.id))) {
+        await renderClipFrame(userDataDir, short, assetOf(short.sourceId))
+      }
+    }
     return null
   })
 
@@ -212,7 +227,7 @@ export function registerIpc(deps: IpcDeps): void {
       segments: z.array(segmentSchema).min(1).max(6),
       title: z.string().max(120).optional()
     }),
-    ({ projectId, sourceId, segments, title }) => {
+    async ({ projectId, sourceId, segments, title }) => {
       const owner = store.findMediaAsset(sourceId)
       if (owner.project.id !== projectId || owner.asset.kind !== 'source') {
         throw new Error('Pick a source video in this project.')
@@ -235,6 +250,7 @@ export function registerIpc(deps: IpcDeps): void {
           exportedPath: null
         }
       ])
+      await renderClipFrame(userDataDir, created, owner.asset)
       return created
     }
   )
@@ -242,7 +258,7 @@ export function registerIpc(deps: IpcDeps): void {
   handle(
     IPC.shortUpdate,
     z.object({ id: idSchema, patch: shortPatchSchema }),
-    ({ id, patch }) => {
+    async ({ id, patch }) => {
       const short = store.getShort(id)
       const duration = sourceDuration(short.sourceId)
       const next: Parameters<Store['updateShort']>[1] = {}
@@ -255,11 +271,18 @@ export function registerIpc(deps: IpcDeps): void {
         if (problem) throw new Error(problem)
         next.segments = clean
       }
-      return store.updateShort(id, next)
+      const updated = store.updateShort(id, next)
+      // New cuts mean a new first frame, so the clip card is redrawn from its source.
+      if (next.segments) await renderClipFrame(userDataDir, updated, assetOf(updated.sourceId))
+      return updated
     }
   )
 
-  handle(IPC.shortDelete, idSchema, (id) => store.deleteShort(id))
+  handle(IPC.shortDelete, idSchema, (id) => {
+    const { projectId } = store.getShort(id)
+    store.deleteShort(id)
+    rmSync(clipFrameFile(userDataDir, projectId, id), { force: true })
+  })
 
   handle(IPC.shortNarrate, narrationSchema, ({ projectId, shortId, audio }) => {
     store.getProject(projectId)

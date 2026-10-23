@@ -19,7 +19,7 @@ export interface ShortStripProps {
 }
 
 /**
- * Every short in the project as a grid of cards for the sidebar. Each card shows its source video's poster,
+ * Every short in the project as a grid of cards for the sidebar. Each card shows a frame from the clip itself,
  * its length and its rank. Select a card to edit it; tick its corner box to include it in an export.
  */
 export function ShortStrip({
@@ -57,6 +57,9 @@ export function ShortStrip({
   )
 }
 
+/** Which picture a card is showing: the clip's own frame, its source's poster, or nothing. */
+type Stage = 'frame' | 'poster' | 'none'
+
 function ClipCard({
   short,
   active,
@@ -72,12 +75,20 @@ function ClipCard({
   onSelect: (id: string) => void
   onToggle: (id: string) => void
 }) {
-  const [posterFailed, setPosterFailed] = useState(false)
-  // A regenerated poster may fix an earlier failure, so try again.
-  useEffect(() => setPosterFailed(false), [posterRev])
+  const [stage, setStage] = useState<Stage>('frame')
+  // A new frame (the clip changed) or a regenerated poster may fix an earlier failure, so start over.
+  useEffect(() => setStage('frame'), [short.updatedAt, posterRev])
 
   const duration = segmentsDuration(short.segments)
   const cuts = `${short.segments.length} cut${short.segments.length === 1 ? '' : 's'}`
+  const src =
+    stage === 'frame'
+      ? api.clipFrameUrl(short.id, short.updatedAt)
+      : stage === 'poster' && short.sourceId
+        ? `${api.posterUrl(short.sourceId)}?v=${posterRev}`
+        : null
+  // A clip frame that fails falls back to its source's poster; a poster that fails shows the placeholder.
+  const fallBack = (): void => setStage(stage === 'frame' && short.sourceId ? 'poster' : 'none')
 
   return (
     <div role="listitem" className={styles.card} data-active={active}>
@@ -89,14 +100,8 @@ function ClipCard({
         onClick={() => onSelect(short.id)}
       >
         <div className={styles.thumb}>
-          {short.sourceId && !posterFailed ? (
-            <img
-              src={`${api.posterUrl(short.sourceId)}?v=${posterRev}`}
-              alt=""
-              loading="lazy"
-              draggable={false}
-              onError={() => setPosterFailed(true)}
-            />
+          {src ? (
+            <img src={src} alt="" loading="lazy" draggable={false} onError={fallBack} />
           ) : (
             <span className={styles.placeholder} aria-hidden="true">
               ▶

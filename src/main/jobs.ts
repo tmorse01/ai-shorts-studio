@@ -25,6 +25,7 @@ import { binPath, buildExportArgs, probeMedia, ProcessCancelledError, runProcess
 import { pickMusicTrack } from './music'
 import type { Store } from './store'
 import { buildThumbArgs, thumbDir, thumbnailStep, writeThumbMeta } from './thumbnails'
+import { renderClipFrame } from './poster'
 
 export interface JobDeps {
   store: Store
@@ -208,6 +209,7 @@ export class JobRunner {
           }
         })
       )
+      for (const short of saved) await renderClipFrame(this.deps.userDataDir, short, asset)
       const message = `Saved ${saved.length} suggested shorts.${speechNote ? ` ${speechNote}` : ''}`
       this.finish(job, 'completed', null, message)
     } catch (err) {
