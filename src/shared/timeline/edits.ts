@@ -1,7 +1,9 @@
 // Pure edit operations on a timeline (Epic 07, #84). Each takes a timeline and returns a new one; the
 // input is never mutated. The renderer wraps these as undoable commands. Every edit ends with settle(),
 // which runs the Main-track check and keeps linked audio on its video clip's time (#91).
+import { CENTRED_FILL, clipFramingSchema, type ClipFraming } from './framing'
 import type { Clip, Timeline, Track, Transform, Transition } from './timeline'
+import { loopLayout } from './loopFill'
 
 export class TimelineEditError extends Error {
   constructor(message: string) {
@@ -446,6 +448,27 @@ export function updateClipTransform(
   })
 }
 
+// Changes one clip's framing (the crop of a vertical short, see ./framing.ts). The update gets the
+// stored framing, or a centred fill when the clip has none. Refused on a locked track.
+export function updateClipFraming(
+  timeline: Timeline,
+  clipId: string,
+  update: (framing: ClipFraming) => ClipFraming
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  const next = update(clip.framing ?? { ...CENTRED_FILL })
+  const parsed = clipFramingSchema.safeParse(next)
+  if (!parsed.success) {
+    throw new TimelineEditError(`Clip "${clipId}" got an invalid framing.`)
+  }
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) =>
+      item.id === clip.id ? { ...item, framing: parsed.data } : item
+    )
+  })
+}
+
 // Moves one or more clips to startMs on a track, as one edit (Epic 07, #88). The moving clips keep
 // their spacing: startMs is where the first clip's block starts. On the main track the block is
 // inserted there: clips from that point onward shift right by the block's span, and the gap the block
@@ -551,4 +574,28 @@ export function deleteClips(timeline: Timeline, clipIds: readonly string[]): Tim
     if (!found || found.locked) return current
     return deleteClip(current, clipId)
   }, timeline)
+}
+
+// The most copies one loop may add. A clip much shorter than the short would otherwise add thousands.
+export const MAX_LOOP_COPIES = 200
+
+// Repeats a music clip on its own lane until untilMs, with a crossfade at each loop point, as one
+// edit. Copies go after the original on the same track. Returns the same timeline when the clip
+// already reaches untilMs. Only the Music lane takes loops.
+export function loopFillClip(
+  timeline: Timeline,
+  clipId: string,
+  untilMs: number,
+  newId: () => string
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  if (track.role !== 'music') throw new TimelineEditError('Loop to fill works on the Music lane.')
+  if (!Number.isInteger(untilMs)) throw new TimelineEditError('A loop needs a whole length.')
+  if (untilMs <= endOf(clip)) return timeline
+  if ((untilMs - clip.startMs) / clip.durationMs > MAX_LOOP_COPIES) {
+    throw new TimelineEditError('The clip would repeat too many times to fill this length.')
+  }
+  const { copies, transitions } = loopLayout(clip, untilMs, newId)
+  const next = replaceTrack(timeline, { ...track, clips: [...track.clips, ...copies] })
+  return { ...next, transitions: [...(timeline.transitions ?? []), ...transitions] }
 }
