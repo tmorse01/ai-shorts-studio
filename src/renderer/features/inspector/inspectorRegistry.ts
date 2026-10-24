@@ -28,7 +28,7 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     title: 'Clip audio',
     tab: 'audio',
     order: 10,
-    selections: ['audio-clip', 'video-clip'],
+    selections: ['audio-clip'],
     Component: ClipAudioSection
   }
 ]
