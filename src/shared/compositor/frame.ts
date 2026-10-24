@@ -47,7 +47,7 @@ export function placeTransform(transform: Transform, source: SourceSize | null):
     centerX: CANVAS_WIDTH / 2 + transform.x,
     centerY: CANVAS_HEIGHT / 2 + transform.y,
     width: baseWidth * transform.scale,
-    height: baseHeight * transform.scale,
+    height: baseHeight * transform.scale * (transform.stretch ?? 1),
     rotationDeg: transform.rotationDeg
   }
 }

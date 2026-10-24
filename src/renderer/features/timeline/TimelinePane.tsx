@@ -8,6 +8,7 @@ import type { Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/tim
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
+import { layerSelectionStore } from '../compositor/layerSelectionStore'
 import { formatTimecode } from '../playback/playbackClock'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
@@ -82,7 +83,9 @@ export function TimelinePane({
   const playing = usePlaybackStore((state) => state.playing)
   // What the scroll area shows. Only clips in this range are rendered.
   const [viewport, setViewport] = useState({ scrollLeft: 0, width: 0 })
-  const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
+  // The selection is shared with the canvas gizmo and the inspector, so a layer picked on either shows
+  // on both.
+  const selectedClipId = useStore(layerSelectionStore, (state) => state.selectedClipId)
 
   const durationMs = timelineDurationMs(timeline)
   const widthPx = timelineWidthPx(durationMs, target.maxMs, pxPerMs)
@@ -200,7 +203,7 @@ export function TimelinePane({
                 }
               : undefined
           }
-          onSelect={() => setSelectedClipId(clip.id)}
+          onSelect={() => layerSelectionStore.getState().select(clip.id)}
         />
       )
     })

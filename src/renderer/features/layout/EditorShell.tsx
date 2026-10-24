@@ -20,9 +20,10 @@ import styles from './EditorShell.module.css'
 export interface EditorShellProps {
   // The open short's timeline. Empty when no short is open.
   timeline?: Timeline
+  shortId?: string
 }
 
-export function EditorShell({ timeline }: EditorShellProps) {
+export function EditorShell({ timeline, shortId }: EditorShellProps) {
   const leftTool = useUiStore((s) => s.leftTool)
   const toolDef = LEFT_TOOL_DEFINITIONS[leftTool]
   useEditorLayoutPersistence()
@@ -47,7 +48,7 @@ export function EditorShell({ timeline }: EditorShellProps) {
               />
             )}
           </PaneFrame>
-          <PreviewCanvas timeline={timeline} />
+          <PreviewCanvas timeline={timeline} shortId={shortId} />
           <PaneFrame pane="right" title="Inspector">
             <EmptyState
               title="Nothing selected"
