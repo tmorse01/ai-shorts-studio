@@ -8,6 +8,7 @@ import {
   watchPlaybackForAnalysis
 } from '@renderer/features/analysis/analysisSync'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
+import { refreshAiStatus, watchAi } from '@renderer/features/ai/aiSync'
 import { toast } from '@renderer/features/toasts/toast'
 import './theme/fonts'
 import './theme/tokens.css'
@@ -25,6 +26,9 @@ if (window.api) {
   // Analysis records come from main. Playback pauses analysis while the user is playing.
   watchAnalysisRecords(window.api)
   watchPlaybackForAnalysis(window.api, playbackStore)
+  // Cloud AI status comes from main. The cap toast fires when main reports the cap was reached.
+  watchAi(window.api)
+  void refreshAiStatus(window.api)
 }
 
 createRoot(document.getElementById('root') as HTMLElement).render(

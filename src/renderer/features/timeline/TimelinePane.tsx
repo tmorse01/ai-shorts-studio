@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type DragEvent,
   type JSX,
   type PointerEvent
 } from 'react'
@@ -12,11 +13,13 @@ import { Lock, LockOpen, Maximize2, Volume2, VolumeX, ZoomIn, ZoomOut } from 'lu
 import {
   addTrack,
   detachAudio,
+  insertClip,
   placeClips,
   setClipAudio,
   setTrackFlag,
   trimClip
 } from '@shared/timeline/edits'
+import { audioClipForDrop } from '@shared/timeline/audioDrop'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/timeline'
@@ -26,10 +29,12 @@ import { Button } from '@renderer/ui/Button'
 import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { soundClipFor } from '../audio/clipSound'
+import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
 import { inspectorStore } from '../inspector/inspectorStore'
 import { selectionTypeFor } from '../inspector/inspectorModel'
 import { formatTimecode } from '../playback/playbackClock'
+import { toast } from '../toasts/toast'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
 import { clipsInRange, trimReadout, visibleLaneRange } from './clipView'
@@ -156,6 +161,9 @@ export function TimelinePane({
   const [selection, setSelection] = useState<Selection>(NO_SELECTION)
   const selectedIds = selection.clipIds
   const [drag, setDrag] = useState<DragPreview | null>(null)
+  // True while footage is dragged over the pane. Placing footage is not available yet, so the pane
+  // shows a placeholder instead of an insert point.
+  const [footageHover, setFootageHover] = useState(false)
   const [trim, setTrim] = useState<TrimPreview | null>(null)
   const newTrackId = newId ?? (() => crypto.randomUUID())
   // The latest props for the window listeners of a drag, which are attached once per press.
@@ -257,6 +265,37 @@ export function TimelinePane({
 
   function addLaneTrack(track: Track) {
     onEdit('Add track', (current) => addTrack(current, track))
+  }
+
+  // The Music lane takes audio footage dropped from the media panel. Other drops fall through to the
+  // pane, which holds footage until it can be placed.
+  function onMusicDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!carriesFootage(event.dataTransfer.types)) return
+    event.stopPropagation()
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setFootageHover(false)
+  }
+
+  function onMusicDrop(event: DragEvent<HTMLDivElement>, track: Track) {
+    if (!carriesFootage(event.dataTransfer.types)) return
+    event.stopPropagation()
+    event.preventDefault()
+    setFootageHover(false)
+    const payload = decodeDragPayload(event.dataTransfer.getData(DRAG_MIME))
+    if (payload === null) return
+    if (track.locked) {
+      toast.info({ title: 'Music lane is locked', description: 'Unlock it to add a clip.' })
+      return
+    }
+    const x = event.clientX - event.currentTarget.getBoundingClientRect().left
+    const result = audioClipForDrop(payload, media?.items ?? [], newTrackId(), xToTime(x, pxPerMs))
+    if (!result.ok) {
+      toast.info({ title: 'Cannot add to Music', description: result.reason })
+      return
+    }
+    const clip = result.clip
+    onEdit('Add music clip', (current) => insertClip(current, track.id, clip, clip.startMs))
   }
 
   function selectClips(update: (ids: string[]) => string[]) {
@@ -685,6 +724,8 @@ export function TimelinePane({
           style={{ width: widthPx }}
           data-role={role}
           data-track-id={track?.id}
+          onDragOver={role === 'music' && track ? onMusicDragOver : undefined}
+          onDrop={role === 'music' && track ? (event) => onMusicDrop(event, track) : undefined}
         >
           {track ? laneClips(track) : null}
           {track?.role === 'main' ? gapElements(track.id) : null}
@@ -697,7 +738,36 @@ export function TimelinePane({
   }
 
   return (
-    <div className={styles.pane}>
+    <div
+      className={styles.pane}
+      onDragOver={(event) => {
+        if (!carriesFootage(event.dataTransfer.types)) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setFootageHover(true)
+      }}
+      onDragLeave={(event) => {
+        const next = event.relatedTarget
+        if (next instanceof Node && event.currentTarget.contains(next)) return
+        setFootageHover(false)
+      }}
+      onDrop={(event) => {
+        if (!carriesFootage(event.dataTransfer.types)) return
+        event.preventDefault()
+        setFootageHover(false)
+        if (decodeDragPayload(event.dataTransfer.getData(DRAG_MIME)) !== null) {
+          toast.info({
+            title: 'Footage cannot be placed on the timeline yet',
+            description: 'Dropping footage here will add it to the short in a later update.'
+          })
+        }
+      }}
+    >
+      {footageHover ? (
+        <div className={styles.footageHint} role="status">
+          Drop to add footage. Placing clips on the timeline is not available yet.
+        </div>
+      ) : null}
       <div className={styles.toolbar}>
         <DropdownMenu
           trigger={<Button variant="secondary">Add track</Button>}

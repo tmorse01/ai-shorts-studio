@@ -10,7 +10,13 @@ import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
-import { analysisFileSchema } from './analysis/analysis'
+import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
+import {
+  aiStatusSchema,
+  MAX_CAP_USD,
+  visionEstimateSchema,
+  visionModelSchema
+} from './ai/aiSettings'
 
 const analysisItemSchema = z.object({
   id: z.string().min(1),
@@ -310,10 +316,50 @@ export const ipcChannels = {
     }),
     output: z.object({ file: analysisFileSchema })
   },
+  // The user's answer to the cost question before a project's first vision pass. Confirm starts the
+  // vision stages that were waiting; skip marks them skipped for this project.
+  'analysis:visionDecision': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      decision: visionDecisionSchema
+    }),
+    output: z.object({ file: analysisFileSchema })
+  },
   // Tells main that playback started or stopped. Analysis pauses while playback runs.
   'analysis:playback': {
     input: z.object({ playing: z.boolean() }),
     output: z.object({ playing: z.boolean() })
+  },
+  // Cloud AI status: settings, whether a key is saved, and this month's usage. Never the key itself.
+  'ai:status': {
+    input: z.object({}),
+    output: aiStatusSchema
+  },
+  'ai:settings:update': {
+    input: z.object({
+      visionModel: visionModelSchema.optional(),
+      monthlySpendCapUsd: z.number().positive().max(MAX_CAP_USD).nullable().optional()
+    }),
+    output: aiStatusSchema
+  },
+  // Saves the key encrypted with the OS keychain. The reply is status only, never the key.
+  'ai:key:save': {
+    input: z.object({ apiKey: z.string().trim().min(20).max(300).regex(/^\S+$/) }),
+    output: aiStatusSchema
+  },
+  'ai:key:clear': {
+    input: z.object({}),
+    output: aiStatusSchema
+  },
+  // One small request with the saved key. Its token usage is recorded like any other request.
+  'ai:key:test': {
+    input: z.object({}),
+    output: z.object({ ok: z.boolean(), message: z.string() })
+  },
+  // Estimated cost of a vision pass over a number of shots, against the cap.
+  'ai:vision:estimate': {
+    input: z.object({ shotCount: z.number().int().nonnegative().max(100000) }),
+    output: visionEstimateSchema
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 
@@ -336,7 +382,9 @@ export const ipcEvents = {
   // Sent whenever a project's analysis records change.
   'analysis:changed': {
     payload: z.object({ projectFolder: z.string().min(1), file: analysisFileSchema })
-  }
+  },
+  // Sent whenever the AI settings, key state or monthly usage change.
+  'ai:changed': { payload: z.object({ status: aiStatusSchema }) }
 } satisfies Record<string, { payload: z.ZodType }>
 
 export type IpcEventName = keyof typeof ipcEvents

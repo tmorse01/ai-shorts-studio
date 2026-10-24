@@ -1,5 +1,5 @@
-// The left icon rail's tools, in rail order. Each tool's panel shows its empty state until the
-// feature that fills it lands.
+// The left panels and the icon rail. Each panel's content is looked up in leftPanels.tsx; a panel
+// with no entry there shows its empty state until the feature that fills it lands.
 import {
   ArrowLeftRight,
   AudioLines,
@@ -7,10 +7,10 @@ import {
   Download,
   Film,
   Sparkles,
-  Wand2,
+  Type,
   type LucideIcon
 } from 'lucide-react'
-import { LEFT_TOOLS, type LeftTool } from '@shared/layout'
+import type { LeftTool } from '@shared/layout'
 
 export interface LeftToolDefinition {
   label: string
@@ -20,7 +20,15 @@ export interface LeftToolDefinition {
   emptyDescription: string
 }
 
-export const LEFT_TOOL_ORDER = LEFT_TOOLS
+// The icon rail, top to bottom. Export is not on the rail: the top bar's Export button opens it.
+export const RAIL_TOOLS: readonly LeftTool[] = [
+  'media',
+  'ai-clip-finder',
+  'text',
+  'audio',
+  'transitions',
+  'captions'
+]
 
 export const LEFT_TOOL_DEFINITIONS: Record<LeftTool, LeftToolDefinition> = {
   media: {
@@ -30,17 +38,17 @@ export const LEFT_TOOL_DEFINITIONS: Record<LeftTool, LeftToolDefinition> = {
     emptyDescription: 'Import footage to start a project. Your media library will appear here.'
   },
   'ai-clip-finder': {
-    label: 'AI Clip Finder',
+    label: 'Clip Finder',
     icon: Sparkles,
     ai: true,
     emptyDescription:
       'Find likely shorts in a long video. Suggestions appear here, marked in lavender.'
   },
-  captions: {
-    label: 'Captions',
-    icon: Captions,
+  text: {
+    label: 'Text',
+    icon: Type,
     ai: false,
-    emptyDescription: 'Generate and style captions for the selected short.'
+    emptyDescription: 'Text overlays for the selected short.'
   },
   audio: {
     label: 'Audio',
@@ -54,11 +62,11 @@ export const LEFT_TOOL_DEFINITIONS: Record<LeftTool, LeftToolDefinition> = {
     ai: false,
     emptyDescription: 'Transitions between clips appear here.'
   },
-  effects: {
-    label: 'Effects',
-    icon: Wand2,
+  captions: {
+    label: 'Captions',
+    icon: Captions,
     ai: false,
-    emptyDescription: 'Visual effects and filters for the selected clip.'
+    emptyDescription: 'Generate and style captions for the selected short.'
   },
   export: {
     label: 'Export',

@@ -58,14 +58,39 @@ export const analysisRecordSchema = z.object({
 export type AnalysisRecord = z.infer<typeof analysisRecordSchema>
 
 // The whole analysis file for one project: the per-project toggle and every media item's record.
+// The user's answer to the cost question asked before a project's first vision pass. Absent until asked.
+export const visionDecisionSchema = z.enum(['confirmed', 'skipped'])
+export type VisionDecision = z.infer<typeof visionDecisionSchema>
+
 export const analysisFileSchema = z.object({
   autoAnalyze: z.boolean(),
-  records: z.record(z.string(), analysisRecordSchema)
+  records: z.record(z.string(), analysisRecordSchema),
+  visionDecision: visionDecisionSchema.optional()
 })
 export type AnalysisFile = z.infer<typeof analysisFileSchema>
 
 export function emptyAnalysisFile(): AnalysisFile {
   return { autoAnalyze: true, records: {} }
+}
+
+/**
+ * How many shots the project's vision pass would describe, when the user still has to answer the cost
+ * question. Zero when the answer is already in, or when an earlier stage is still to run for any item.
+ */
+export function visionAwaitingShotCount(file: AnalysisFile): number {
+  if (file.visionDecision) return 0
+  let shots = 0
+  let waiting = 0
+  for (const record of Object.values(file.records)) {
+    const { transcript, shots: shotStage, vision } = record.stages
+    if (transcript.status === 'failed' || shotStage.status === 'failed') continue
+    if (['pending', 'running'].includes(transcript.status)) return 0
+    if (['pending', 'running'].includes(shotStage.status)) return 0
+    if (vision.status !== 'pending') continue
+    waiting += 1
+    shots += record.shots?.length ?? 0
+  }
+  return waiting > 0 ? shots : 0
 }
 
 function pendingStages(): AnalysisRecord['stages'] {

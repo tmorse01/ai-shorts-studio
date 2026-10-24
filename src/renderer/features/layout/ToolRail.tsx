@@ -1,5 +1,5 @@
 import { Tooltip } from '@renderer/ui/Tooltip'
-import { LEFT_TOOL_DEFINITIONS, LEFT_TOOL_ORDER } from './leftTools'
+import { LEFT_TOOL_DEFINITIONS, RAIL_TOOLS } from './leftTools'
 import { useUiStore } from './useUiStore'
 import styles from './ToolRail.module.css'
 
@@ -11,7 +11,7 @@ export function ToolRail() {
 
   return (
     <nav className={styles.rail} aria-label="Editor tools">
-      {LEFT_TOOL_ORDER.map((id) => {
+      {RAIL_TOOLS.map((id) => {
         const def = LEFT_TOOL_DEFINITIONS[id]
         const Icon = def.icon
         const active = leftTool === id

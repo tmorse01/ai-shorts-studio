@@ -1,6 +1,6 @@
-// The code that runs one analysis stage. The shots stage is wired in here; the transcript and vision
-// providers plug in here in later tasks. Until then those stages are skipped. Tests pass fake runners,
-// so no AI call is made.
+// The code that runs one analysis stage. The transcript and shots stages are wired in here, and the vision
+// provider plugs in here in a later task. Until then vision is skipped. Tests pass fake runners, so no AI
+// call is made and no speech model is loaded.
 import type { AnalysisStage, StageResult } from '@shared/analysis/analysis'
 import type { JobContext, JobExecutors } from '../jobs/jobQueue'
 import { UserFacingError } from '../errors'
@@ -15,9 +15,19 @@ export const skippedStageRunners = (): StageRunners => {
   return { transcript: skip, shots: skip, vision: skip }
 }
 
-// The stages that run for real. Everything not listed here is still skipped.
-export function liveStageRunners(shotTools: ShotTools): StageRunners {
-  return { ...skippedStageRunners(), shots: shotStageRunner(shotTools) }
+// The stages that run for real. The vision runner is passed in by the app, which owns the AI state;
+// without one, vision is skipped. The transcript runner is passed in too, so tests can leave it out.
+export function liveStageRunners(
+  shotTools: ShotTools,
+  vision?: StageRunner,
+  transcript?: StageRunner
+): StageRunners {
+  return {
+    ...skippedStageRunners(),
+    transcript: transcript ?? skippedStageRunners().transcript,
+    shots: shotStageRunner(shotTools),
+    vision: vision ?? skippedStageRunners().vision
+  }
 }
 
 // Turns an analysis job into a call to the runner for its stage.

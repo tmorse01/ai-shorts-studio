@@ -1,6 +1,7 @@
 // Wires the media job queue to the real FFmpeg tools. The only file in the media layer that imports
 // Electron; everything it calls is tested on its own.
 import { app } from 'electron'
+import { join } from 'node:path'
 import { JobQueue, unavailableExecutors, type JobExecutors } from '../jobs/jobQueue'
 import { resolveBinary, type BinaryLocation } from './binaries'
 import { probeMedia } from './probeMedia'
@@ -10,8 +11,12 @@ import { makePosterFrame } from './posters'
 import { UserFacingError } from '../errors'
 import { analysisExecutor, liveStageRunners } from '../analysis/stageRunners'
 import { realShotTools } from '../analysis/shotDetection'
+import type { AiService } from '../ai/aiService'
+import { visionStageRunner } from '../ai/visionStage'
+import { transcriptStageRunner } from '../transcription/transcriptStage'
+import { realTranscriptTools } from '../transcription/transcriptTools'
 
-export function createMediaJobs(): JobQueue {
+export function createMediaJobs(ai: AiService): JobQueue {
   const location: BinaryLocation = {
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
@@ -49,13 +54,22 @@ export function createMediaJobs(): JobQueue {
         signal
       })
     },
-    // Shots run for real. Transcript and vision are still skipped until their providers land.
+    // Shots and transcripts run for real. Vision is gated by the key, the cap and the project's cost
+    // answer, and has no describer yet, so it is skipped.
     analysis: analysisExecutor(
       liveStageRunners(
         realShotTools({
           ffmpeg: () => resolveBinary('ffmpeg', location),
           ffprobe: () => resolveBinary('ffprobe', location)
-        })
+        }),
+        visionStageRunner(ai),
+        transcriptStageRunner(
+          realTranscriptTools({
+            ffmpeg: () => resolveBinary('ffmpeg', location),
+            ffprobe: () => resolveBinary('ffprobe', location),
+            modelsRoot: join(app.getPath('userData'), 'models')
+          })
+        )
       )
     ),
     filmstrip: ({ path, outDir, durationSec }, { signal }) => {

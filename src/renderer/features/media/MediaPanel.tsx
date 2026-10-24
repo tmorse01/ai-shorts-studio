@@ -31,6 +31,8 @@ import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
 import { sourceStore } from '../source/sourceStore'
 import { MomentRows } from '../moments/MomentRows'
 import { momentsOfMedia } from '../moments/momentView'
+import { clipPayload, DRAG_MIME, encodeDragPayload } from '@shared/timeline/dragPayload'
+import { mediaUsageIndex, shortCountForMedia, usedInLabel } from '@shared/timeline/mediaUsage'
 import { allMediaTags, setMediaTagCommand, tagCoverage, tagsOfMedia } from './mediaTags'
 import {
   EMPTY_MEDIA_FILTER,
@@ -79,6 +81,8 @@ export function MediaPanel(): JSX.Element {
 
   const activeView: MediaViewMode = view ?? 'grid'
   const tags = allMediaTags(current.project)
+  // Which shorts use each file, from their timelines. The card badges and drag payloads read this.
+  const usage = mediaUsageIndex(current.project.shorts)
   const items = sortMedia(filterMedia(current.project.media, filter), sortKey, sortDirection)
   const order = items.map((ref) => ref.id)
   // Only files on screen count as selected, so a tag or remove never reaches a hidden file.
@@ -145,7 +149,18 @@ export function MediaPanel(): JSX.Element {
           type="button"
           aria-pressed={isSelected}
           className={`${styles.item} ${isSelected ? styles.selected : ''}`}
+          // Only footage with a known length drags as a clip. Stills have none.
+          draggable={ref.durationMs !== undefined}
+          title="Drag onto the timeline"
           onClick={(event) => onItemClick(ref.id, event)}
+          onDragStart={(event) => {
+            if (ref.durationMs === undefined) return
+            event.dataTransfer.setData(
+              DRAG_MIME,
+              encodeDragPayload(clipPayload(ref.id, ref.durationMs))
+            )
+            event.dataTransfer.effectAllowed = 'copy'
+          }}
         >
           <span className={styles.kind}>
             <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
@@ -157,6 +172,9 @@ export function MediaPanel(): JSX.Element {
             <span className={styles.meta}>{formatBytes(ref.sizeBytes)}</span>
           ) : null}
           {ref.useProxy ? <span className={styles.badge}>Proxy</span> : null}
+          {shortCountForMedia(usage, ref.id) > 0 ? (
+            <span className={styles.usage}>{usedInLabel(shortCountForMedia(usage, ref.id))}</span>
+          ) : null}
           {record ? (
             <span className={styles.analysisStatus}>{analysisStatusLabel(record)}</span>
           ) : null}

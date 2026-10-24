@@ -1,0 +1,15 @@
+/* Covers the frame and clips the shade to it, so the overlay never draws outside the preview. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The guide area is clear. A huge spread shadow shades everything outside it. */
+.zone {
+  position: absolute;
+  box-shadow: 0 0 0 100vmax var(--color-safe-zone-shade);
+  outline: var(--border-width) dashed var(--color-safe-zone-line);
+  outline-offset: calc(var(--border-width) * -1);
+}

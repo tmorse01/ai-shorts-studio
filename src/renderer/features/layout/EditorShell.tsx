@@ -3,10 +3,10 @@ import type { Timeline } from '@shared/timeline/timeline'
 import { registerEditorShortcuts } from '@renderer/features/shortcuts/editorShortcuts'
 import { ShortcutsDialog } from '@renderer/features/shortcuts/ShortcutsDialog'
 import { shortcutRegistry } from '@renderer/features/shortcuts/shortcutRegistry'
-import { MediaPanel } from '@renderer/features/media/MediaPanel'
 import { Inspector } from '@renderer/features/inspector/Inspector'
 import { useMediaDrop } from '@renderer/features/media/useMediaDrop'
 import { LEFT_TOOL_DEFINITIONS } from './leftTools'
+import { LEFT_PANELS } from './leftPanels'
 import { EditorToolbar } from './EditorToolbar'
 import { EmptyState } from './EmptyState'
 import { PaneFrame } from './PaneFrame'
@@ -27,6 +27,7 @@ export interface EditorShellProps {
 export function EditorShell({ timeline, shortId }: EditorShellProps) {
   const leftTool = useUiStore((s) => s.leftTool)
   const toolDef = LEFT_TOOL_DEFINITIONS[leftTool]
+  const renderPanel = LEFT_PANELS[leftTool]
   useEditorLayoutPersistence()
   useMediaDrop()
 
@@ -39,8 +40,8 @@ export function EditorShell({ timeline, shortId }: EditorShellProps) {
         <div className={styles.row}>
           <ToolRail />
           <PaneFrame pane="left" title={toolDef.label} accent={toolDef.ai ? 'ai' : 'default'}>
-            {leftTool === 'media' ? (
-              <MediaPanel />
+            {renderPanel ? (
+              renderPanel()
             ) : (
               <EmptyState
                 title={toolDef.label}
