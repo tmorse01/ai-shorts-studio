@@ -41,6 +41,9 @@ export const clipSchema = z.object({
   // Linear loudness of the clip's sound, 0 to 2. Optional so existing clips need no key. Read it as
   // `?? 1`.
   gain: z.number().min(0).max(2).optional(),
+  // Silences the clip's sound in the preview mix. Optional so existing clips need no key. Read it as
+  // `?? false`.
+  muted: z.boolean().optional(),
   text: z.string().optional(),
   label: z.string().optional(),
   // The moment (Epic 14 script beat) this clip was dropped from, when it came from one.
