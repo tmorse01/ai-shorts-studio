@@ -164,4 +164,35 @@ describe('buildRenderGraph', () => {
     expect(unknown.filterComplex).toContain('scale=1080:1920')
     expect(known.filterComplex).toContain('scale=1080:608')
   })
+  it('moves a fill-framed pan per frame instead of holding the start pose', () => {
+    // A landscape clip panned from the left edge to the right edge, zooming in, over 4 s from 1 s.
+    const panning: Timeline = {
+      tracks: [
+        track('main', 'video', 'main', [
+          clip('p1', 'cam-a', 1000, 4000, {
+            framing: { mode: 'fill', x: -1, y: 0, scale: 1, panTo: { x: 1, y: 0, scale: 2 } }
+          })
+        ])
+      ]
+    }
+    const graph = buildRenderGraph(panning, { sizeOf })
+    // The scale and overlay position are expressions of t, read per frame.
+    expect(graph.filterComplex).toMatch(/scale=w='round\(.*clip\(\(t-1\)\/4,0,1\).*':eval=frame/)
+    expect(graph.filterComplex).toMatch(/overlay=x='round\(/)
+    expect(graph.filterComplex).toMatch(/:y='round\(.*'/)
+    expect(graph.filterComplex).toMatchSnapshot()
+  })
+
+  it('keeps a fill-framed clip without a pan at its constant placement', () => {
+    const still: Timeline = {
+      tracks: [
+        track('main', 'video', 'main', [
+          clip('s1', 'cam-a', 0, 4000, { framing: { mode: 'fill', x: 0, y: 0, scale: 1 } })
+        ])
+      ]
+    }
+    const graph = buildRenderGraph(still, { sizeOf })
+    expect(graph.filterComplex).not.toContain('eval=frame')
+    expect(graph.filterComplex).toContain('scale=3413:1920')
+  })
 })
