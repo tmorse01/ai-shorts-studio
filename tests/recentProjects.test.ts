@@ -50,9 +50,29 @@ describe('recent projects registry', () => {
         lastOpened: t1.toISOString(),
         shortCount: 0,
         thumbnailPath: join(folder, 'cache', 'thumbs', `${opened.project.id}.jpg`),
+        ratio: '9:16',
         missing: false
       }
     ])
+  })
+
+  it('records the total video footage length, and leaves it unset without timed video', async () => {
+    const opened = await createAndRecord(folder, 'Harbour', t1)
+    expect((await listRecentProjects(registry))[0].durationMs).toBeUndefined()
+
+    const clip = {
+      id: 'm1',
+      path: 'a.mp4',
+      pathKind: 'relative' as const,
+      fileName: 'a.mp4',
+      sizeBytes: 1,
+      kind: 'video' as const,
+      durationMs: 61_250
+    }
+    await saveProject(folder, { ...opened.project, media: [clip, { ...clip, id: 'm2' }] })
+    await recordRecentProject(registry, await openProject(folder), t2)
+
+    expect((await listRecentProjects(registry))[0].durationMs).toBe(122_500)
   })
 
   it('refreshes an existing entry instead of duplicating it, newest first', async () => {

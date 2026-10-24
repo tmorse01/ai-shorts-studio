@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
+  DEFAULT_PROJECT_RATIO,
+  footageDurationMs,
   storedRecentProjectSchema,
   type RecentProject,
   type StoredRecentProject
@@ -62,7 +64,9 @@ function entryFor(opened: OpenedProject, now: Date): StoredRecentProject {
     name: opened.project.name,
     lastOpened: now.toISOString(),
     shortCount: opened.project.shorts.length,
-    thumbnailPath: join(opened.folderPath, THUMBS_DIR, `${opened.project.id}.jpg`)
+    thumbnailPath: join(opened.folderPath, THUMBS_DIR, `${opened.project.id}.jpg`),
+    durationMs: footageDurationMs(opened.project.media),
+    ratio: DEFAULT_PROJECT_RATIO
   }
 }
 
