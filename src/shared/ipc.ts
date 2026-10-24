@@ -11,6 +11,7 @@ import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
 import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
+import { transcriptSchema } from './analysis/transcript'
 import {
   aiStatusSchema,
   MAX_CAP_USD,
@@ -324,6 +325,14 @@ export const ipcChannels = {
       decision: visionDecisionSchema
     }),
     output: z.object({ file: analysisFileSchema })
+  },
+  // One media item's cached transcript, or null when it has none yet (not analyzed, or cache cleared).
+  'analysis:transcript:read': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/)
+    }),
+    output: z.object({ transcript: transcriptSchema.nullable() })
   },
   // Tells main that playback started or stopped. Analysis pauses while playback runs.
   'analysis:playback': {
