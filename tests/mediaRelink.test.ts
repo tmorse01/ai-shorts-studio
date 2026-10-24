@@ -11,7 +11,7 @@ import {
 import { CURRENT_SCHEMA_VERSION, type MediaRef, type Project } from '@shared/project/schema'
 import { createBridge } from '../src/preload/bridge'
 import { routeIpc } from '../src/main/ipc/dispatch'
-import { ipcHandlers } from '../src/main/ipc/handlers'
+import { createIpcHandlers } from '../src/main/ipc/handlers'
 import { storedMediaPath, resolveMediaPath } from '../src/main/media/mediaPaths'
 import { relinkMediaFolder } from '../src/main/media/relinkMedia'
 import { createProject, openProject, saveProject } from '../src/main/project/projectStorage'
@@ -209,6 +209,7 @@ describe('project:relinkFolder round trip', () => {
     await saveProject(folder, { ...created.project, media: [ref('a', 'a.mp4', 3)] })
     await writeFile(join(root, 'a.mp4'), 'abc')
 
+    const ipcHandlers = createIpcHandlers({ layoutFile: join(root, 'ui-layout.json') })
     const api = createBridge((channel, input) => routeIpc(ipcHandlers, channel, input))
     const result: IpcResult<unknown> = await api.invoke('project:relinkFolder', {
       folderPath: folder,

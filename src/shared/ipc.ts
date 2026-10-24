@@ -2,6 +2,7 @@
 // zod schema for its request and its response. Main validates requests and responses with these
 // schemas; the preload bridge checks responses too, so a drifted main process fails loudly.
 import { z } from 'zod'
+import { uiLayoutSchema } from './layout'
 import { projectSchema } from './project/schema'
 
 export const ipcErrorCodeSchema = z.enum([
@@ -82,6 +83,15 @@ export const ipcChannels = {
       searchFolder: z.string().trim().min(1)
     }),
     output: relinkResultSchema
+  },
+  // Editor pane layout, saved between launches. Stored by main as a JSON file in user data.
+  'ui:layout:load': {
+    input: z.object({}),
+    output: z.object({ layout: uiLayoutSchema.nullable() })
+  },
+  'ui:layout:save': {
+    input: z.object({ layout: uiLayoutSchema }),
+    output: z.object({ saved: z.literal(true) })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 
