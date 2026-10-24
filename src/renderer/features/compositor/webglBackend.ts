@@ -1,0 +1,119 @@
+import { CANVAS_HEIGHT, CANVAS_WIDTH, type Placement } from '@shared/compositor/frame'
+import type { FrameBackend } from './frameBackend'
+
+// Each video layer is a textured quad. The vertex shader places the unit quad at the layer's
+// placement (in canvas pixels), so the transform is applied on the GPU.
+const VERTEX_SHADER = `
+attribute vec2 aCorner;
+uniform vec2 uCanvas;
+uniform vec2 uCenter;
+uniform vec2 uSize;
+uniform vec2 uRotation;
+varying vec2 vUv;
+void main() {
+  vec2 offset = (aCorner - 0.5) * uSize;
+  vec2 rotated = vec2(
+    offset.x * uRotation.x - offset.y * uRotation.y,
+    offset.x * uRotation.y + offset.y * uRotation.x
+  );
+  vec2 pixel = uCenter + rotated;
+  gl_Position = vec4(pixel.x / uCanvas.x * 2.0 - 1.0, 1.0 - pixel.y / uCanvas.y * 2.0, 0.0, 1.0);
+  vUv = aCorner;
+}
+`
+
+const FRAGMENT_SHADER = `
+precision mediump float;
+uniform sampler2D uFrame;
+varying vec2 vUv;
+void main() {
+  gl_FragColor = texture2D(uFrame, vUv);
+}
+`
+
+function compile(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
+  const shader = gl.createShader(type)
+  if (!shader) throw new Error('Could not create a shader.')
+  gl.shaderSource(shader, source)
+  gl.compileShader(shader)
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(shader)
+    gl.deleteShader(shader)
+    throw new Error(`Shader failed to compile: ${log ?? 'no log'}`)
+  }
+  return shader
+}
+
+function linkProgram(gl: WebGLRenderingContext): WebGLProgram {
+  const program = gl.createProgram()
+  if (!program) throw new Error('Could not create a WebGL program.')
+  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER))
+  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER))
+  gl.linkProgram(program)
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    throw new Error(`WebGL program failed to link: ${gl.getProgramInfoLog(program) ?? 'no log'}`)
+  }
+  return program
+}
+
+// Returns null when the canvas has no WebGL context, so the caller can fall back to 2D.
+export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | null {
+  const gl = canvas.getContext('webgl', { alpha: true, antialias: false, premultipliedAlpha: true })
+  if (!gl) return null
+
+  const program = linkProgram(gl)
+  gl.useProgram(program)
+  gl.viewport(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+
+  const corners = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, corners)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW)
+  const cornerLocation = gl.getAttribLocation(program, 'aCorner')
+  gl.enableVertexAttribArray(cornerLocation)
+  gl.vertexAttribPointer(cornerLocation, 2, gl.FLOAT, false, 0, 0)
+
+  const canvasSize = gl.getUniformLocation(program, 'uCanvas')
+  const center = gl.getUniformLocation(program, 'uCenter')
+  const size = gl.getUniformLocation(program, 'uSize')
+  const rotation = gl.getUniformLocation(program, 'uRotation')
+  gl.uniform2f(canvasSize, CANVAS_WIDTH, CANVAS_HEIGHT)
+  gl.uniform1i(gl.getUniformLocation(program, 'uFrame'), 0)
+
+  // One texture per pool element. The pool is bounded, so this map stays small.
+  const textures = new Map<HTMLVideoElement, WebGLTexture>()
+  const textureFor = (video: HTMLVideoElement): WebGLTexture => {
+    const existing = textures.get(video)
+    if (existing) return existing
+    const texture = gl.createTexture()
+    if (!texture) throw new Error('Could not create a texture.')
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    textures.set(video, texture)
+    return texture
+  }
+
+  return {
+    kind: 'webgl',
+    clear() {
+      gl.clearColor(0, 0, 0, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+    },
+    drawVideo(video: HTMLVideoElement, placement: Placement) {
+      gl.bindTexture(gl.TEXTURE_2D, textureFor(video))
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video)
+      const radians = (placement.rotationDeg * Math.PI) / 180
+      gl.uniform2f(center, placement.centerX, placement.centerY)
+      gl.uniform2f(size, placement.width, placement.height)
+      gl.uniform2f(rotation, Math.cos(radians), Math.sin(radians))
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+    },
+    dispose() {
+      textures.forEach((texture) => gl.deleteTexture(texture))
+      textures.clear()
+      gl.getExtension('WEBGL_lose_context')?.loseContext()
+    }
+  }
+}
