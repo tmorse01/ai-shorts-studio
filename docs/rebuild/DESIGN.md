@@ -89,7 +89,7 @@ Five main areas.
 
 ### Left sidebar — media & tools
 
-A compact vertical workspace: media library, uploaded footage, AI Clip Finder, captions, audio,
+A compact vertical workspace: media library, uploaded footage, Clip Finder, captions, audio,
 transitions, effects, export settings. Monochromatic Lucide icons with subtle green active states.
 Narrow and visually restrained.
 
@@ -216,7 +216,7 @@ from it:
 - **Editor:**
   - **Top bar:** brand mark, project name, undo/redo, and a sage **Export** button on the far
     right.
-  - **Left side:** an **icon rail** (Media, AI Clip Finder, Text, Audio, Transitions, Captions)
+  - **Left side:** an **icon rail** (Media, Clip Finder, Text, Audio, Transitions, Captions)
     switches the panel beside it. The media panel has tabs, a search box and a dense thumbnail
     grid with duration badges.
   - **Centre:** a 9:16 canvas with a ratio badge, a thin scrub bar, `current / total` timecode,
@@ -227,7 +227,7 @@ from it:
     headers have icon + name (Video 1, Video 2, Audio 1, Captions). Clips show a filmstrip, audio
     shows a green-tinted waveform, and captions are text chips. The selected clip has a lavender
     outline and the playhead is sage.
-- **AI Clip Finder:** source header (thumb, name, duration, resolution, size, Reanalyze). The tabs
+- **Clip Finder:** one list for every clip candidate, whether you marked it or the AI suggested it. AI suggestions carry an "AI suggested" label and stay in a Draft state until you accept, edit or dismiss them. Source header (thumb, name, duration, resolution, size, Reanalyze). The tabs
   are Suggested / Highlights / Topics / Emotional. Each row shows a thumbnail with its duration,
   a title, a one-line summary, tag chips, a source range, a score out of 100, star, preview, and a
   lavender **Add to timeline** button.
