@@ -1,0 +1,45 @@
+/* The canvas is a size container, so the frame can fit its height and width. */
+.canvas {
+  container-type: size;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+
+/* Full height, less a margin, and never wider than 9:16 allows. */
+.frame {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 9 / 16;
+  height: min(calc(100cqh - 2 * var(--space-6)), calc((100cqw - 2 * var(--space-6)) * 16 / 9));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.mark {
+  width: 12px;
+  height: 12px;
+  border: var(--border-width) solid var(--color-subtle-border);
+  transform: rotate(45deg);
+}
+
+.ratio {
+  position: absolute;
+  bottom: var(--space-2);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+  font-feature-settings: var(--font-mono-features);
+}

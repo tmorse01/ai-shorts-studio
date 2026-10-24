@@ -46,6 +46,9 @@
   --type-display-size: 40px;
   --type-display-line: 48px;
   --type-display-tracking: 0;
+  /* Smaller display size for empty states and the toolbar wordmark */
+  --type-display-small-size: 24px;
+  --type-display-small-line: 30px;
   --type-heading-size: 13px;
   --type-heading-line: 18px;
   --type-heading-tracking: 0.08em;

@@ -1,0 +1,82 @@
+.pane {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface);
+}
+
+.left {
+  border-right: var(--border-width) solid var(--color-border);
+}
+
+.right {
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.bottom {
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.title {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-heading);
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line);
+  font-weight: 500;
+  letter-spacing: var(--type-heading-tracking);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.ai {
+  color: var(--color-ai);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Collapsed: a 32px strip that keeps only the expand button. */
+.strip {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--space-2);
+  background: var(--color-surface);
+}
+
+.strip.left {
+  width: 32px;
+  border-right: var(--border-width) solid var(--color-border);
+}
+
+.strip.right {
+  width: 32px;
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.strip.bottom {
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-2);
+  border-top: var(--border-width) solid var(--color-border);
+}

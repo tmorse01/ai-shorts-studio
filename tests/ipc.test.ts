@@ -1,8 +1,15 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { createBridge } from '../src/preload/bridge'
 import { dispatchIpc, routeIpc, type IpcHandlers } from '../src/main/ipc/dispatch'
-import { ipcHandlers } from '../src/main/ipc/handlers'
+import { createIpcHandlers } from '../src/main/ipc/handlers'
 import type { IpcResult } from '@shared/ipc'
+
+const ipcHandlers = createIpcHandlers({
+  layoutFile: join(mkdtempSync(join(tmpdir(), 'ipc-test-')), 'ui-layout.json')
+})
 
 // The same path a real call takes, minus Electron: renderer -> bridge -> main router -> handler.
 function makeBridge(handlers: IpcHandlers = ipcHandlers) {
