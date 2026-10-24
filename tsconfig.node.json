@@ -25,6 +25,7 @@
     "src/preload/**/*",
     "src/renderer/api.d.ts",
     "src/renderer/css-modules.d.ts",
+    "src/renderer/vite-env.d.ts",
     "src/shared/**/*",
     "tests/**/*"
   ]

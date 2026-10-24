@@ -38,3 +38,11 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.detail {
+  margin-left: auto;
+  padding-left: var(--space-3);
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}

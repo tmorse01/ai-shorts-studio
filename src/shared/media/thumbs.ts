@@ -31,3 +31,7 @@ export function thumbFileName(kind: MediaKind): string {
   if (kind === 'image') return 'thumb.jpg'
   return 'waveform.png'
 }
+
+// The cache files the renderer may read back. Only these names cross IPC, never a free path.
+export const THUMB_READ_FILES = [FILMSTRIP_FILE, 'poster.jpg', 'thumb.jpg', 'waveform.png'] as const
+export type ThumbReadFile = (typeof THUMB_READ_FILES)[number]

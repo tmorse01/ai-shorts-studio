@@ -1,3 +1,4 @@
+import { MasterVolume } from '../audio/MasterVolume'
 import { usePlaybackClock } from './usePlaybackClock'
 import { formatTimecode } from './playbackClock'
 import { usePlaybackStore } from './usePlaybackStore'
@@ -22,6 +23,7 @@ export function ScrubBar() {
         aria-label="Playhead"
         onChange={(event) => playbackStore.getState().seek(Number(event.target.value))}
       />
+      <MasterVolume />
       <span className={styles.timecode}>
         {formatTimecode(playheadMs)} / {formatTimecode(durationMs)}
       </span>

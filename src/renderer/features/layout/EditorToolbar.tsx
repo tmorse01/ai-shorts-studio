@@ -5,6 +5,7 @@ import { Button } from '@renderer/ui/Button'
 import { IconButton } from '@renderer/ui/IconButton'
 import { shortcutHelpStore } from '@renderer/features/shortcuts/shortcutHelpStore'
 import { pickAndImportMedia } from '@renderer/features/media/importMedia'
+import { ShortSwitcher } from '@renderer/features/shorts/ShortSwitcher'
 import {
   previewSettingsStore,
   usePreviewSettings
@@ -30,6 +31,7 @@ export function EditorToolbar() {
         </Link>
         <span className={styles.divider} aria-hidden="true" />
         <span className={styles.projectName}>{PROJECT_NAME_PLACEHOLDER}</span>
+        <ShortSwitcher />
         <span className={styles.saveStatus}>
           <span className={styles.saveDot} aria-hidden="true" />
           Saved
