@@ -19,6 +19,12 @@ import { join } from 'node:path'
 import { UserFacingError } from '../errors'
 import { DEFAULT_PROJECTS_DIR, safeFolderName } from '@shared/project/folderName'
 import { JobQueue, unavailableExecutors } from '../jobs/jobQueue'
+import {
+  AnalysisService,
+  type AnalysisStorage,
+  type AnalysisChange
+} from '../analysis/analysisService'
+import { loadAnalysisFile, saveAnalysisFile } from '../analysis/analysisFile'
 
 // Operating-system features the handlers need. The app passes Electron versions; tests pass fakes,
 // so this module never imports Electron.
@@ -48,6 +54,10 @@ export interface IpcHandlerOptions {
   jobs?: JobQueue
   /** Native actions. Defaults refuse, so a caller that forgets them fails loudly. */
   system?: Partial<SystemActions>
+  /** Where analysis records are kept. Defaults to the analysis file in each project folder. */
+  analysisStorage?: AnalysisStorage
+  /** Told whenever a project's analysis records change. The app forwards it to the renderer. */
+  onAnalysisChanged?: (change: AnalysisChange) => void
   /** Where media:sources records each item's files for the media protocol. Shared with the protocol. */
   mediaSources?: MediaSourceRegistry
 }
@@ -58,8 +68,15 @@ export function createIpcHandlers({
   recentFile,
   jobs = new JobQueue(unavailableExecutors()),
   system = {},
+  analysisStorage = { load: loadAnalysisFile, save: saveAnalysisFile },
+  onAnalysisChanged,
   mediaSources = new MediaSourceRegistry()
 }: IpcHandlerOptions): IpcHandlers {
+  const analysis = new AnalysisService({
+    queue: jobs,
+    storage: analysisStorage,
+    onChange: onAnalysisChanged
+  })
   const actions: SystemActions = {
     pickFolder: system.pickFolder ?? unavailable,
     revealFolder: system.revealFolder ?? unavailable,
@@ -142,6 +159,19 @@ export function createIpcHandlers({
     'media:thumb:read': ({ projectFolder, mediaId, file }) =>
       readThumbDataUrl(projectFolder, mediaId, file),
     'media:proxy': ({ projectFolder, items }) => ensureMediaProxies(projectFolder, items, jobs),
+    'analysis:sync': async ({ projectFolder, items }) => ({
+      file: await analysis.sync(projectFolder, items)
+    }),
+    'analysis:setAuto': async ({ projectFolder, enabled, items }) => ({
+      file: await analysis.setAutoAnalyze(projectFolder, enabled, items)
+    }),
+    'analysis:reanalyze': async ({ projectFolder, item }) => ({
+      file: await analysis.reanalyze(projectFolder, item)
+    }),
+    'analysis:playback': ({ playing }) => {
+      analysis.setPlaybackActive(playing)
+      return { playing }
+    },
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })

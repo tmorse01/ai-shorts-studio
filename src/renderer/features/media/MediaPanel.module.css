@@ -129,3 +129,26 @@
   font-size: var(--type-small-size);
   margin-right: var(--space-1);
 }
+
+.autoToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+  white-space: nowrap;
+}
+
+.analysisStatus {
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+  white-space: nowrap;
+}
+
+.analysisError {
+  color: var(--color-destructive);
+  font-size: var(--type-small-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

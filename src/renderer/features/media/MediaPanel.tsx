@@ -10,6 +10,9 @@ import { Dialog } from '@renderer/ui/Dialog'
 import { IconButton } from '@renderer/ui/IconButton'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { applyProjectCommand } from '../shorts/shortActions'
+import { analysisStore } from '../analysis/analysisStore'
+import { reanalyzeMedia, setAnalyzeAutomatically } from '../analysis/analysisSync'
+import { analysisErrorText, analysisStatusLabel } from '../analysis/analysisStatus'
 import { projectStore } from '../project/projectStore'
 import { pickAndImportMedia } from './importMedia'
 import { MediaFilterBar } from './MediaFilterBar'
@@ -41,6 +44,9 @@ export function MediaPanel(): JSX.Element {
   const selection = useStore(mediaPanelStore, (state) => state.selection)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
+  const analysisFile = useStore(analysisStore, (state) =>
+    current ? state.filesByFolder[current.folderPath] : undefined
+  )
 
   if (!current) {
     return (
@@ -62,6 +68,12 @@ export function MediaPanel(): JSX.Element {
   const order = items.map((ref) => ref.id)
   // Only files on screen count as selected, so a tag or remove never reaches a hidden file.
   const selectedIds = selection.ids.filter((id) => order.includes(id))
+  // Until main reports the project's analysis file, analysis counts as on.
+  const autoAnalyze = analysisFile?.autoAnalyze ?? true
+  const selectedRef =
+    selectedIds.length === 1
+      ? current.project.media.find((ref) => ref.id === selectedIds[0])
+      : undefined
 
   const onItemClick = (id: string, event: MouseEvent) => {
     mediaPanelStore
@@ -99,6 +111,8 @@ export function MediaPanel(): JSX.Element {
   const renderRow = (ref: MediaRef) => {
     const Icon = KIND_ICON[ref.kind]
     const isSelected = selectedIds.includes(ref.id)
+    const record = analysisFile?.records[ref.id]
+    const errorText = record ? analysisErrorText(record) : undefined
     return (
       <button
         type="button"
@@ -117,6 +131,14 @@ export function MediaPanel(): JSX.Element {
           <span className={styles.meta}>{formatBytes(ref.sizeBytes)}</span>
         ) : null}
         {ref.useProxy ? <span className={styles.badge}>Proxy</span> : null}
+        {record ? (
+          <span className={styles.analysisStatus}>{analysisStatusLabel(record)}</span>
+        ) : null}
+        {errorText ? (
+          <span className={styles.analysisError} title={errorText}>
+            {errorText}
+          </span>
+        ) : null}
       </button>
     )
   }
@@ -151,6 +173,31 @@ export function MediaPanel(): JSX.Element {
         />
         <Button variant="ghost" size="sm" onClick={() => void pickAndImportMedia()}>
           Import
+        </Button>
+        <label className={styles.autoToggle}>
+          <input
+            type="checkbox"
+            checked={autoAnalyze}
+            onChange={(event) =>
+              void setAnalyzeAutomatically(
+                window.api,
+                current.folderPath,
+                event.target.checked,
+                current.project.media
+              )
+            }
+          />
+          Analyze automatically
+        </label>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!selectedRef}
+          onClick={() =>
+            selectedRef && void reanalyzeMedia(window.api, current.folderPath, selectedRef)
+          }
+        >
+          Re-analyze
         </Button>
         <IconButton icon={Settings2} label="Manage tags" onClick={() => setTagsOpen(true)} />
         <IconButton

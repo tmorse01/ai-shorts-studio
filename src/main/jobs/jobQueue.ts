@@ -5,6 +5,7 @@ import { basename } from 'node:path'
 import { isJobFinished, type JobKind, type JobSnapshot } from '@shared/media/jobs'
 import type { MediaKind } from '@shared/project/schema'
 import type { ProbeResult } from '@shared/media/probe'
+import type { AnalysisStage, StageOutcome } from '@shared/analysis/analysis'
 import { UserFacingError } from '../errors'
 
 export interface JobInput {
@@ -17,6 +18,8 @@ export interface JobInput {
   mediaKind?: MediaKind
   /** Length of the file in seconds. Filmstrip jobs need it to space their frames. */
   durationSec?: number
+  /** Which analysis stage an analysis job runs. */
+  stage?: AnalysisStage
 }
 
 export interface JobContext {
@@ -32,6 +35,7 @@ export interface JobResults {
   thumbs: void
   filmstrip: void
   proxy: void
+  analysis: StageOutcome
 }
 
 export type JobExecutors = {
@@ -39,13 +43,21 @@ export type JobExecutors = {
 }
 
 // Lower number runs first. Probing comes before the heavier work so the editor can show clip info.
-export const JOB_PRIORITY: Record<JobKind, number> = { probe: 0, thumbs: 1, filmstrip: 2, proxy: 3 }
+// Analysis runs last, so it never holds up probing, thumbnails or proxies.
+export const JOB_PRIORITY: Record<JobKind, number> = {
+  probe: 0,
+  thumbs: 1,
+  filmstrip: 2,
+  proxy: 3,
+  analysis: 4
+}
 
 const JOB_TITLES: Record<JobKind, string> = {
   probe: 'Reading media info',
   thumbs: 'Making thumbnails',
   filmstrip: 'Making the filmstrip',
-  proxy: 'Making a proxy file'
+  proxy: 'Making a proxy file',
+  analysis: 'Analyzing the footage'
 }
 
 const DEFAULT_CONCURRENCY = 2
@@ -76,6 +88,8 @@ export interface EnqueuedJob<K extends JobKind> {
 export class JobQueue {
   private readonly entries = new Map<string, Entry>()
   private readonly listeners = new Set<(job: JobSnapshot) => void>()
+  // Kinds whose queued jobs wait instead of starting. Used to pause analysis during playback.
+  private readonly held = new Set<JobKind>()
   private sequence = 0
   private running = 0
 
@@ -129,6 +143,24 @@ export class JobQueue {
     return false
   }
 
+  /**
+   * Holds or releases every job of a kind. Holding stops queued jobs of that kind from starting and
+   * aborts running ones; their promises reject with JobCancelledError. Releasing lets them run again.
+   */
+  setHeld(kind: JobKind, held: boolean): void {
+    if (held) {
+      this.held.add(kind)
+      for (const entry of this.entries.values()) {
+        if (entry.snapshot.kind === kind && entry.snapshot.status === 'running') {
+          entry.controller.abort()
+        }
+      }
+    } else {
+      this.held.delete(kind)
+      this.pump()
+    }
+  }
+
   list(): JobSnapshot[] {
     return [...this.entries.values()].map((entry) => ({ ...entry.snapshot }))
   }
@@ -152,7 +184,7 @@ export class JobQueue {
   private nextQueued(): Entry | undefined {
     let best: Entry | undefined
     for (const entry of this.entries.values()) {
-      if (entry.snapshot.status !== 'queued') continue
+      if (entry.snapshot.status !== 'queued' || this.held.has(entry.snapshot.kind)) continue
       if (!best || rank(entry) < rank(best)) best = entry
     }
     return best
@@ -243,6 +275,7 @@ export function unavailableExecutors(): JobExecutors {
     probe: unavailable('probe'),
     thumbs: unavailable('thumbs'),
     filmstrip: unavailable('filmstrip'),
-    proxy: unavailable('proxy')
+    proxy: unavailable('proxy'),
+    analysis: unavailable('analysis')
   }
 }
