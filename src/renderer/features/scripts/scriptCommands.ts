@@ -163,3 +163,21 @@ export function createShortFromScriptCommand(
     }
   }
 }
+
+// Puts an accepted AI rewrite in place of a line's text. It has its own label and no merge key, so it
+// never folds into typing, and one undo puts the previous text back.
+export function rewriteScriptLineCommand(
+  scriptId: string,
+  lineId: string,
+  text: string
+): Command<Project> {
+  return {
+    label: 'Rewrite script line',
+    produce: (draft) => {
+      const script = findScript(draft, scriptId)
+      const next = text.trim()
+      if (next === '') throw new Error('A line needs some text.')
+      script.lines[lineIndex(script, lineId)].text = next
+    }
+  }
+}
