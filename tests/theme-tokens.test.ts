@@ -49,6 +49,8 @@ describe('theme tokens', () => {
     ['color-ai', 'color-surface'],
     ['color-success', 'color-bg'],
     ['color-editorial', 'color-bg'],
+    ['color-editorial', 'color-canvas'],
+    ['color-text-2', 'color-canvas'],
     ['color-on-primary', 'color-primary'],
     ['color-on-ai', 'color-ai'],
     ['color-on-destructive', 'color-destructive']
