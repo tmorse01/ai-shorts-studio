@@ -16,7 +16,8 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    // The preload runs in a sandbox, which cannot require() node_modules. zod is bundled in.
+    plugins: [externalizeDepsPlugin({ exclude: ['zod'] })],
     resolve: { alias },
     build: {
       rollupOptions: { input: resolve(__dirname, 'src/preload/index.ts') }
