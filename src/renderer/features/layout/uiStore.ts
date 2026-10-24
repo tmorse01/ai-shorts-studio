@@ -1,13 +1,11 @@
 // UI layout state for the editor: which left tool is active, and each pane's size and collapsed
-// state. Example store for the state pattern: one small store per domain, actions mutate through
-// Immer drafts. Persistence through the IPC bridge arrives with the layout task.
+// state. One small store per domain; actions mutate through Immer drafts. The layout is saved and
+// restored through the IPC bridge (see layoutPersistence.ts), never browser storage.
 import { createStore } from 'zustand/vanilla'
 import { immer } from 'zustand/middleware/immer'
+import type { LeftTool, PaneId } from '@shared/layout'
 
-export type PaneId = 'left' | 'right' | 'bottom'
-
-export type LeftTool =
-  'media' | 'ai-clip-finder' | 'captions' | 'audio' | 'transitions' | 'effects' | 'export'
+export type { LeftTool, PaneId }
 
 export interface PaneState {
   size: number
@@ -22,6 +20,7 @@ export interface UiState {
 export interface UiActions {
   setLeftTool: (tool: LeftTool) => void
   togglePane: (pane: PaneId) => void
+  setPaneCollapsed: (pane: PaneId, collapsed: boolean) => void
   setPaneSize: (pane: PaneId, size: number) => void
 }
 
@@ -47,6 +46,10 @@ export function createUiStore(initial: UiState = DEFAULT_UI_STATE) {
       togglePane: (pane) =>
         set((draft) => {
           draft.panes[pane].collapsed = !draft.panes[pane].collapsed
+        }),
+      setPaneCollapsed: (pane, collapsed) =>
+        set((draft) => {
+          draft.panes[pane].collapsed = collapsed
         }),
       setPaneSize: (pane, size) =>
         set((draft) => {

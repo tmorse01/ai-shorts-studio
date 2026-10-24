@@ -1,0 +1,53 @@
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 100%;
+  min-height: 0;
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.ornament {
+  position: relative;
+  display: block;
+  width: 120px;
+  height: 1px;
+  margin-bottom: var(--space-3);
+  background: var(--color-border);
+}
+
+/* A small diamond sits at the centre of the hairline. */
+.ornament::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  background: var(--color-editorial);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.ai::before {
+  background: var(--color-ai);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-display-small-size);
+  line-height: var(--type-display-small-line);
+  font-weight: 600;
+  color: var(--color-editorial);
+}
+
+.description {
+  margin: 0;
+  max-width: 260px;
+  color: var(--color-text-2);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+}

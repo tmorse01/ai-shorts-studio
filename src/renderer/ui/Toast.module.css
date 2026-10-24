@@ -22,7 +22,7 @@
   background: var(--color-surface);
   color: var(--color-text);
   border: var(--border-width) solid var(--color-border);
-  border-left: 2px solid var(--color-primary);
+  border-left: 2px solid var(--color-text-2);
   border-radius: var(--radius);
 }
 
@@ -42,8 +42,39 @@
   animation: fadeOut var(--duration-fast) var(--ease-standard);
 }
 
+/* Tones: colour on the left edge and the icon. The icon keeps the meaning when colour is not seen. */
+.info {
+  border-left-color: var(--color-text-2);
+}
+
+.success {
+  border-left-color: var(--color-primary);
+}
+
+.success .icon {
+  color: var(--color-primary);
+}
+
+.ai {
+  border-left-color: var(--color-ai);
+}
+
+.ai .icon {
+  color: var(--color-ai);
+}
+
 .error {
   border-left-color: var(--color-destructive);
+}
+
+.error .icon {
+  color: var(--color-destructive);
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-text-2);
 }
 
 .text {
@@ -58,6 +89,7 @@
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .description {
@@ -65,6 +97,10 @@
   line-height: var(--type-small-line);
   color: var(--color-text-2);
   overflow-wrap: anywhere;
+}
+
+.action {
+  flex-shrink: 0;
 }
 
 .close {

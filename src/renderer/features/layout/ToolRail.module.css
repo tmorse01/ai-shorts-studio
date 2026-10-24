@@ -1,0 +1,68 @@
+.rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 56px;
+  padding: var(--space-3) 0;
+  background: var(--color-bg);
+  border-right: var(--border-width) solid var(--color-border);
+}
+
+.tool {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-2);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.tool:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.tool:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* The active tool gets a thin sage bar on the rail's edge. */
+.tool[aria-pressed='true'] {
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.tool[aria-pressed='true']::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -10px;
+  width: 2px;
+  background: var(--color-primary);
+}
+
+/* AI tools are lavender, active or not. */
+.ai {
+  color: var(--color-ai);
+}
+
+.ai[aria-pressed='true'] {
+  color: var(--color-ai);
+}
+
+.ai[aria-pressed='true']::before {
+  background: var(--color-ai);
+}

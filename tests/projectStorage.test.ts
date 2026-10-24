@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createBridge } from '../src/preload/bridge'
 import { routeIpc } from '../src/main/ipc/dispatch'
-import { ipcHandlers } from '../src/main/ipc/handlers'
+import { createIpcHandlers } from '../src/main/ipc/handlers'
 import {
   BACKUP_FILE,
   PROJECT_FILE,
@@ -180,6 +180,7 @@ describe('saveProject', () => {
 
 describe('project IPC channels', () => {
   function makeBridge() {
+    const ipcHandlers = createIpcHandlers({ layoutFile: join(folder, 'ui-layout.json') })
     return createBridge((channel, input) => routeIpc(ipcHandlers, channel, input))
   }
 

@@ -1,0 +1,24 @@
+.detail {
+  margin: 0;
+  padding: var(--space-3);
+  max-height: 240px;
+  overflow: auto;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.status {
+  align-self: center;
+  margin-right: auto;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-destructive);
+}
