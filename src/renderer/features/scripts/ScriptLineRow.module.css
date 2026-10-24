@@ -1,0 +1,56 @@
+.row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--color-subtle-border);
+}
+
+.handle {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  color: var(--color-text-2);
+  cursor: grab;
+}
+
+.number {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  color: var(--color-text-2);
+}
+
+.text {
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  resize: vertical;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.text::placeholder {
+  color: var(--color-text-2);
+  opacity: 1;
+}
+
+.text:hover {
+  border-color: var(--color-text-2);
+}
+
+.text:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 0;
+  border-color: var(--color-focus);
+}
