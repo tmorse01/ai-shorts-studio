@@ -163,6 +163,12 @@
   overflow: hidden;
 }
 
+.clipMenu {
+  position: absolute;
+  top: 2px;
+  z-index: 2;
+}
+
 .playhead {
   position: absolute;
   top: 0;

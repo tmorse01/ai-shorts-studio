@@ -1,6 +1,6 @@
 // Pure edit operations on a timeline (Epic 07, #84). Each takes a timeline and returns a new one; the
-// input is never mutated. The renderer wraps these as undoable commands. Every edit ends with the
-// Main-track check, so a Main track never overlaps after any edit.
+// input is never mutated. The renderer wraps these as undoable commands. Every edit ends with settle(),
+// which runs the Main-track check and keeps linked audio on its video clip's time (#91).
 import type { Clip, Timeline, Track, Transition } from './timeline'
 
 export class TimelineEditError extends Error {
@@ -30,6 +30,11 @@ function trackById(timeline: Timeline, trackId: string): Track {
   return track
 }
 
+// The track that holds a clip, or undefined when no track has it.
+function trackHolding(timeline: Timeline, clipId: string): Track | undefined {
+  return timeline.tracks.find((track) => track.clips.some((clip) => clip.id === clipId))
+}
+
 // Every clip edit goes through here, so a locked track refuses all of them in one place.
 // setTrackFlag is the only edit that changes a locked track's flags.
 function replaceTrack(timeline: Timeline, next: Track): Timeline {
@@ -38,6 +43,24 @@ function replaceTrack(timeline: Timeline, next: Track): Timeline {
   return {
     ...timeline,
     tracks: timeline.tracks.map((track) => (track.id === next.id ? next : track))
+  }
+}
+
+// The video clip whose linkedAudio is clipId, or undefined when clipId is not linked audio. Linked
+// audio moves, trims and splits with its video clip, so it is edited through that clip.
+function ownerOf(timeline: Timeline, clipId: string): Clip | undefined {
+  for (const track of timeline.tracks) {
+    const owner = track.clips.find((item) => item.linkedAudio === clipId)
+    if (owner) return owner
+  }
+  return undefined
+}
+
+function refuseLinked(timeline: Timeline, clipId: string): void {
+  if (ownerOf(timeline, clipId)) {
+    throw new TimelineEditError(
+      'Linked audio moves with its video clip. Edit the video clip instead.'
+    )
   }
 }
 
@@ -55,6 +78,43 @@ export function assertMainNoOverlap(timeline: Timeline): Timeline {
   return timeline
 }
 
+// The last step of every edit. It runs the Main-track check, then sets each linked audio clip to the
+// start, length and source in of its video clip, on whatever audio track it sits. A locked audio track
+// refuses the change, like any other clip edit.
+export function settle(timeline: Timeline): Timeline {
+  assertMainNoOverlap(timeline)
+  let next = timeline
+  for (const track of timeline.tracks) {
+    for (const clip of track.clips) {
+      if (!clip.linkedAudio) continue
+      const audioTrack = trackHolding(next, clip.linkedAudio)
+      const audio = audioTrack?.clips.find((item) => item.id === clip.linkedAudio)
+      if (!audioTrack || !audio) continue
+      if (
+        audio.startMs === clip.startMs &&
+        audio.durationMs === clip.durationMs &&
+        audio.sourceInMs === clip.sourceInMs
+      ) {
+        continue
+      }
+      next = replaceTrack(next, {
+        ...audioTrack,
+        clips: audioTrack.clips.map((item) =>
+          item.id === audio.id
+            ? {
+                ...item,
+                startMs: clip.startMs,
+                durationMs: clip.durationMs,
+                sourceInMs: clip.sourceInMs
+              }
+            : item
+        )
+      })
+    }
+  }
+  return next
+}
+
 // Adds a clip to a track at atMs. On the main track, the clips from atMs onward move right by the
 // clip's length (a ripple insert). A clip cannot be inserted inside another main clip; split it first.
 export function insertClip(
@@ -66,16 +126,14 @@ export function insertClip(
   const track = trackById(timeline, trackId)
   const placed = { ...clip, startMs: atMs }
   if (track.role !== 'main') {
-    return assertMainNoOverlap(
-      replaceTrack(timeline, { ...track, clips: [...track.clips, placed] })
-    )
+    return settle(replaceTrack(timeline, { ...track, clips: [...track.clips, placed] }))
   }
   const insideAnother = track.clips.some((item) => item.startMs < atMs && atMs < endOf(item))
   if (insideAnother) throw new TimelineEditError('Split the clip at this point before inserting.')
   const shifted = track.clips.map((item) =>
     item.startMs >= atMs ? { ...item, startMs: item.startMs + clip.durationMs } : item
   )
-  return assertMainNoOverlap(replaceTrack(timeline, { ...track, clips: [...shifted, placed] }))
+  return settle(replaceTrack(timeline, { ...track, clips: [...shifted, placed] }))
 }
 
 // Moves a clip to a start time, on the same track or another one. Free layers can overlap. The main
@@ -86,6 +144,7 @@ export function moveClip(
   toTrackId: string,
   startMs: number
 ): Timeline {
+  refuseLinked(timeline, clipId)
   const { track: fromTrack, clip } = locate(timeline, clipId)
   const moved = { ...clip, startMs }
   const stripped = replaceTrack(timeline, {
@@ -93,11 +152,12 @@ export function moveClip(
     clips: fromTrack.clips.filter((item) => item.id !== clipId)
   })
   const target = trackById(stripped, toTrackId)
-  return assertMainNoOverlap(replaceTrack(stripped, { ...target, clips: [...target.clips, moved] }))
+  return settle(replaceTrack(stripped, { ...target, clips: [...target.clips, moved] }))
 }
 
 // Trims one edge of a clip and clamps the result to what the edit allows: the source length, the
-// start of the source, one frame of minimum length, and the neighbours on the main track.
+// start of the source, one frame of minimum length, and the neighbours on the main track. Linked audio
+// follows the trim.
 export function trimClip(
   timeline: Timeline,
   clipId: string,
@@ -105,6 +165,7 @@ export function trimClip(
   boundaryMs: number,
   sourceLengthMs?: number
 ): Timeline {
+  refuseLinked(timeline, clipId)
   const { track, clip } = locate(timeline, clipId)
   const others = track.clips.filter((item) => item.id !== clipId)
   const isMain = track.role === 'main'
@@ -135,7 +196,7 @@ export function trimClip(
       durationMs: endOf(clip) - start
     }
   }
-  return assertMainNoOverlap(
+  return settle(
     replaceTrack(timeline, {
       ...track,
       clips: track.clips.map((item) => (item.id === clipId ? trimmed : item))
@@ -143,16 +204,23 @@ export function trimClip(
   )
 }
 
-// Splits a clip in two at atMs. The left part keeps the id; the right part gets newClipId.
+// Splits a clip in two at atMs. The left part keeps the id; the right part gets newClipId. A clip with
+// linked audio also needs newAudioId: the audio is split the same way, and the right part gets it.
 export function splitClip(
   timeline: Timeline,
   clipId: string,
   atMs: number,
-  newClipId: string
+  newClipId: string,
+  newAudioId?: string
 ): Timeline {
+  refuseLinked(timeline, clipId)
   const { track, clip } = locate(timeline, clipId)
   if (atMs <= clip.startMs || atMs >= endOf(clip)) {
     throw new TimelineEditError('A split must fall inside the clip.')
+  }
+  const audioTrack = clip.linkedAudio ? trackHolding(timeline, clip.linkedAudio) : undefined
+  if (clip.linkedAudio && audioTrack && !newAudioId) {
+    throw new TimelineEditError('Splitting linked audio needs an id for the new audio clip.')
   }
   const left: Clip = { ...clip, durationMs: atMs - clip.startMs }
   const right: Clip = {
@@ -161,25 +229,53 @@ export function splitClip(
     startMs: atMs,
     durationMs: endOf(clip) - atMs,
     sourceInMs: clip.sourceInMs + (atMs - clip.startMs),
-    linkedAudio: undefined
+    linkedAudio: audioTrack && newAudioId ? newAudioId : undefined
   }
   const clips = track.clips.flatMap((item) => (item.id === clipId ? [left, right] : [item]))
-  return assertMainNoOverlap(replaceTrack(timeline, { ...track, clips }))
+  let next = replaceTrack(timeline, { ...track, clips })
+  if (audioTrack && newAudioId && clip.linkedAudio) {
+    const audio = audioTrack.clips.find((item) => item.id === clip.linkedAudio)
+    if (audio) {
+      const rightAudio: Clip = {
+        ...audio,
+        id: newAudioId,
+        startMs: right.startMs,
+        durationMs: right.durationMs,
+        sourceInMs: right.sourceInMs,
+        linkedAudio: undefined
+      }
+      next = replaceTrack(next, {
+        ...audioTrack,
+        clips: [...audioTrack.clips, rightAudio]
+      })
+    }
+  }
+  return settle(next)
 }
 
-// Removes a clip. On the main track this leaves a gap. Transitions on the clip are removed too.
+// Removes a clip. On the main track this leaves a gap. Transitions on the clip are removed too, and so
+// is its linked audio clip.
 export function deleteClip(timeline: Timeline, clipId: string): Timeline {
-  const { track } = locate(timeline, clipId)
-  const next = replaceTrack(timeline, {
+  refuseLinked(timeline, clipId)
+  const { track, clip } = locate(timeline, clipId)
+  let next = replaceTrack(timeline, {
     ...track,
     clips: track.clips.filter((item) => item.id !== clipId)
   })
-  return {
+  const audioTrack = clip.linkedAudio ? trackHolding(next, clip.linkedAudio) : undefined
+  if (clip.linkedAudio && audioTrack) {
+    next = replaceTrack(next, {
+      ...audioTrack,
+      clips: audioTrack.clips.filter((item) => item.id !== clip.linkedAudio)
+    })
+  }
+  const removed = new Set([clipId, clip.linkedAudio].filter((id): id is string => id !== undefined))
+  return settle({
     ...next,
     transitions: (timeline.transitions ?? []).filter(
-      (transition) => transition.fromClipId !== clipId && transition.toClipId !== clipId
+      (transition) => !removed.has(transition.fromClipId) && !removed.has(transition.toClipId)
     )
-  }
+  })
 }
 
 // Closes the gap on a track that contains atMs: later clips move left by the gap's length. Nothing
@@ -198,7 +294,7 @@ export function closeGap(timeline: Timeline, trackId: string, atMs: number): Tim
   const clips = track.clips.map((item) =>
     item.startMs >= gapEnd ? { ...item, startMs: item.startMs - length } : item
   )
-  return assertMainNoOverlap(replaceTrack(timeline, { ...track, clips }))
+  return settle(replaceTrack(timeline, { ...track, clips }))
 }
 
 // Adds a transition between two clips on one track, with the first clip starting earlier.
@@ -251,6 +347,7 @@ export function detachAudio(
   audioTrackId: string,
   audioClipId: string
 ): Timeline {
+  refuseLinked(timeline, clipId)
   const { track: videoTrack, clip } = locate(timeline, clipId)
   const audioTrack = trackById(timeline, audioTrackId)
   if (audioTrack.kind !== 'audio')
@@ -270,7 +367,39 @@ export function detachAudio(
   })
   const target = trackById(next, audioTrackId)
   next = replaceTrack(next, { ...target, clips: [...target.clips, audioClip] })
-  return assertMainNoOverlap(next)
+  return settle(next)
+}
+
+// Sets a clip's mute and volume. Gain is linear, 0 to 2, and only the fields given change. For a video
+// clip with detached audio, edit the audio clip: that is the one whose sound plays.
+export interface ClipAudioChange {
+  muted?: boolean
+  gain?: number
+}
+
+export function setClipAudio(
+  timeline: Timeline,
+  clipId: string,
+  change: ClipAudioChange
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  if (
+    change.gain !== undefined &&
+    (!Number.isFinite(change.gain) || change.gain < 0 || change.gain > 2)
+  ) {
+    throw new TimelineEditError('Clip volume must be between 0 and 2.')
+  }
+  const next: Clip = {
+    ...clip,
+    ...(change.muted !== undefined ? { muted: change.muted } : {}),
+    ...(change.gain !== undefined ? { gain: change.gain } : {})
+  }
+  return settle(
+    replaceTrack(timeline, {
+      ...track,
+      clips: track.clips.map((item) => (item.id === clipId ? next : item))
+    })
+  )
 }
 
 // Turns a track's mute or lock flag on or off. This is the only edit that works on a locked track,
@@ -304,7 +433,8 @@ export function addTrack(timeline: Timeline, track: Track): Timeline {
 // leaves behind stays where it was. An insert point inside another main clip snaps to that clip's
 // nearer edge. Free layers take the clips where they are dropped and may overlap. A clip moves only to
 // a track of its own kind (main and overlay video both count as video), and no move touches a locked
-// track.
+// track. Linked audio moves with its video clip: if the selection has both, the audio is left to the
+// video clip, and linked audio alone cannot be moved.
 export function placeClips(
   timeline: Timeline,
   clipIds: readonly string[],
@@ -315,8 +445,17 @@ export function placeClips(
   if (new Set(clipIds).size !== clipIds.length) {
     throw new TimelineEditError('Each clip can be moved only once in one edit.')
   }
-  const moving = clipIds.map((id) => locate(timeline, id).clip)
-  const sources = clipIds.map((id) => locate(timeline, id).track)
+  const movable = clipIds.filter((id) => {
+    const owner = ownerOf(timeline, id)
+    if (!owner) return true
+    if (clipIds.includes(owner.id)) return false
+    throw new TimelineEditError(
+      'Linked audio moves with its video clip. Edit the video clip instead.'
+    )
+  })
+  if (movable.length === 0) return timeline
+  const moving = movable.map((id) => locate(timeline, id).clip)
+  const sources = movable.map((id) => locate(timeline, id).track)
   const target = trackById(timeline, toTrackId)
   if (target.locked) throw new TimelineEditError(`Track "${target.id}" is locked.`)
   for (const source of sources) {
@@ -326,7 +465,7 @@ export function placeClips(
     }
   }
 
-  const movingIds = new Set(clipIds)
+  const movingIds = new Set(movable)
   const base = Math.min(...moving.map((clip) => clip.startMs))
   const span = Math.max(...moving.map(endOf)) - base
   const stripped = timeline.tracks.map((track) => ({
@@ -350,13 +489,15 @@ export function placeClips(
   const tracks = stripped.map((track) =>
     track.id === toTrackId ? { ...track, clips: [...remaining, ...placed] } : track
   )
-  return assertMainNoOverlap({ ...timeline, tracks })
+  return settle({ ...timeline, tracks })
 }
 
 // Splits every clip that strictly contains atMs, as one edit (Epic 07, #90). With selectedIds, only the
 // selected clips are split; with none, every clip under atMs on an unlocked track is. Locked tracks are
-// always skipped. newId is called once per split, in track order. Returns the same timeline object when
-// nothing is under atMs, so the caller can tell there was nothing to do.
+// always skipped. A linked audio clip is split with its video clip, and selecting either one selects
+// the pair. newId is called once per split, plus once more for the audio of a linked clip, in track
+// order. Returns the same timeline object when nothing is under atMs, so the caller can tell there was
+// nothing to do.
 export function splitClipsAt(
   timeline: Timeline,
   atMs: number,
@@ -367,19 +508,27 @@ export function splitClipsAt(
   for (const track of timeline.tracks) {
     if (track.locked) continue
     for (const clip of track.clips) {
-      const selected = selectedIds.length === 0 || selectedIds.includes(clip.id)
+      if (ownerOf(timeline, clip.id)) continue
+      const selected =
+        selectedIds.length === 0 ||
+        selectedIds.includes(clip.id) ||
+        (clip.linkedAudio !== undefined && selectedIds.includes(clip.linkedAudio))
       if (selected && clip.startMs < atMs && atMs < endOf(clip)) targets.push(clip.id)
     }
   }
-  return targets.reduce((current, clipId) => splitClip(current, clipId, atMs, newId()), timeline)
+  return targets.reduce((current, clipId) => {
+    const clip = locate(current, clipId).clip
+    return splitClip(current, clipId, atMs, newId(), clip.linkedAudio ? newId() : undefined)
+  }, timeline)
 }
 
 // Removes several clips as one edit. A main track is left with a gap where each clip was. Clips on a
-// locked track, and ids that no longer exist, are skipped. Returns the same timeline object when no clip
-// was removed.
+// locked track, and ids that no longer exist, are skipped. Linked audio is removed with its video clip,
+// so it is skipped here. Returns the same timeline object when no clip was removed.
 export function deleteClips(timeline: Timeline, clipIds: readonly string[]): Timeline {
   return [...new Set(clipIds)].reduce((current, clipId) => {
-    const found = timeline.tracks.find((track) => track.clips.some((clip) => clip.id === clipId))
+    if (ownerOf(current, clipId)) return current
+    const found = trackHolding(current, clipId)
     if (!found || found.locked) return current
     return deleteClip(current, clipId)
   }, timeline)
