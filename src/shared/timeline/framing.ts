@@ -22,12 +22,23 @@ export const framingPoseSchema = z.object({
 })
 export type FramingPose = z.infer<typeof framingPoseSchema>
 
+// How the pan eases from the start pose to panTo. Unset means ease in-out.
+export const panEaseSchema = z.enum(['linear', 'easeInOut'])
+export type PanEase = z.infer<typeof panEaseSchema>
+export const DEFAULT_PAN_EASE: PanEase = 'easeInOut'
+
 export const clipFramingSchema = framingPoseSchema.extend({
   mode: framingModeSchema,
   // Where the pan ends. Unset means the pose holds for the whole clip.
-  panTo: framingPoseSchema.optional()
+  panTo: framingPoseSchema.optional(),
+  // The easing curve of the pan. Only used when panTo is set.
+  ease: panEaseSchema.optional()
 })
 export type ClipFraming = z.infer<typeof clipFramingSchema>
+
+// Which pose the canvas gizmo edits on a pan: the start pose (x, y, scale) or the end pose (panTo).
+export const FRAMING_POINTS = ['start', 'end'] as const
+export type FramingPoint = (typeof FRAMING_POINTS)[number]
 
 export const CENTRE_FRAMING: FramingPose = { x: 0, y: 0, scale: MIN_FRAMING_SCALE }
 
@@ -90,14 +101,25 @@ export function easeInOut(t: number): number {
   return clamped * clamped * (3 - 2 * clamped)
 }
 
+// The eased progress for a pan curve: linear returns the clamped progress as it is.
+export function easeProgress(progress: number, ease: PanEase = DEFAULT_PAN_EASE): number {
+  if (ease === 'linear') return Math.min(1, Math.max(0, progress))
+  return easeInOut(progress)
+}
+
 // Linear interpolation between two numbers, with `t` in [0, 1].
 export function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t
 }
 
-// The pose at a point in the pan: `progress` is 0 at the start and 1 at the end, eased.
-export function interpolatePose(from: FramingPose, to: FramingPose, progress: number): FramingPose {
-  const t = easeInOut(progress)
+// The pose at a point in the pan: `progress` is 0 at the start and 1 at the end, eased by `ease`.
+export function interpolatePose(
+  from: FramingPose,
+  to: FramingPose,
+  progress: number,
+  ease: PanEase = DEFAULT_PAN_EASE
+): FramingPose {
+  const t = easeProgress(progress, ease)
   return {
     x: lerp(from.x, to.x, t),
     y: lerp(from.y, to.y, t),
@@ -131,8 +153,39 @@ export function resolveFramingAt(
         scale: clampFramingScale(framing.panTo.scale)
       }
     : start
-  const pose = interpolatePose(start, end, clipProgress(startMs, durationMs, tMs))
+  const pose = interpolatePose(start, end, clipProgress(startMs, durationMs, tMs), framing.ease)
   return { mode: framing.mode, ...pose }
+}
+
+// The pose a gizmo edit starts from: the start pose, or the end pose when the point is 'end' and the
+// clip has a pan. Without a pan the end point is the start pose.
+export function poseOf(framing: ClipFraming, point: FramingPoint): FramingPose {
+  const start = { x: framing.x, y: framing.y, scale: framing.scale }
+  if (point === 'end' && framing.panTo) {
+    return { x: framing.panTo.x, y: framing.panTo.y, scale: framing.panTo.scale }
+  }
+  return start
+}
+
+// The framing with one of its poses replaced. Editing the end point sets panTo.
+export function withPose(
+  framing: ClipFraming,
+  point: FramingPoint,
+  pose: FramingPose
+): ClipFraming {
+  const next = { x: pose.x, y: pose.y, scale: pose.scale }
+  if (point === 'end') return { ...framing, panTo: next }
+  return { ...framing, ...next }
+}
+
+// Captures the current framing as the end of the pan. The ease is kept as it is.
+export function setEndFraming(framing: ClipFraming): ClipFraming {
+  return { ...framing, panTo: { x: framing.x, y: framing.y, scale: framing.scale } }
+}
+
+// Removes the pan: the end pose and its ease. The clip holds its start pose.
+export function clearPan(framing: ClipFraming): ClipFraming {
+  return { mode: framing.mode, x: framing.x, y: framing.y, scale: framing.scale }
 }
 
 // The framing a clip starts with when it has none: a centred fill at the cover crop.
