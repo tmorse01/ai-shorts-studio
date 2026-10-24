@@ -39,6 +39,15 @@ export function undoProjectEdit(): boolean {
   return true
 }
 
+// Whether the open project has an undo step or a redo step. Used to enable the top bar buttons.
+export function canUndoProjectEdit(): boolean {
+  return history !== null && history.getState().past.length > 0
+}
+
+export function canRedoProjectEdit(): boolean {
+  return history !== null && history.getState().future.length > 0
+}
+
 export function redoProjectEdit(): boolean {
   const current = projectStore.getState().current
   if (!current || !history) return false

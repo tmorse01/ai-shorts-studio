@@ -54,15 +54,7 @@
   background: var(--color-primary);
 }
 
-/* AI tools are lavender, active or not. */
+/* AI tools are lavender when idle. The active tool is sage, like every other active tool. */
 .ai {
   color: var(--color-ai);
-}
-
-.ai[aria-pressed='true'] {
-  color: var(--color-ai);
-}
-
-.ai[aria-pressed='true']::before {
-  background: var(--color-ai);
 }
