@@ -1,6 +1,6 @@
 import { useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import type { Short, ShortStatus } from '@shared/project/schema'
+import type { MediaRef, Short, ShortStatus } from '@shared/project/schema'
 import { effectiveShortSettings } from '@shared/shorts/shortSettings'
 import { Button } from '@renderer/ui/Button'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
@@ -20,9 +20,11 @@ import {
 import { ShortCard } from './ShortCard'
 import { filterShorts, SORT_OPTIONS, sortShorts, STATUS_FILTERS, type SortMode } from './shortsView'
 import { nextCardIndex } from './shortsGridNav'
+import { useShortPosters } from './useShortPosters'
 import styles from './ShortsGrid.module.css'
 
 const NO_SHORTS: Short[] = []
+const NO_MEDIA: MediaRef[] = []
 
 // The Shorts section of Project home: a grid of poster cards, with sort and status filters. Cards
 // can be reordered by dragging (Manual sort only) or with Alt+Left and Alt+Right.
@@ -30,6 +32,9 @@ export function ShortsGrid(): JSX.Element | null {
   const shorts = useProjectStore((state) => state.current?.project.shorts ?? NO_SHORTS)
   const defaults = useProjectStore((state) => state.current?.project.defaults)
   const projectId = useProjectStore((state) => state.current?.project.id)
+  const folderPath = useProjectStore((state) => state.current?.folderPath ?? null)
+  const media = useProjectStore((state) => state.current?.project.media ?? NO_MEDIA)
+  const posters = useShortPosters(folderPath, shorts, media)
   const router = useRouter()
   const gridRef = useRef<HTMLDivElement>(null)
   const draggedIdRef = useRef<string | null>(null)
@@ -181,6 +186,7 @@ export function ShortsGrid(): JSX.Element | null {
               key={short.id}
               short={short}
               target={effectiveShortSettings(defaults, short.overrides)}
+              posterSrc={posters[short.id]}
               renaming={renamingId === short.id}
               draggable={dragEnabled}
               onOpen={() => openShort(short.id)}

@@ -29,6 +29,7 @@ function manualExecutors() {
     thumbs: run as JobExecutors['thumbs'],
     filmstrip: run as JobExecutors['filmstrip'],
     proxy: run as JobExecutors['proxy'],
+    poster: run as JobExecutors['poster'],
     analysis: run as JobExecutors['analysis']
   }
   return { executors, started }
@@ -186,7 +187,7 @@ describe('JobQueue', () => {
 
   it('fails every job with a clear message when no tools are wired up', async () => {
     const queue = new JobQueue(unavailableExecutors())
-    const kinds: JobKind[] = ['probe', 'thumbs', 'filmstrip', 'proxy', 'analysis']
+    const kinds: JobKind[] = ['probe', 'thumbs', 'filmstrip', 'proxy', 'poster', 'analysis']
     for (const kind of kinds) {
       const job = queue.enqueue(kind, 'clip.mp4')
       await expect(job.done).rejects.toMatchObject({

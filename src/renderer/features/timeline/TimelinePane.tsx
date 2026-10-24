@@ -28,6 +28,7 @@ import {
   xToTime
 } from './timelineView'
 import { timelineViewStore } from './timelineViewStore'
+import { SetPosterButton } from '../shorts/SetPosterButton'
 import { closeGapEdit, timelineShortcuts, type TimelineShortcutContext } from './timelineShortcuts'
 import { shortcutRegistry } from '../shortcuts/shortcutRegistry'
 import styles from './TimelinePane.module.css'
@@ -639,6 +640,7 @@ export function TimelinePane({
               })
           }))}
         />
+        <SetPosterButton />
         <Button
           variant="ghost"
           aria-pressed={snapping}

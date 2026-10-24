@@ -62,6 +62,7 @@ describe('JobQueue hold', () => {
         thumbs: async () => undefined,
         filmstrip: async () => undefined,
         proxy: async () => undefined,
+        poster: async () => undefined,
         analysis: () => new Promise<never>(() => undefined)
       } as JobExecutors,
       2
