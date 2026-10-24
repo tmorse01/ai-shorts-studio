@@ -2,6 +2,7 @@ import { editorHistory } from '@renderer/features/history/editorHistory'
 import { redoProjectEdit, undoProjectEdit } from '@renderer/features/shorts/shortActions'
 import { uiStore } from '@renderer/features/layout/useUiStore'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
+import { sourceStore } from '@renderer/features/source/sourceStore'
 import type { PaneId } from '@shared/layout'
 import { shortcutHelpStore } from './shortcutHelpStore'
 import type { ShortcutDefinition, ShortcutRegistry } from './shortcutRegistry'
@@ -62,6 +63,48 @@ export function editorShortcuts(): ShortcutDefinition[] {
       label: 'Step forward one frame',
       group: 'Playback',
       run: () => playbackStore.getState().step(1)
+    },
+    {
+      id: 'playback.shuttleBack',
+      keys: ['j'],
+      label: 'Play backward (press again to speed up)',
+      group: 'Playback',
+      run: () => playbackStore.getState().shuttle(-1)
+    },
+    {
+      id: 'playback.pause',
+      keys: ['k'],
+      label: 'Pause',
+      group: 'Playback',
+      run: () => playbackStore.getState().pause()
+    },
+    {
+      id: 'playback.shuttleForward',
+      keys: ['l'],
+      label: 'Play forward (press again to speed up)',
+      group: 'Playback',
+      run: () => playbackStore.getState().shuttle(1)
+    },
+    {
+      id: 'source.markIn',
+      keys: ['i'],
+      label: 'Mark In at playhead',
+      group: 'Source',
+      run: () => sourceStore.getState().markInAtPlayhead()
+    },
+    {
+      id: 'source.markOut',
+      keys: ['o'],
+      label: 'Mark Out at playhead',
+      group: 'Source',
+      run: () => sourceStore.getState().markOutAtPlayhead()
+    },
+    {
+      id: 'source.clearMarks',
+      keys: ['x'],
+      label: 'Clear In and Out marks',
+      group: 'Source',
+      run: () => sourceStore.getState().clearMarks()
     },
     togglePane('left', 'Toggle left panel', '1'),
     togglePane('right', 'Toggle right panel', '2'),

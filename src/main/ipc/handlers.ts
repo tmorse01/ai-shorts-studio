@@ -11,6 +11,7 @@ import { relinkMediaFolder } from '../media/relinkMedia'
 import { statMediaFiles } from '../media/statMedia'
 import { ensureMediaThumbs } from '../media/ensureThumbs'
 import { ensureMediaProxies } from '../media/ensureProxies'
+import { resolveMediaSource } from '../media/mediaSource'
 import type { IpcHandlers } from './dispatch'
 import { logError } from '../errors/errorLog'
 import { join } from 'node:path'
@@ -133,6 +134,7 @@ export function createIpcHandlers({
     'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) }),
     'media:pick': async () => ({ paths: await actions.pickMediaFiles() }),
     'media:stat': ({ paths }) => statMediaFiles(paths),
+    'media:source': ({ projectFolder, media }) => resolveMediaSource(projectFolder, media),
     'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs),
     'media:proxy': ({ projectFolder, items }) => ensureMediaProxies(projectFolder, items, jobs)
   }

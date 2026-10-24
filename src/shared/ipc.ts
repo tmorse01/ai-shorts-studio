@@ -4,7 +4,7 @@
 import { z } from 'zod'
 import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
-import { mediaKindSchema, projectSchema } from './project/schema'
+import { mediaKindSchema, mediaRefSchema, projectSchema } from './project/schema'
 import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
@@ -219,6 +219,12 @@ export const ipcChannels = {
       cached: z.number().int().nonnegative(),
       skipped: z.number().int().nonnegative()
     })
+  },
+  // The file a media item plays from: its proxy when chosen and ready, otherwise the original.
+  // Returns a studio-media URL for the renderer's video element. Offline files are refused.
+  'media:source': {
+    input: z.object({ projectFolder: z.string().trim().min(1), media: mediaRefSchema }),
+    output: z.object({ url: z.string().min(1), proxy: z.boolean() })
   },
   // Reads the name and size of each path. Paths that are not files come back in missing.
   'media:stat': {

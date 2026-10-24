@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, net, protocol, shell } from 'electron'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
 import { registerIpcHandlers } from './ipc/register'
@@ -7,6 +8,16 @@ import { createIpcHandlers } from './ipc/handlers'
 import { emitIpcEvent } from './ipc/events'
 import { createMediaJobs } from './media/createMediaJobs'
 import { setupErrorReporting } from './errors/setupErrorReporting'
+import { SOURCE_SCHEME } from '@shared/media/sourceUrl'
+import { allowedSourceFile } from './media/sourceProtocol'
+
+// Footage plays from studio-media URLs. The scheme must be registered before the app is ready.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: SOURCE_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -33,6 +44,11 @@ function createWindow(): void {
 
 void app.whenReady().then(() => {
   setupErrorReporting()
+  protocol.handle(SOURCE_SCHEME, (request) => {
+    const file = allowedSourceFile(request.url)
+    if (file === null) return new Response('Not found', { status: 404 })
+    return net.fetch(pathToFileURL(file).toString(), { headers: request.headers })
+  })
   // The job queue lives here in main, so jobs keep running when the renderer reloads.
   const jobs = createMediaJobs()
   jobs.subscribe((job) => emitIpcEvent('media:job:changed', job))

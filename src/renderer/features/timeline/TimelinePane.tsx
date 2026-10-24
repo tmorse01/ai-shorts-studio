@@ -9,6 +9,7 @@ import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { formatTimecode } from '../playback/playbackClock'
 import { playbackStore } from '../playback/playbackStore'
+import { sourceStore } from '../source/sourceStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
 import {
   fitPxPerMs,
@@ -71,10 +72,12 @@ export function TimelinePane({ timeline, target, onEdit, newId }: TimelinePanePr
   const newTrackId = newId ?? (() => crypto.randomUUID())
   const playheadX = timeToX(playheadMs, pxPerMs)
 
-  // Playback length follows the timeline, so the scrub bar and the playhead stop at its end.
+  // In Short view the playback length follows the timeline, so the scrub bar and the playhead stop
+  // at its end. In Source view the clip sets the length instead.
+  const viewMode = useStore(sourceStore, (state) => state.mode)
   useEffect(() => {
-    playbackStore.getState().setDurationMs(durationMs)
-  }, [durationMs])
+    if (viewMode === 'short') playbackStore.getState().setDurationMs(durationMs)
+  }, [durationMs, viewMode])
 
   // Ctrl+wheel zooms. It is a native listener so the page does not scroll with it.
   useEffect(() => {
