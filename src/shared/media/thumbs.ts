@@ -25,8 +25,9 @@ export function filmstripPlan(durationSec: number): FilmstripPlan {
   }
 }
 
-// The file the thumbs job writes for each kind: a poster frame, a small image, or a waveform.
-export function thumbFileName(kind: MediaKind): string {
+// The file the thumbs job writes for each kind: a poster frame, a small image, or a waveform. Typed as a
+// readable file, so the renderer can pass it straight to the thumbnail read.
+export function thumbFileName(kind: MediaKind): ThumbReadFile {
   if (kind === 'video') return 'poster.jpg'
   if (kind === 'image') return 'thumb.jpg'
   return 'waveform.png'

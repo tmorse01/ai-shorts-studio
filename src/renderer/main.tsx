@@ -8,6 +8,7 @@ import {
   watchPlaybackForAnalysis
 } from '@renderer/features/analysis/analysisSync'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
+import { watchSearchIndex } from '@renderer/features/search/searchSync'
 import { refreshAiStatus, watchAi } from '@renderer/features/ai/aiSync'
 import { toast } from '@renderer/features/toasts/toast'
 import './theme/fonts'
@@ -26,6 +27,8 @@ if (window.api) {
   // Analysis records come from main. Playback pauses analysis while the user is playing.
   watchAnalysisRecords(window.api)
   watchPlaybackForAnalysis(window.api, playbackStore)
+  // The footage search index follows the open project and its analysis records.
+  watchSearchIndex(window.api)
   // Cloud AI status comes from main. The cap toast fires when main reports the cap was reached.
   watchAi(window.api)
   void refreshAiStatus(window.api)
