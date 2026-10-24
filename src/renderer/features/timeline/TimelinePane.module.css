@@ -160,6 +160,21 @@
   background: color-mix(in srgb, var(--color-destructive) 14%, transparent);
 }
 
+/* A transition window over its cut. A press selects it; a selected transition is outlined in focus. */
+.transition {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--color-text-2) 12%, transparent);
+  border-inline: var(--border-width) dashed color-mix(in srgb, var(--color-text-2) 50%, transparent);
+}
+
+.transitionSelected {
+  background: color-mix(in srgb, var(--color-focus) 14%, transparent);
+  box-shadow: inset 0 0 0 calc(var(--border-width) * 2) var(--color-focus);
+}
+
 /* An empty stretch of the main track. A press selects it; a selected gap shows its menu. */
 .gap {
   position: absolute;

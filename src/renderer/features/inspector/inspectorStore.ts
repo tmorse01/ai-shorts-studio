@@ -5,7 +5,7 @@ import { createStore } from 'zustand'
 import type { ClipAudioChange } from '@shared/timeline/edits'
 import type { DuckingSettings } from '@shared/timeline/ducking'
 import type { ClipFraming } from '@shared/timeline/framing'
-import type { Clip, Timeline } from '@shared/timeline/timeline'
+import type { Clip, Timeline, Transition, TransitionKind } from '@shared/timeline/timeline'
 import { defaultTabFor, type InspectorTab, type SelectionType } from './inspectorModel'
 
 // The sound of the one selected clip, for the clip audio section (Epic 07, #91). The timeline pane
@@ -49,6 +49,17 @@ export interface FramingTarget {
   apply: (label: string, edit: (framing: ClipFraming) => ClipFraming, mergeKey?: string) => void
 }
 
+// The one selected transition, for the transition section (Epic 08, #98). The timeline pane publishes
+// it. limitMs is the longest length the handles on its cut allow. Each change is one history entry, and
+// calls with the same mergeKey fold into one entry.
+export interface TransitionTarget {
+  transition: Transition
+  limitMs: number
+  setKind: (kind: TransitionKind) => void
+  setDuration: (ms: number, mergeKey?: string) => void
+  remove: () => void
+}
+
 export interface InspectorState {
   selectionType: SelectionType
   tab: InspectorTab
@@ -57,6 +68,7 @@ export interface InspectorState {
   musicTarget: MusicTarget | null
   videoTarget: VideoClipTarget | null
   framingTarget: FramingTarget | null
+  transitionTarget: TransitionTarget | null
 }
 
 export interface InspectorActions {
@@ -68,6 +80,7 @@ export interface InspectorActions {
   setMusicTarget: (target: MusicTarget | null) => void
   setVideoTarget: (target: VideoClipTarget | null) => void
   setFramingTarget: (target: FramingTarget | null) => void
+  setTransitionTarget: (target: TransitionTarget | null) => void
 }
 
 export type InspectorStore = InspectorState & InspectorActions
@@ -81,6 +94,8 @@ export function createInspectorStore() {
     musicTarget: null,
     videoTarget: null,
     framingTarget: null,
+    transitionTarget: null,
+    setTransitionTarget: (transitionTarget) => set({ transitionTarget }),
     setAudioTarget: (audioTarget) => set({ audioTarget }),
     setMusicTarget: (musicTarget) => set({ musicTarget }),
     setVideoTarget: (videoTarget) => set({ videoTarget }),

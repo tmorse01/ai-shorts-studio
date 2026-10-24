@@ -11,6 +11,7 @@ import {
   isCut,
   transitionFitsCut,
   transitionLimitFor,
+  kindOf,
   transitionLimitMs
 } from './transitions'
 
@@ -358,6 +359,22 @@ export function resizeTransition(
   return {
     ...timeline,
     transitions: existing.map((item) => (item.id === transitionId ? { ...item, durationMs } : item))
+  }
+}
+
+// Sets a transition's kind (crossfade or dip to black). The cut and the length stay as they are.
+export function setTransitionKind(
+  timeline: Timeline,
+  transitionId: string,
+  kind: TransitionKind
+): Timeline {
+  const existing = timeline.transitions ?? []
+  const current = existing.find((item) => item.id === transitionId)
+  if (!current) throw new TimelineEditError(`No transition with id "${transitionId}".`)
+  if (kindOf(current) === kind) return timeline
+  return {
+    ...timeline,
+    transitions: existing.map((item) => (item.id === transitionId ? { ...item, kind } : item))
   }
 }
 

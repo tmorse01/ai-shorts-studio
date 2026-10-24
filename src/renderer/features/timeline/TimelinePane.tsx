@@ -17,7 +17,9 @@ import {
   loopFillClip,
   placeClips,
   removeTransition,
+  resizeCutTransition,
   setClipAudio,
+  setTransitionKind,
   setDucking,
   setTrackFlag,
   trimClip,
@@ -31,6 +33,8 @@ import {
   TRANSITION_LABELS,
   cutBefore,
   kindOf,
+  transitionById,
+  transitionLimitFor,
   transitionWindow
 } from '@shared/timeline/transitions'
 import { audioClipForDrop } from '@shared/timeline/audioDrop'
@@ -160,13 +164,14 @@ interface DragSession {
   moved: boolean
 }
 
-// The selection: some clips, or one gap on the main track. Never both.
+// The selection: some clips, one gap on the main track, or one transition. Never more than one kind.
 interface Selection {
   clipIds: string[]
   gap: Gap | null
+  transitionId: string | null
 }
 
-const NO_SELECTION: Selection = { clipIds: [], gap: null }
+const NO_SELECTION: Selection = { clipIds: [], gap: null, transitionId: null }
 
 // Timeline pane: a timecode ruler that seeks, fixed lanes with mute and lock, an Add track menu, zoom
 // with Ctrl+wheel and Fit, a playhead that follows playback, and the target band.
@@ -206,7 +211,9 @@ export function TimelinePane({
   // single clip selected here shows on the canvas.
   const canvasSelection = useStore(layerSelectionStore, (state) => state.selectedClipId)
   useEffect(() => {
-    if (canvasSelection !== null) setSelection({ clipIds: [canvasSelection], gap: null })
+    if (canvasSelection !== null) {
+      setSelection({ clipIds: [canvasSelection], gap: null, transitionId: null })
+    }
   }, [canvasSelection])
   useEffect(() => {
     if (selectedIds.length === 1) layerSelectionStore.getState().select(selectedIds[0])
@@ -350,11 +357,15 @@ export function TimelinePane({
   }
 
   function selectClips(update: (ids: string[]) => string[]) {
-    setSelection((current) => ({ clipIds: update(current.clipIds), gap: null }))
+    setSelection((current) => ({ clipIds: update(current.clipIds), gap: null, transitionId: null }))
   }
 
   function selectGap(gap: Gap) {
-    setSelection({ clipIds: [], gap })
+    setSelection({ clipIds: [], gap, transitionId: null })
+  }
+
+  function selectTransition(transitionId: string) {
+    setSelection({ clipIds: [], gap: null, transitionId })
   }
 
   // Runs an edit as one history entry, unless it changes nothing or is refused. Returns whether it ran.
@@ -377,8 +388,10 @@ export function TimelinePane({
   useEffect(() => {
     inspectorStore
       .getState()
-      .setSelectionType(selectionTypeFor(timeline, selectedIds, selection.gap))
-  }, [timeline, selectedIds, selection.gap])
+      .setSelectionType(
+        selectionTypeFor(timeline, selectedIds, selection.gap, selection.transitionId)
+      )
+  }, [timeline, selectedIds, selection.gap, selection.transitionId])
   useEffect(() => () => inspectorStore.getState().setSelectionType('short'), [])
 
   // The clip audio section edits the sound of the one selected clip. Publish that clip, or nothing.
@@ -466,6 +479,40 @@ export function TimelinePane({
     )
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setFramingTarget(null), [])
+
+  // The transition section edits the one selected transition: its kind, its length (clamped to the
+  // handles on its cut) and removal. Each is one history entry. Publish it, or nothing.
+  useEffect(() => {
+    const transition = selection.transitionId
+      ? transitionById(timeline, selection.transitionId)
+      : undefined
+    if (!transition) {
+      inspectorStore.getState().setTransitionTarget(null)
+      return
+    }
+    const sourceLengthOf = (clip: Clip): number | undefined =>
+      media?.items.find((ref) => ref.id === clip.mediaId)?.durationMs
+    inspectorStore.getState().setTransitionTarget({
+      transition,
+      limitMs: transitionLimitFor(timeline, transition, sourceLengthOf) ?? 0,
+      setKind: (kind) =>
+        runEdit(`Change transition to ${TRANSITION_LABELS[kind].toLowerCase()}`, (current) =>
+          setTransitionKind(current, transition.id, kind)
+        ),
+      setDuration: (ms, mergeKey) =>
+        runEdit(
+          'Change transition length',
+          (current) => resizeCutTransition(current, transition.id, ms, sourceLengthOf),
+          mergeKey
+        ),
+      remove: () => {
+        if (runEdit('Remove transition', (current) => removeTransition(current, transition.id))) {
+          setSelection(NO_SELECTION)
+        }
+      }
+    })
+  }, [timeline, selection.transitionId, media, runEdit])
+  useEffect(() => () => inspectorStore.getState().setTransitionTarget(null), [])
 
   // The shortcuts read the pane through this, so they always see the latest timeline and selection.
   const readShortcutContext = (): TimelineShortcutContext => ({
@@ -868,7 +915,8 @@ export function TimelinePane({
     return media?.items.find((ref) => ref.id === clip.mediaId)?.durationMs
   }
 
-  // The transitions on one main track, drawn over their cuts. Each is a window centred on its cut.
+  // The transitions on one main track, drawn over their cuts. Each is a window centred on its cut. A press
+  // selects it, and the inspector's transition section edits it.
   function transitionElements(trackId: string) {
     const track = timeline.tracks.find((item) => item.id === trackId)
     const clips = new Map((track?.clips ?? []).map((item) => [item.id, item]))
@@ -877,14 +925,24 @@ export function TimelinePane({
       if (!to || !clips.has(transition.fromClipId)) return []
       const window = transitionWindow(transition, to.startMs)
       const seconds = (transition.durationMs / 1000).toFixed(2)
+      const label = `${TRANSITION_LABELS[kindOf(transition)]}, ${seconds} s`
+      const selected = selection.transitionId === transition.id
       return [
         <div
           key={`transition-${transition.id}`}
-          className={styles.transition}
-          title={`${TRANSITION_LABELS[kindOf(transition)]}, ${seconds} s`}
+          className={
+            selected ? `${styles.transition} ${styles.transitionSelected}` : styles.transition
+          }
+          title={label}
+          role="button"
+          aria-label={`Transition: ${label}`}
+          aria-pressed={selected}
           style={{
             left: timeToX(window.startMs, pxPerMs),
             width: timeToX(transition.durationMs, pxPerMs)
+          }}
+          onPointerDown={(event) => {
+            if (event.button === 0) selectTransition(transition.id)
           }}
         />
       ]

@@ -61,9 +61,16 @@ export function sectionsFor(
 export function selectionTypeFor(
   timeline: Timeline,
   clipIds: readonly string[],
-  gap: Gap | null
+  gap: Gap | null,
+  transitionId: string | null = null
 ): SelectionType {
   if (gap) return 'gap'
+  if (
+    transitionId !== null &&
+    (timeline.transitions ?? []).some((item) => item.id === transitionId)
+  ) {
+    return 'transition'
+  }
   const firstId = clipIds[0]
   if (firstId === undefined) return 'short'
   const kind = trackKindOfClip(timeline, firstId)
