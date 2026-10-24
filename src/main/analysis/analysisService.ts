@@ -6,15 +6,18 @@ import {
   nextPendingStage,
   reanalyzedRecord,
   recoverInterruptedStages,
+  stageOutcomeOf,
+  withShots,
   withStageStatus,
   type AnalysisFile,
   type AnalysisRecord,
   type AnalysisStage,
-  type StageOutcome
+  type StageResult
 } from '@shared/analysis/analysis'
 import { JobCancelledError } from '../jobs/jobQueue'
 import { UserFacingError } from '../errors'
 import { logError } from '../errors/errorLog'
+import { analysisFramesDir } from './frameCache'
 
 export interface MediaTarget {
   id: string
@@ -26,8 +29,8 @@ export interface AnalysisQueue {
   enqueue: (
     kind: 'analysis',
     path: string,
-    extra: { stage: AnalysisStage }
-  ) => { id: string; done: Promise<StageOutcome> }
+    extra: { stage: AnalysisStage; outDir?: string }
+  ) => { id: string; done: Promise<StageResult> }
   cancel: (id: string) => boolean
   setHeld: (kind: 'analysis', held: boolean) => void
 }
@@ -198,7 +201,8 @@ export class AnalysisService {
     const stage = record ? nextPendingStage(record) : undefined
     if (!record || !stage) return
 
-    const job = this.options.queue.enqueue('analysis', item.path, { stage })
+    const outDir = analysisFramesDir(projectFolder, item.id)
+    const job = this.options.queue.enqueue('analysis', item.path, { stage, outDir })
     this.inflight.set(key, { jobId: job.id, stage, version: record.version })
     this.setRecord(projectFolder, withStageStatus(record, stage, 'running'))
     job.done.then(
@@ -221,13 +225,15 @@ export class AnalysisService {
     projectFolder: string,
     item: MediaTarget,
     jobId: string,
-    outcome: StageOutcome
+    result: StageResult
   ): void {
     const claimed = this.claim(projectFolder, item, jobId)
     if (!claimed) return
     const record = this.currentRecord(projectFolder, item.id)
     if (!record || record.version !== claimed.version) return
-    this.setRecord(projectFolder, withStageStatus(record, claimed.stage, outcome))
+    let next = withStageStatus(record, claimed.stage, stageOutcomeOf(result))
+    if (typeof result !== 'string' && result.shots) next = withShots(next, result.shots)
+    this.setRecord(projectFolder, next)
     this.advance(projectFolder, item)
   }
 
