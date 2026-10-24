@@ -1,8 +1,36 @@
 # Parallel task workflow
 
 How we pick up rebuild tasks, implement them in parallel, and get each one reviewed. The
-orchestrating session picks tasks and spawns one sub-agent per task. Each sub-agent works in its own
-git worktree and ends with a PR against `rebuild`.
+orchestrating session picks tasks and starts **one new session per task**. Each task session works in
+its own git worktree and ends with a PR against `rebuild`. ("Sub-agent" below means that task
+session.)
+
+## How a task session is started (token budget)
+
+The project runs on a $20/month plan, so the orchestrator stays lean and task sessions start small.
+
+- **A new session, not a background agent.** The orchestrator uses `start_session` with
+  `context: "fresh"`, `model: "claude-haiku-5-5"`, `use_worktree: true` and
+  `source_branch: "rebuild"`. Don't use in-process background agents: their full transcripts and
+  reports flow back into the orchestrator's (Opus) context. A separate session keeps its own context,
+  and the orchestrator only sees a short note when it finishes.
+- **Minimal brief.** The brief is only: the issue number and title, the mode, and "follow
+  `docs/workflow/parallel-tasks.md`". Add task-specific gotchas only if a previous task hit them.
+  Don't restate the issue: the session reads it from GitHub.
+- **One task per session.** When the PR is open and CI is done, the session reports and stops. It
+  never picks up a second task. The orchestrator starts a new session for the next one. The owner
+  archives finished sessions.
+- **Short report, key facts first.** The orchestrator only sees the first ~400 characters, so the
+  report's first line must be: `PR #<n> · CI <green|red> · criteria <ticked>/<total> · <blocked on #X | needs decision: … | ok>`.
+  Details can follow.
+- **Spend tokens on code, not checking.** Lint, typecheck, test, build and CI are the gate. No
+  browser or screenshot verification unless the issue asks for it (at most one screenshot for a UI
+  task). Read only what the task needs: the issue, the parts of `CLAUDE.md` that apply, and only the
+  relevant sections of `docs/rebuild/DESIGN.md` for UI tasks. Wait for CI with one blocking
+  `gh pr checks <n> --watch`, not repeated polling. Write PR bodies to a file and use
+  `--body-file`; never pipe from an empty stdin.
+- **Rough budget:** ~80–120k tokens for a typical task, ~150k as a soft ceiling. A session about to
+  go well past that should stop and report what's left rather than keep going.
 
 Three modes decide who reviews and merges the PR:
 
@@ -82,8 +110,10 @@ modes. Steps 8 and 9 differ.
 7. **Wait for CI.** Watch the run until it finishes. If it fails, fix it on the same branch and
    push again. Stop after three failed attempts and report the failure.
 8. **Mode-specific end (see below).**
-9. **Report back.** The PR link, CI result, the review outcome, the decisions made, and anything not
-   done or not verified.
+9. **Report back and stop.** The first line is the summary line from *How a task session is
+   started*. After it, briefly: decisions made, and anything not done or not verified (especially
+   unticked criteria that a later task should carry). Then end the session's work. Don't start
+   another task.
 
 ### Mode A: human review
 
@@ -112,7 +142,7 @@ modes. Steps 8 and 9 differ.
 
 ## Conventions every sub-agent follows
 
-- Model: sub-agents run on `claude-haiku-5-5`.
+- Model: task sessions run on `claude-haiku-5-5`, one fresh session per task (see *How a task session is started*).
 - Branch names: `claude/<NNNN>-<slug>-haiku-<hash>`, with a PR against `rebuild`.
 - Never push to `rebuild` or `main`. Merge only in mode B, and only the sub-agent's own PR.
 - Never edit files outside the task's scope to make CI pass. If CI fails for a reason outside the
