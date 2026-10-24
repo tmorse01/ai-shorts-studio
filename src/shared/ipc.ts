@@ -2,6 +2,7 @@
 // zod schema for its request and its response. Main validates requests and responses with these
 // schemas; the preload bridge checks responses too, so a drifted main process fails loudly.
 import { z } from 'zod'
+import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
 import { projectSchema } from './project/schema'
 
@@ -55,6 +56,16 @@ export const ipcChannels = {
     input: z.object({ text: z.string().trim().min(1).max(200) }),
     output: z.object({ text: z.string(), length: z.number().int().nonnegative() })
   },
+  // The renderer reports its own uncaught errors so main can write them to the log file.
+  'app:report-error': {
+    input: z.object({
+      message: z.string().trim().min(1).max(2000),
+      details: z.string().max(2000).optional(),
+      context: z.string().max(200).optional(),
+      stack: z.string().max(20000).optional()
+    }),
+    output: z.object({ logged: z.literal(true) })
+  },
   'project:create': {
     input: z.object({
       folderPath: z.string().trim().min(1),
@@ -87,12 +98,39 @@ export function isIpcChannel(name: unknown): name is IpcChannelName {
 export type IpcInput<C extends IpcChannelName> = z.input<(typeof ipcChannels)[C]['input']>
 export type IpcOutput<C extends IpcChannelName> = z.output<(typeof ipcChannels)[C]['output']>
 
-// What the renderer sees on window.api. One typed method; the channel name picks the schema.
+// Events main pushes to the renderer. One entry per event, with the payload schema. The preload
+// bridge checks each payload before the renderer sees it.
+export const ipcEvents = {
+  'app:error': { payload: appErrorSchema }
+} satisfies Record<string, { payload: z.ZodType }>
+
+export type IpcEventName = keyof typeof ipcEvents
+export const ipcEventNames = Object.keys(ipcEvents) as IpcEventName[]
+
+export function isIpcEvent(name: unknown): name is IpcEventName {
+  return typeof name === 'string' && Object.prototype.hasOwnProperty.call(ipcEvents, name)
+}
+
+export type IpcEventPayload<E extends IpcEventName> = z.output<(typeof ipcEvents)[E]['payload']>
+export type IpcEventListener<E extends IpcEventName> = (payload: IpcEventPayload<E>) => void
+export type Unsubscribe = () => void
+
+// What the renderer sees on window.api. invoke takes a request and returns a result; on subscribes
+// to a main-process event and returns a function that stops listening.
 export type IpcInvoke = <C extends IpcChannelName>(
   channel: C,
   input: IpcInput<C>
 ) => Promise<IpcResult<IpcOutput<C>>>
 
-export interface RendererApi {
+export type IpcSubscribe = <E extends IpcEventName>(
+  event: E,
+  listener: IpcEventListener<E>
+) => Unsubscribe
+
+export interface RendererInvokeApi {
   invoke: IpcInvoke
+}
+
+export interface RendererApi extends RendererInvokeApi {
+  on: IpcSubscribe
 }

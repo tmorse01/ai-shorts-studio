@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { RouterProvider, createHashHistory } from '@tanstack/react-router'
-import { ToastProvider } from './ui/Toast'
+import { ToastHost } from './features/toasts/ToastHost'
 import { createAppRouter, type AppRouterOptions } from './routes/appRouter'
 
 export type AppProps = AppRouterOptions
@@ -11,8 +11,9 @@ export function App({ devRoutes = false }: AppProps) {
   const [router] = useState(() => createAppRouter(createHashHistory(), { devRoutes }))
 
   return (
-    <ToastProvider>
+    <>
       <RouterProvider router={router} />
-    </ToastProvider>
+      <ToastHost />
+    </>
   )
 }
