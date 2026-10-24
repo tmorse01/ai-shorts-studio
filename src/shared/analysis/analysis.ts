@@ -12,6 +12,26 @@ export type AnalysisStageStatus = z.infer<typeof analysisStageStatusSchema>
 // What a stage runner reports when it finishes. 'skipped' means no provider is set up for the stage.
 export type StageOutcome = 'done' | 'skipped'
 
+// One shot: a span of footage between two cuts (or a split point in a long take), in seconds.
+export const shotRangeSchema = z.object({
+  startSec: z.number().min(0),
+  endSec: z.number()
+})
+export type ShotRange = z.infer<typeof shotRangeSchema>
+
+// A stage that also reports data for the record. The shots stage returns its shot ranges this way.
+export interface StageData {
+  outcome: StageOutcome
+  shots?: ShotRange[]
+}
+
+// What a stage runner may resolve with: a plain outcome, or an outcome with data attached.
+export type StageResult = StageOutcome | StageData
+
+export function stageOutcomeOf(result: StageResult): StageOutcome {
+  return typeof result === 'string' ? result : result.outcome
+}
+
 const stageRecordSchema = z.object({
   status: analysisStageStatusSchema,
   error: z
@@ -31,7 +51,9 @@ export const analysisRecordSchema = z.object({
     transcript: stageRecordSchema,
     shots: stageRecordSchema,
     vision: stageRecordSchema
-  })
+  }),
+  // The shot ranges the shots stage found. Absent until that stage has run.
+  shots: z.array(shotRangeSchema).optional()
 })
 export type AnalysisRecord = z.infer<typeof analysisRecordSchema>
 
@@ -83,6 +105,11 @@ export function nextPendingStage(record: AnalysisRecord): AnalysisStage | undefi
     if (status === 'pending') return stage
   }
   return undefined
+}
+
+/** The record with its shot ranges set. A re-analyze starts a fresh record, which drops them. */
+export function withShots(record: AnalysisRecord, shots: ShotRange[]): AnalysisRecord {
+  return { ...record, shots }
 }
 
 export function withStageStatus(

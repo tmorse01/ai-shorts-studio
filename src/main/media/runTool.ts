@@ -8,7 +8,9 @@ export function runTool(
   args: readonly string[],
   signal?: AbortSignal,
   // Sees each stdout chunk as it arrives, for long jobs that report progress there.
-  onStdout?: (chunk: string) => void
+  onStdout?: (chunk: string) => void,
+  // Sees each stderr chunk as it arrives. Filters such as showinfo print their results there.
+  onStderr?: (chunk: string) => void
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { windowsHide: true, shell: false, signal })
@@ -20,7 +22,10 @@ export function runTool(
       stdout += chunk
       onStdout?.(chunk)
     })
-    child.stderr.on('data', (chunk: string) => (stderr += chunk))
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk
+      onStderr?.(chunk)
+    })
     // Also fires when the signal aborts; the queue checks the signal to tell cancel from failure.
     child.on('error', reject)
     child.on('close', (code) => {
