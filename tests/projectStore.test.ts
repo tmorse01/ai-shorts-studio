@@ -23,6 +23,7 @@ function projectNamed(id: string, name: string): Project {
     createdAt: '2026-10-23T09:00:00.000Z',
     updatedAt: '2026-10-23T09:00:00.000Z',
     media: [],
+    mediaTags: [],
     defaults: DEFAULT_SHORT_DEFAULTS,
     shorts: [],
     scripts: []
