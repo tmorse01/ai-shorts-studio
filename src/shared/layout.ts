@@ -3,13 +3,14 @@
 // back.
 import { z } from 'zod'
 
+// Every left panel. The icon rail shows the first six; Export opens from the top bar.
 export const LEFT_TOOLS = [
   'media',
   'ai-clip-finder',
-  'captions',
+  'text',
   'audio',
   'transitions',
-  'effects',
+  'captions',
   'export'
 ] as const
 export type LeftTool = (typeof LEFT_TOOLS)[number]

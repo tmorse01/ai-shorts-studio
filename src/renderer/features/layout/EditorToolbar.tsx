@@ -2,6 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { Download, FileInput, Film, Keyboard, Redo2, Undo2 } from 'lucide-react'
 import { APP_NAME } from '@shared/app'
 import { Button } from '@renderer/ui/Button'
+import { useProjectStore } from '@renderer/features/project/useProjectStore'
+import { redoEdit, undoEdit, useEditAvailability } from '@renderer/features/history/editActions'
 import { IconButton } from '@renderer/ui/IconButton'
 import { shortcutHelpStore } from '@renderer/features/shortcuts/shortcutHelpStore'
 import { pickAndImportMedia } from '@renderer/features/media/importMedia'
@@ -13,11 +15,13 @@ import {
 import { useUiStore } from './useUiStore'
 import styles from './EditorToolbar.module.css'
 
-// Until the project store lands (epic 02), the toolbar shows a placeholder name and status.
 const PROJECT_NAME_PLACEHOLDER = 'Untitled project'
 
-// Undo and redo are bound to Ctrl+Z and Ctrl+Y and stay disabled here until a short is open.
+// Undo and redo here run the same actions as Ctrl+Z and Ctrl+Y. A button is disabled when there is
+// nothing to undo or redo.
 export function EditorToolbar() {
+  const projectName = useProjectStore((s) => s.current?.project.name)
+  const { canUndo, canRedo } = useEditAvailability()
   const setLeftTool = useUiStore((s) => s.setLeftTool)
   const setPaneCollapsed = useUiStore((s) => s.setPaneCollapsed)
   const useOriginals = usePreviewSettings((s) => s.useOriginals)
@@ -30,7 +34,7 @@ export function EditorToolbar() {
           <span className={styles.wordmark}>{APP_NAME}</span>
         </Link>
         <span className={styles.divider} aria-hidden="true" />
-        <span className={styles.projectName}>{PROJECT_NAME_PLACEHOLDER}</span>
+        <span className={styles.projectName}>{projectName ?? PROJECT_NAME_PLACEHOLDER}</span>
         <ShortSwitcher />
         <span className={styles.saveStatus}>
           <span className={styles.saveDot} aria-hidden="true" />
@@ -39,8 +43,8 @@ export function EditorToolbar() {
       </div>
 
       <div className={styles.group}>
-        <IconButton icon={Undo2} label="Undo" disabled />
-        <IconButton icon={Redo2} label="Redo" disabled />
+        <IconButton icon={Undo2} label="Undo" disabled={!canUndo} onClick={() => undoEdit()} />
+        <IconButton icon={Redo2} label="Redo" disabled={!canRedo} onClick={() => redoEdit()} />
         <Button
           variant={useOriginals ? 'primary' : 'secondary'}
           size="sm"
