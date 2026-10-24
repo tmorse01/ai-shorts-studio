@@ -72,3 +72,34 @@ describe('JobQueue hold', () => {
     expect(ran).toEqual(['probe'])
   })
 })
+
+describe('JobQueue analysis priority', () => {
+  it('runs analysis after probe, thumbnails and proxies that are waiting', async () => {
+    const started: string[] = []
+    const run = (kind: string) => (_input: JobInput, ctx: JobContext) =>
+      new Promise<never>((_resolve, reject) => {
+        ctx.signal.addEventListener('abort', () => reject(new Error('aborted')))
+        started.push(kind)
+      })
+    const queue = new JobQueue(
+      {
+        probe: run('probe'),
+        thumbs: run('thumbs'),
+        filmstrip: run('filmstrip'),
+        proxy: run('proxy'),
+        analysis: run('analysis')
+      } as unknown as JobExecutors,
+      1
+    )
+    queue.enqueue('proxy', 'busy.mp4')
+    await tick()
+    queue.enqueue('analysis', 'a.mp4', { stage: 'transcript' })
+    queue.enqueue('proxy', 'waiting.mp4')
+    queue.enqueue('thumbs', 'thumb.mp4')
+    queue.enqueue('probe', 'probe.mp4')
+    queue.cancel('job-1')
+    await tick()
+
+    expect(started).toEqual(['proxy', 'probe'])
+  })
+})
