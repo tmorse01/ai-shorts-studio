@@ -47,8 +47,19 @@ export function ipcFailure(
 const projectOpenedSchema = z.object({
   folderPath: z.string().min(1),
   project: projectSchema,
+  // Ids of media whose files are not on disk.
+  offlineMediaIds: z.array(z.string()),
   // Plain-language warning for a toast, for example when the project was recovered from its backup.
   warning: z.string().optional()
+})
+
+const relinkResultSchema = z.object({
+  folderPath: z.string().min(1),
+  project: projectSchema,
+  offlineMediaIds: z.array(z.string()),
+  relinkedCount: z.number().int().nonnegative(),
+  // File names of offline media the searched folder did not contain.
+  unmatchedFileNames: z.array(z.string())
 })
 
 export const ipcChannels = {
@@ -76,6 +87,13 @@ export const ipcChannels = {
   'project:open': {
     input: z.object({ folderPath: z.string().trim().min(1) }),
     output: projectOpenedSchema
+  },
+  'project:relinkFolder': {
+    input: z.object({
+      folderPath: z.string().trim().min(1),
+      searchFolder: z.string().trim().min(1)
+    }),
+    output: relinkResultSchema
   },
   // Editor pane layout, saved between launches. Stored by main as a JSON file in user data.
   'ui:layout:load': {

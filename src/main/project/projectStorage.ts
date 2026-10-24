@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path'
 import { CURRENT_SCHEMA_VERSION, projectSchema, type Project } from '@shared/project/schema'
 import { loadProjectText, type LoadedProject, type ProjectError } from '@shared/project/loadProject'
 import { UserFacingError } from '../errors'
+import { offlineMediaIds } from '../media/mediaPaths'
 
 export const PROJECT_FILE = 'project.json'
 export const BACKUP_FILE = 'project.json.bak'
@@ -17,6 +18,8 @@ export const EXPORTS_SUBDIR = 'exports'
 export type OpenedProject = {
   folderPath: string
   project: Project
+  // Ids of media whose files are not on disk. Checked on every open.
+  offlineMediaIds: string[]
   // Set when the file on disk was damaged and the project came from the backup instead.
   warning?: string
 }
@@ -46,7 +49,7 @@ export async function createProject(folderPath: string, name: string): Promise<O
     scripts: []
   }
   await saveProject(dir, project)
-  return { folderPath: dir, project }
+  return { folderPath: dir, project, offlineMediaIds: [] }
 }
 
 // Opens a project folder. A damaged project.json falls back to project.json.bak with a warning.
@@ -63,7 +66,7 @@ export async function openProject(folderPath: string): Promise<OpenedProject> {
       await backupBeforeMigration(dir, primary.loaded.fromVersion)
       await saveProject(dir, primary.loaded.project)
     }
-    return { folderPath: dir, project: primary.loaded.project }
+    return describeOpened(dir, primary.loaded.project)
   }
   if (primary.kind === 'unsupported') {
     throw new UserFacingError(primary.error.message, dir)
@@ -71,11 +74,7 @@ export async function openProject(folderPath: string): Promise<OpenedProject> {
 
   const backup = await readProjectFile(join(dir, BACKUP_FILE))
   if (backup.kind === 'loaded') {
-    return {
-      folderPath: dir,
-      project: backup.loaded.project,
-      warning: RECOVERED_WARNING
-    }
+    return describeOpened(dir, backup.loaded.project, RECOVERED_WARNING)
   }
 
   if (primary.kind === 'missing') {
@@ -85,6 +84,19 @@ export async function openProject(folderPath: string): Promise<OpenedProject> {
     'The project could not be opened: project.json is damaged and there is no usable backup.',
     primary.error.message
   )
+}
+
+async function describeOpened(
+  dir: string,
+  project: Project,
+  warning?: string
+): Promise<OpenedProject> {
+  return {
+    folderPath: dir,
+    project,
+    offlineMediaIds: await offlineMediaIds(dir, project.media),
+    warning
+  }
 }
 
 // Writes project.json atomically (temp file, flush, rename). Before replacing it, the current file
