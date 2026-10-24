@@ -8,8 +8,10 @@ import { createIpcHandlers } from '../src/main/ipc/handlers'
 import { setErrorLogSink } from '../src/main/errors/errorLog'
 import type { IpcResult } from '@shared/ipc'
 
+const ipcDir = mkdtempSync(join(tmpdir(), 'ipc-test-'))
 const ipcHandlers = createIpcHandlers({
-  layoutFile: join(mkdtempSync(join(tmpdir(), 'ipc-test-')), 'ui-layout.json')
+  layoutFile: join(ipcDir, 'ui-layout.json'),
+  recentFile: join(ipcDir, 'recent-projects.json')
 })
 
 // The same path a real call takes, minus Electron: renderer -> bridge -> main router -> handler.

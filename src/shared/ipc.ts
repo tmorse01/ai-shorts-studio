@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
 import { projectSchema } from './project/schema'
+import { recentProjectSchema } from './project/recentProjects'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -98,6 +99,23 @@ export const ipcChannels = {
       searchFolder: z.string().trim().min(1)
     }),
     output: relinkResultSchema
+  },
+  // Recent projects registry. Remove only drops the entry; the project folder is left alone.
+  // Locate points a missing entry at a folder that holds the same project, after opening it.
+  'recent:list': {
+    input: z.object({}),
+    output: z.object({ projects: z.array(recentProjectSchema) })
+  },
+  'recent:remove': {
+    input: z.object({ folderPath: z.string().trim().min(1) }),
+    output: z.object({ removed: z.literal(true) })
+  },
+  'recent:locate': {
+    input: z.object({
+      oldFolderPath: z.string().trim().min(1),
+      newFolderPath: z.string().trim().min(1)
+    }),
+    output: z.object({ project: recentProjectSchema })
   },
   // Editor pane layout, saved between launches. Stored by main as a JSON file in user data.
   'ui:layout:load': {

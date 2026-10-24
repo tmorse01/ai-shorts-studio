@@ -209,7 +209,10 @@ describe('project:relinkFolder round trip', () => {
     await saveProject(folder, { ...created.project, media: [ref('a', 'a.mp4', 3)] })
     await writeFile(join(root, 'a.mp4'), 'abc')
 
-    const ipcHandlers = createIpcHandlers({ layoutFile: join(root, 'ui-layout.json') })
+    const ipcHandlers = createIpcHandlers({
+      layoutFile: join(root, 'ui-layout.json'),
+      recentFile: join(root, 'recent-projects.json')
+    })
     const api = createBridge((channel, input) => routeIpc(ipcHandlers, channel, input))
     const result: IpcResult<unknown> = await api.invoke('project:relinkFolder', {
       folderPath: folder,

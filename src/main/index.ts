@@ -32,7 +32,10 @@ function createWindow(): void {
 void app.whenReady().then(() => {
   setupErrorReporting()
   registerIpcHandlers(
-    createIpcHandlers({ layoutFile: join(app.getPath('userData'), 'ui-layout.json') })
+    createIpcHandlers({
+      layoutFile: join(app.getPath('userData'), 'ui-layout.json'),
+      recentFile: join(app.getPath('userData'), 'recent-projects.json')
+    })
   )
   createWindow()
 

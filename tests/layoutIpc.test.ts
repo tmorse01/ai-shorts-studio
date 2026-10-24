@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createBridge } from '../src/preload/bridge'
 import { routeIpc } from '../src/main/ipc/dispatch'
@@ -17,8 +17,9 @@ const layout: UiLayout = {
 }
 
 function setup() {
-  const file = join(mkdtempSync(join(tmpdir(), 'layout-test-')), 'ui-layout.json')
-  const handlers = createIpcHandlers({ layoutFile: file })
+  const dir = mkdtempSync(join(tmpdir(), 'layout-test-'))
+  const file = join(dir, 'ui-layout.json')
+  const handlers = createIpcHandlers({ layoutFile: file, recentFile: join(dir, 'recent.json') })
   const api = createBridge((channel, input) => routeIpc(handlers, channel, input))
   return { api, file }
 }
@@ -33,7 +34,11 @@ describe('ui:layout:save and ui:layout:load', () => {
 
     // A second bridge over the same file stands in for a restart.
     const restarted = createBridge((channel, input) =>
-      routeIpc(createIpcHandlers({ layoutFile: file }), channel, input)
+      routeIpc(
+        createIpcHandlers({ layoutFile: file, recentFile: join(dirname(file), 'recent.json') }),
+        channel,
+        input
+      )
     )
     expect(await restarted.invoke('ui:layout:load', {})).toEqual({
       ok: true,
