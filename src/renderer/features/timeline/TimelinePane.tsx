@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState, type JSX, type PointerEvent } from 'react'
 import { useStore } from 'zustand'
 import { Lock, LockOpen, Maximize2, Volume2, VolumeX, ZoomIn, ZoomOut } from 'lucide-react'
-import { addTrack, placeClips, setTrackFlag } from '@shared/timeline/edits'
+import { addTrack, placeClips, setTrackFlag, trimClip } from '@shared/timeline/edits'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/timeline'
-import { snapPoints, snapStart } from '@shared/timeline/snap'
+import { snapEdge, snapPoints, snapStart } from '@shared/timeline/snap'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { formatTimecode } from '../playback/playbackClock'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
-import { clipsInRange, visibleLaneRange } from './clipView'
+import { clipsInRange, trimReadout, visibleLaneRange } from './clipView'
 import { TimelineClip } from './TimelineClip'
 import {
   fitPxPerMs,
@@ -77,6 +77,15 @@ interface DragPreview {
   startMs: number
 }
 
+// Where a trim would put one edge of a clip. Shown while trimming; committed on release.
+interface TrimPreview {
+  clipId: string
+  trackId: string
+  edge: 'start' | 'end'
+  boundaryMs: number
+  sourceLengthMs?: number
+}
+
 // The live state of one pointer drag. It lives outside React state so the window listeners always
 // see the latest values, and only the preview is rendered.
 interface DragSession {
@@ -114,14 +123,16 @@ export function TimelinePane({
   // The selected clips. Shift-click adds and removes; a drag moves the whole selection.
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [drag, setDrag] = useState<DragPreview | null>(null)
+  const [trim, setTrim] = useState<TrimPreview | null>(null)
   // The latest props for the window listeners of a drag, which are attached once per press.
   const latest = useRef({ timeline, pxPerMs, snapping, onEdit })
   latest.current = { timeline, pxPerMs, snapping, onEdit }
   const releaseDrag = useRef<(() => void) | null>(null)
   useEffect(() => () => releaseDrag.current?.(), [])
 
-  // The timeline as it will look if the drag drops now. It is committed only on release.
-  const shown = previewTimeline(timeline, drag)
+  // The timeline as it will look if the drag or trim drops now. It is committed only on release.
+  const shown = trim ? previewTrimmed(timeline, trim) : previewTimeline(timeline, drag)
+  const trimmedClip = trim ? findClip(shown, trim.clipId)?.clip : undefined
   const durationMs = timelineDurationMs(timeline)
   const widthPx = timelineWidthPx(durationMs, target.maxMs, pxPerMs)
   const band = targetBand(target.minMs, target.maxMs, pxPerMs)
@@ -301,6 +312,96 @@ export function TimelinePane({
     window.addEventListener('pointercancel', onEnd)
   }
 
+  // A press on a trim handle drags one edge of the clip. The clip is trimmed on release, as one edit.
+  // While trimming, the preview seeks to the dragged edge and the playhead returns on release.
+  function pressTrim(
+    event: PointerEvent<HTMLDivElement>,
+    clip: Clip,
+    track: Track,
+    edge: 'start' | 'end'
+  ) {
+    if (event.button !== 0 || track.locked) return
+    event.stopPropagation()
+    setSelectedIds([clip.id])
+
+    const startX = event.clientX
+    const originMs = edge === 'start' ? clip.startMs : clip.startMs + clip.durationMs
+    const sourceLengthMs = media?.items.find((ref) => ref.id === clip.mediaId)?.durationMs
+    const playheadAtPress = playbackStore.getState().playheadMs
+    let moved = false
+    let last: TrimPreview | null = null
+
+    const onMove = (move: globalThis.PointerEvent) => {
+      const dx = move.clientX - startX
+      if (!moved && Math.abs(dx) < DRAG_THRESHOLD_PX) return
+      moved = true
+      const { timeline: current, pxPerMs: scale, snapping: snap } = latest.current
+
+      let boundaryMs = Math.max(0, originMs + dx / scale)
+      if (snap && !move.altKey) {
+        const points = snapPoints(current, [clip.id], playheadAtPress)
+        boundaryMs = snapEdge(boundaryMs, points, SNAP_PX / scale)
+      }
+
+      last = { clipId: clip.id, trackId: track.id, edge, boundaryMs, sourceLengthMs }
+      setTrim(last)
+      const trimmed = findClip(previewTrimmed(current, last), clip.id)?.clip
+      if (trimmed) {
+        const frameMs =
+          edge === 'start' ? trimmed.startMs : trimmed.startMs + trimmed.durationMs - 1
+        playbackStore.getState().seek(frameMs)
+      }
+    }
+
+    const release = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onEnd)
+      window.removeEventListener('pointercancel', onEnd)
+      releaseDrag.current = null
+      setTrim(null)
+      playbackStore.getState().seek(playheadAtPress)
+    }
+
+    const onEnd = () => {
+      const finished = last
+      const didMove = moved
+      release()
+      if (!finished || !didMove) return
+      const edit = (current: Timeline) =>
+        trimClip(
+          current,
+          finished.clipId,
+          finished.edge,
+          finished.boundaryMs,
+          finished.sourceLengthMs
+        )
+      try {
+        edit(latest.current.timeline)
+      } catch {
+        // An invalid trim is not applied.
+        return
+      }
+      latest.current.onEdit('Trim clip', edit)
+    }
+
+    releaseDrag.current?.()
+    releaseDrag.current = release
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onEnd)
+    window.addEventListener('pointercancel', onEnd)
+  }
+
+  // The readout beside a trimmed edge: the clip's new length and the source timecode at that edge.
+  function trimTooltip(clip: Clip, edge: 'start' | 'end') {
+    const readout = trimReadout(clip, edge)
+    const edgeMs = edge === 'start' ? clip.startMs : clip.startMs + clip.durationMs
+    return (
+      <div className={styles.trimTip} style={{ left: timeToX(edgeMs, pxPerMs) }} role="status">
+        {`${formatTimecode(readout.durationMs)} long, source ${formatTimecode(readout.sourceMs)}`}
+      </div>
+    )
+  }
+
   // The clips of one lane that are on screen. Each is positioned in the lane body.
   function laneClips(track: Track) {
     return clipsInRange(track.clips, pxPerMs, laneRange).map((clip) => {
@@ -335,6 +436,9 @@ export function TimelinePane({
               : undefined
           }
           onPointerDown={(event) => pressClip(event, clip, track)}
+          onTrimPointerDown={
+            track.locked ? undefined : (edge, event) => pressTrim(event, clip, track, edge)
+          }
           onSelect={() => setSelectedIds([clip.id])}
         />
       )
@@ -389,6 +493,9 @@ export function TimelinePane({
           data-track-id={track?.id}
         >
           {track ? laneClips(track) : null}
+          {track && trim && trimmedClip && trim.trackId === track.id
+            ? trimTooltip(trimmedClip, trim.edge)
+            : null}
         </div>
       </div>
     )
@@ -499,6 +606,16 @@ export function TimelinePane({
       </div>
     </div>
   )
+}
+
+// The clip with a trim applied. A trim that would be invalid shows the timeline as it was.
+function previewTrimmed(timeline: Timeline, trim: TrimPreview | null): Timeline {
+  if (!trim) return timeline
+  try {
+    return trimClip(timeline, trim.clipId, trim.edge, trim.boundaryMs, trim.sourceLengthMs)
+  } catch {
+    return timeline
+  }
 }
 
 function findClip(timeline: Timeline, clipId: string): { track: Track; clip: Clip } | undefined {

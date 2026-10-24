@@ -105,3 +105,13 @@ export function sourceStrip(
     offsetPx: -(clip.sourceInMs / clip.durationMs) * widthPx
   }
 }
+
+// What a trim tooltip shows: the clip's new length, and the source time at the edge being dragged.
+// The source time at the start edge is the clip's In point; at the end edge it is the Out point.
+export function trimReadout(
+  clip: Clip,
+  edge: 'start' | 'end'
+): { durationMs: number; sourceMs: number } {
+  const sourceMs = edge === 'start' ? clip.sourceInMs : clip.sourceInMs + clip.durationMs
+  return { durationMs: clip.durationMs, sourceMs }
+}

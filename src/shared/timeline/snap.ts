@@ -50,3 +50,18 @@ export function snapPoints(
   }
   return [...points]
 }
+
+// Snaps one edge (a trim handle's position) to the nearest point within thresholdMs. Returns the edge
+// unchanged when no point is close enough.
+export function snapEdge(edgeMs: number, points: readonly number[], thresholdMs: number): number {
+  let best: number | null = null
+  let bestDistance = thresholdMs
+  for (const point of points) {
+    const distance = Math.abs(edgeMs - point)
+    if (distance <= bestDistance) {
+      best = point
+      bestDistance = distance
+    }
+  }
+  return best ?? edgeMs
+}
