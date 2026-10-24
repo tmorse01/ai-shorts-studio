@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import type { Timeline } from '@shared/timeline/timeline'
 import { registerEditorShortcuts } from '@renderer/features/shortcuts/editorShortcuts'
 import { ShortcutsDialog } from '@renderer/features/shortcuts/ShortcutsDialog'
 import { shortcutRegistry } from '@renderer/features/shortcuts/shortcutRegistry'
@@ -16,7 +17,12 @@ import styles from './EditorShell.module.css'
 
 // The five-area editor (DESIGN.md section 4): toolbar on top, tool rail and left panel, centre
 // preview, right inspector, and a full-width timeline along the bottom.
-export function EditorShell() {
+export interface EditorShellProps {
+  // The open short's timeline. Empty when no short is open.
+  timeline?: Timeline
+}
+
+export function EditorShell({ timeline }: EditorShellProps) {
   const leftTool = useUiStore((s) => s.leftTool)
   const toolDef = LEFT_TOOL_DEFINITIONS[leftTool]
   useEditorLayoutPersistence()
@@ -41,7 +47,7 @@ export function EditorShell() {
               />
             )}
           </PaneFrame>
-          <PreviewCanvas />
+          <PreviewCanvas timeline={timeline} />
           <PaneFrame pane="right" title="Inspector">
             <EmptyState
               title="Nothing selected"

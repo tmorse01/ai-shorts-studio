@@ -11,6 +11,7 @@ import { relinkMediaFolder } from '../media/relinkMedia'
 import { statMediaFiles } from '../media/statMedia'
 import { ensureMediaThumbs } from '../media/ensureThumbs'
 import { ensureMediaProxies } from '../media/ensureProxies'
+import { MediaSourceRegistry, describeMediaSources } from '../media/mediaSources'
 import type { IpcHandlers } from './dispatch'
 import { logError } from '../errors/errorLog'
 import { join } from 'node:path'
@@ -56,6 +57,8 @@ export interface IpcHandlerOptions {
   analysisStorage?: AnalysisStorage
   /** Told whenever a project's analysis records change. The app forwards it to the renderer. */
   onAnalysisChanged?: (change: AnalysisChange) => void
+  /** Where media:sources records each item's files for the media protocol. Shared with the protocol. */
+  mediaSources?: MediaSourceRegistry
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -65,7 +68,8 @@ export function createIpcHandlers({
   jobs = new JobQueue(unavailableExecutors()),
   system = {},
   analysisStorage = { load: loadAnalysisFile, save: saveAnalysisFile },
-  onAnalysisChanged
+  onAnalysisChanged,
+  mediaSources = new MediaSourceRegistry()
 }: IpcHandlerOptions): IpcHandlers {
   const analysis = new AnalysisService({
     queue: jobs,
@@ -164,6 +168,9 @@ export function createIpcHandlers({
     'analysis:playback': ({ playing }) => {
       analysis.setPlaybackActive(playing)
       return { playing }
-    }
+    },
+    'media:sources': async ({ projectFolder, media }) => ({
+      sources: await describeMediaSources(projectFolder, media, mediaSources)
+    })
   }
 }

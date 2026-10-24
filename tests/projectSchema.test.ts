@@ -9,6 +9,7 @@ function sampleProject() {
     name: 'Harbour interview',
     createdAt: '2026-10-23T09:00:00.000Z',
     updatedAt: '2026-10-23T09:30:00.000Z',
+    mediaTags: [],
     media: [
       {
         id: 'media_1',
@@ -70,7 +71,7 @@ describe('project schema: valid load', () => {
   })
 
   it('accepts a project with no media, shorts or scripts', () => {
-    const empty = { ...sampleProject(), media: [], shorts: [], scripts: [] }
+    const empty = { ...sampleProject(), media: [], mediaTags: [], shorts: [], scripts: [] }
     expect(loadProject(empty).ok).toBe(true)
   })
 
