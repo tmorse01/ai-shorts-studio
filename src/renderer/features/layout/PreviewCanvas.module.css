@@ -12,7 +12,7 @@
   background: var(--color-canvas);
 }
 
-/* Full height, less a margin, and never wider than 9:16 allows. */
+/* Full height less a top margin and the footer (scrub bar and controls), and never wider than 9:16. */
 .frame {
   position: relative;
   display: flex;
@@ -20,7 +20,10 @@
   align-items: center;
   justify-content: center;
   aspect-ratio: 9 / 16;
-  height: min(calc(100cqh - 2 * var(--space-6)), calc((100cqw - 2 * var(--space-6)) * 16 / 9));
+  height: min(
+    calc(100cqh - var(--space-6) - var(--space-7) * 2),
+    calc((100cqw - 2 * var(--space-6)) * 16 / 9)
+  );
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
   /* The frame takes pointer drags for the canvas gizmo, so the browser must not scroll or zoom them. */
@@ -61,12 +64,25 @@
   z-index: 1;
 }
 
-/* The scrub bar sits in the margin below the frame, so the frame keeps its size. */
-.scrub {
+/* The footer sits in the margin below the frame, so the frame keeps its size: the scrub bar, then the
+   preview controls. */
+.footer {
   position: absolute;
   right: var(--space-6);
   bottom: var(--space-2);
   left: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.scrub {
+  width: 100%;
+}
+
+/* At 100% zoom a press on empty frame pans the view, so the pointer shows a grab cursor. */
+.pannable {
+  cursor: grab;
 }
 
 /* The decoded frame fills the 9:16 frame. The canvas stays transparent where no frame is drawn. */
