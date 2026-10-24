@@ -40,6 +40,22 @@ describe('crossfadeGains', () => {
     expect(crossfadeGains({ tracks: timeline.tracks }, 750).size).toBe(0)
   })
 
+  it('leaves cut transitions to the shared transition fade', () => {
+    const cutTimeline: Timeline = {
+      tracks: [
+        {
+          id: 't',
+          kind: 'audio',
+          role: 'music',
+          muted: false,
+          clips: [clip('a', 0, 1000), clip('b', 1000, 1000)]
+        }
+      ],
+      transitions: [{ id: 'x', fromClipId: 'a', toClipId: 'b', durationMs: 300 }]
+    }
+    expect(crossfadeGains(cutTimeline, 1100).size).toBe(0)
+  })
+
   it('crossfades each loop point of a loop-to-fill layout', () => {
     const source = clip('m', 0, 2000)
     let next = 0

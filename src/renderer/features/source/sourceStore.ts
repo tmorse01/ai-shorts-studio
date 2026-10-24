@@ -23,6 +23,8 @@ export interface SourceActions {
   openRange: (id: string, inMs: number, outMs: number) => void
   markInAtPlayhead: () => void
   markOutAtPlayhead: () => void
+  // Sets both marks to a range, such as the words a transcript selection covers.
+  markRange: (startMs: number, endMs: number) => void
   clearMarks: () => void
   // Opens the name prompt for the marked range. Does nothing unless both marks are set.
   startNamingMoment: () => void
@@ -54,6 +56,12 @@ export const sourceStore = createStore<SourceStore>()((set, get) => {
     markOutAtPlayhead: () => {
       if (!canMark()) return
       set({ naming: false, ...markOut(get(), playhead().playheadMs, playhead().durationMs) })
+    },
+    markRange: (startMs, endMs) => {
+      if (!canMark()) return
+      const durationMs = playhead().durationMs
+      const withIn = markIn(get(), startMs, durationMs)
+      set({ naming: false, ...markOut(withIn, endMs, durationMs) })
     },
     clearMarks: () => set({ naming: false, ...NO_MARKS }),
     startNamingMoment: () => {

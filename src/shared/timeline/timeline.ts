@@ -68,12 +68,18 @@ export const trackSchema = z.object({
 })
 export type Track = z.infer<typeof trackSchema>
 
-// A transition between two clips on the same track. Its length is the overlap the edit shows.
+export const transitionKindSchema = z.enum(['crossfade', 'dip-to-black'])
+export type TransitionKind = z.infer<typeof transitionKindSchema>
+
+// A transition on the cut between two adjacent clips on the same track. It is centred on the cut and
+// lasts durationMs. How it is timed and mixed lives in ./transitions.ts. The kind is optional so
+// existing transitions need no key. Read it as `?? 'crossfade'`.
 export const transitionSchema = z.object({
   id: nonEmptyString,
   fromClipId: nonEmptyString,
   toClipId: nonEmptyString,
-  durationMs: z.number().int().positive()
+  durationMs: z.number().int().positive(),
+  kind: transitionKindSchema.optional()
 })
 export type Transition = z.infer<typeof transitionSchema>
 

@@ -62,7 +62,8 @@ export function clipAudioSources(
       startMs: clip.startMs,
       sourceInMs: clip.sourceInMs,
       sourceTimeMs: clip.sourceInMs + (tMs - clip.startMs),
-      gain: (clip.gain ?? 1) * (crossfades.get(clip.id) ?? 1) * ducked
+      // A cut transition fades the sound (see @shared/timeline/transitions). Overlap crossfades (loop-to-fill) are in crossfades.
+      gain: (clip.gain ?? 1) * (active.fade?.gain ?? 1) * (crossfades.get(clip.id) ?? 1) * ducked
     })
   }
   return sources
