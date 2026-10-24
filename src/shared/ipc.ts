@@ -19,6 +19,11 @@ import {
   visionEstimateSchema,
   visionModelSchema
 } from './ai/aiSettings'
+import {
+  generatedScriptSchema,
+  scriptEstimateSchema,
+  scriptRunInputSchema
+} from './ai/scriptGeneration'
 
 const analysisItemSchema = z.object({
   id: z.string().min(1),
@@ -381,6 +386,17 @@ export const ipcChannels = {
   'ai:vision:estimate': {
     input: z.object({ shotCount: z.number().int().nonnegative().max(100000) }),
     output: visionEstimateSchema
+  },
+  // What one script run would cost and which footage it would use. Sends nothing to the API.
+  'ai:scripts:estimate': {
+    input: scriptRunInputSchema,
+    output: scriptEstimateSchema
+  },
+  // Drafts scripts from the request and the project's footage. The reply is drafts only; the renderer
+  // saves them through a project command, so they can be undone.
+  'ai:scripts:generate': {
+    input: scriptRunInputSchema,
+    output: z.object({ scripts: z.array(generatedScriptSchema).min(1) })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 

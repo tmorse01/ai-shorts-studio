@@ -33,6 +33,8 @@ import { AiService } from '../ai/aiService'
 import { memoryAiStateStorage } from '../ai/aiStateFile'
 import { unavailableSecretStore } from '../ai/secretStore'
 import { createAnthropicClient } from '../ai/anthropicClient'
+import { estimateScriptRun, generateScripts } from '../ai/scriptGenerator'
+import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage'
 
 // Operating-system features the handlers need. The app passes Electron versions; tests pass fakes,
 // so this module never imports Electron.
@@ -73,6 +75,8 @@ export interface IpcHandlerOptions {
    * queue. The default keeps nothing on disk and has no key, so tests never reach the network.
    */
   ai?: AiService
+  /** Reads the footage that script drafting is grounded in. Tests pass a fake, so no disk is read. */
+  scriptFootage?: ScriptFootageSource
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -88,7 +92,8 @@ export function createIpcHandlers({
     secrets: unavailableSecretStore,
     state: memoryAiStateStorage(),
     createClient: (apiKey) => createAnthropicClient({ apiKey })
-  })
+  }),
+  scriptFootage = readScriptFootage
 }: IpcHandlerOptions): IpcHandlers {
   const analysis = new AnalysisService({
     queue: jobs,
@@ -208,6 +213,10 @@ export function createIpcHandlers({
     'ai:key:clear': () => ai.clearKey(),
     'ai:key:test': () => ai.testKey(),
     'ai:vision:estimate': ({ shotCount }) => ai.estimateVision(shotCount),
+    'ai:scripts:estimate': (input) => estimateScriptRun(ai, scriptFootage, input),
+    'ai:scripts:generate': async (input) => ({
+      scripts: await generateScripts(ai, scriptFootage, input)
+    }),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })

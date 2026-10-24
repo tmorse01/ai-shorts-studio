@@ -18,11 +18,19 @@ import {
   type NudgeDirection
 } from '@shared/compositor/gizmo'
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type FrameLayer } from '@shared/compositor/frame'
-import { CENTRED_FILL, framingAfterGesture, type ClipFraming } from '@shared/timeline/framing'
+import {
+  CENTRED_FILL,
+  framingAfterGesture,
+  poseOf,
+  withPose,
+  type ClipFraming,
+  type FramingPoint
+} from '@shared/timeline/framing'
 import { playbackStore } from '../playback/playbackStore'
 import { layerFrameStore } from './layerFrameStore'
 import { layerRegistry } from './layerRenderers'
 import { layerSelectionStore } from './layerSelectionStore'
+import { framingPointStore } from './framingPointStore'
 import { rememberFraming } from './framingMemory'
 import {
   applyFramingEdit,
@@ -34,19 +42,23 @@ import {
 const HANDLE_RADIUS_PX = 12
 
 // A fill-framed video layer is edited through its framing: the gizmo moves the crop and zooms it,
-// instead of moving the layer's transform.
+// instead of moving the layer's transform. The pose it edits is the start or the end of the pan, as
+// the pan section selects (the end falls back to the start when the clip has no pan).
 interface FramedEdit {
   mediaId: string
-  startFraming: ClipFraming
+  framing: ClipFraming
+  point: FramingPoint
   source: { width: number; height: number }
 }
 
 // The framing edit for a layer, when the gizmo edits its framing. Blur-fit clips keep the transform.
 function framedEditFor(layer: FrameLayer, clip: Clip): FramedEdit | null {
   if (layer.trackKind !== 'video' || !layer.source || !clip.mediaId) return null
-  const startFraming = clip.framing ?? { ...CENTRED_FILL }
-  if (startFraming.mode !== 'fill') return null
-  return { mediaId: clip.mediaId, startFraming, source: layer.source }
+  const framing = clip.framing ?? { ...CENTRED_FILL }
+  if (framing.mode !== 'fill') return null
+  const requested = framingPointStore.getState().point
+  const point: FramingPoint = requested === 'end' && framing.panTo ? 'end' : 'start'
+  return { mediaId: clip.mediaId, framing, point, source: layer.source }
 }
 
 function applyFramedGesture(
@@ -58,11 +70,11 @@ function applyFramedGesture(
   gesture: { dxCanvas: number; dyCanvas: number; scaleFactor: number },
   mergeWindowMs?: number
 ): void {
-  const pose = framingAfterGesture(framed.startFraming, gesture, framed.source, {
+  const pose = framingAfterGesture(poseOf(framed.framing, framed.point), gesture, framed.source, {
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT
   })
-  const next: ClipFraming = { ...framed.startFraming, ...pose }
+  const next: ClipFraming = withPose(framed.framing, framed.point, pose)
   applyFramingEdit(shortId, clipId, label, mergeKey, () => next, mergeWindowMs)
   rememberFraming(framed.mediaId, next)
 }
@@ -245,12 +257,12 @@ export function useCanvasGizmo({
       // Read the framing as it is stored now, so quick repeated presses each move from the last one.
       applyFramingEdit(shortId, selectedId, 'Nudge layer', `nudge:${selectedId}`, (current) => {
         const pose = framingAfterGesture(
-          current,
+          poseOf(current, framed.point),
           { dxCanvas: offset.x, dyCanvas: offset.y, scaleFactor: 1 },
           framed.source,
           { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }
         )
-        const next = { ...current, ...pose }
+        const next = withPose(current, framed.point, pose)
         rememberFraming(framed.mediaId, next)
         return next
       })
