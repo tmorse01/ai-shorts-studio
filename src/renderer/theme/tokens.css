@@ -74,6 +74,21 @@
   --space-6: 32px;
   --space-7: 48px;
 
+  /* Atmosphere (DESIGN.md §12): the dark art panel behind the dashboard hero and project thumbs.
+     Built from palette colours, so it needs no image file and no network. */
+  --art-panel:
+    radial-gradient(
+      ellipse at 18% 28%,
+      color-mix(in srgb, var(--color-spectral-lavender) 20%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 82% 74%,
+      color-mix(in srgb, var(--color-undead-sage) 14%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(160deg, var(--color-haunted-charcoal), var(--color-void-black));
+
   /* Shape and elevation */
   --radius: 4px;
   --border-width: 1px;

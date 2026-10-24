@@ -5,6 +5,7 @@ import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { OfflineBanner } from '@renderer/features/project/OfflineBanner'
 import { ProjectHeader } from '@renderer/features/project/ProjectHeader'
 import { ShortsGrid } from '@renderer/features/shorts/ShortsGrid'
+import { ScriptsSection } from '@renderer/features/scripts/ScriptsSection'
 import styles from './ProjectRoute.module.css'
 
 export const projectRoute = createRoute({
@@ -14,7 +15,7 @@ export const projectRoute = createRoute({
 })
 
 // Project home: header, offline footage warning, and the Footage, Shorts and Scripts sections.
-// Footage and Scripts are empty until epics 03 and 14 fill them.
+// Footage is empty until epic 03 fills it.
 function ProjectPage(): JSX.Element {
   return (
     <main className={styles.page}>
@@ -24,9 +25,7 @@ function ProjectPage(): JSX.Element {
         <EmptyState title="No footage yet" description="Import clips to start cutting shorts." />
       </section>
       <ShortsGrid />
-      <section aria-label="Scripts" className={styles.section}>
-        <EmptyState title="No scripts yet" description="Scripts arrive with a later epic." />
-      </section>
+      <ScriptsSection />
     </main>
   )
 }

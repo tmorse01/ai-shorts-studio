@@ -20,6 +20,10 @@
   z-index: 61;
 }
 
+.wide {
+  width: min(760px, calc(100vw - var(--space-5) * 2));
+}
+
 .content:focus {
   outline: none;
 }

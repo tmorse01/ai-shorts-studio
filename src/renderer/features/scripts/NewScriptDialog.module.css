@@ -1,0 +1,33 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  letter-spacing: var(--type-small-tracking);
+  text-transform: uppercase;
+  color: var(--color-text-2);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-destructive);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
