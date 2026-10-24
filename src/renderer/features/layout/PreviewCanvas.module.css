@@ -23,6 +23,14 @@
   height: min(calc(100cqh - 2 * var(--space-6)), calc((100cqw - 2 * var(--space-6)) * 16 / 9));
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
+  /* The frame takes pointer drags for the canvas gizmo, so the browser must not scroll or zoom them. */
+  touch-action: none;
+}
+
+/* Focus shows when the frame has the keyboard, which is when arrow keys nudge the selected layer. */
+.frame:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: var(--space-1);
 }
 
 .mark {

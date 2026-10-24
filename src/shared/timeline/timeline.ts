@@ -18,6 +18,9 @@ export const transformSchema = z.object({
   x: z.number(),
   y: z.number(),
   scale: z.number().positive(),
+  // Extra width-to-height stretch on top of the uniform scale. Optional so existing clips need no key.
+  // Read it as `?? 1`. Only a free (Shift) corner drag sets it.
+  stretch: z.number().positive().optional(),
   rotationDeg: z.number()
 })
 export type Transform = z.infer<typeof transformSchema>

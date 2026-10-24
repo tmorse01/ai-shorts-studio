@@ -4,6 +4,7 @@ import { EditorShell } from '@renderer/features/layout/EditorShell'
 import { useProjectStore } from '@renderer/features/project/useProjectStore'
 import { EMPTY_TIMELINE } from '@renderer/features/preview/previewFrame'
 import { editorHistory } from '@renderer/features/history/editorHistory'
+import { layerSelectionStore } from '@renderer/features/compositor/layerSelectionStore'
 import {
   captureShortViewState,
   restoreShortViewState
@@ -32,8 +33,9 @@ function EditorPage(): JSX.Element {
     return () => {
       captureShortViewState(shortId)
       editorHistory.selection.getState().setActive(null)
+      layerSelectionStore.getState().select(null)
     }
   }, [shortId])
 
-  return <EditorShell timeline={timeline ?? EMPTY_TIMELINE} />
+  return <EditorShell timeline={timeline ?? EMPTY_TIMELINE} shortId={shortId} />
 }

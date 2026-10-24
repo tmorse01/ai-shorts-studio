@@ -9,6 +9,7 @@ import type { Timeline } from '@shared/timeline/timeline'
 import { resolveFrame } from '@shared/timeline/resolveFrame'
 import { Compositor } from '../compositor/compositor'
 import { createFrameBackend } from '../compositor/frameBackend'
+import { layerFrameStore } from '../compositor/layerFrameStore'
 import type { LayerSource } from '../compositor/layerRenderers'
 import {
   NO_DROPPED_FRAMES,
@@ -158,6 +159,7 @@ export class PreviewRenderer {
     const frame = describeFrame(latest.timeline, latest.playheadMs, (mediaId) =>
       sizeOf(latest.elementByMedia.get(mediaId))
     )
+    layerFrameStore.getState().setFrame(frame)
     const drawn = compositor.render(frame, (layer): LayerSource => {
       const video = latest.elementByClip.get(layer.clipId)
       if (!video || video.error) return { state: 'none' }
