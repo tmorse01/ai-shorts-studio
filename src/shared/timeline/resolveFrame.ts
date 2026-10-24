@@ -1,6 +1,7 @@
 // Pure timeline queries: what is on screen at a time, how long the timeline is, and where the next
 // clip boundary falls (used to preload decoders). Clips are active from startMs up to, not
 // including, startMs + durationMs.
+import { resolveFramingAt, type FramingMode, type FramingPose } from './framing'
 import type { Clip, Timeline, TrackKind, Transform } from './timeline'
 
 export type ClipAt = {
@@ -20,6 +21,8 @@ export type ResolvedLayer = {
   // The source time to show for this layer, in ms.
   sourceTimeMs: number
   transform: Transform
+  // The framing pose at this time, when the clip has framing (see ./framing.ts).
+  framing?: { mode: FramingMode } & FramingPose
 }
 
 // Every clip active at tMs, on every track, in draw order (track order, then clip order).
@@ -45,15 +48,22 @@ export function clipsAt(timeline: Timeline, tMs: number): ClipAt[] {
 export function resolveFrame(timeline: Timeline, tMs: number): ResolvedLayer[] {
   return clipsAt(timeline, tMs)
     .filter((active) => !active.trackMuted)
-    .map((active) => ({
-      trackId: active.trackId,
-      trackKind: active.trackKind,
-      clipId: active.clip.id,
-      mediaId: active.clip.mediaId,
-      text: active.clip.text,
-      sourceTimeMs: active.clip.sourceInMs + (tMs - active.clip.startMs),
-      transform: active.clip.transform
-    }))
+    .map((active) => {
+      const { clip } = active
+      const layer: ResolvedLayer = {
+        trackId: active.trackId,
+        trackKind: active.trackKind,
+        clipId: clip.id,
+        mediaId: clip.mediaId,
+        text: clip.text,
+        sourceTimeMs: clip.sourceInMs + (tMs - clip.startMs),
+        transform: clip.transform
+      }
+      if (clip.framing) {
+        layer.framing = resolveFramingAt(clip.framing, clip.startMs, clip.durationMs, tMs)
+      }
+      return layer
+    })
 }
 
 // The end of the last clip on any track, or 0 for an empty timeline.

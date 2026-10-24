@@ -2,6 +2,7 @@
 // timeline unless a field says it is a source time. Pure data plus zod schemas, shared by main and
 // the renderer. Behaviour lives in ./resolveFrame.ts.
 import { z } from 'zod'
+import { clipFramingSchema } from './framing'
 
 const nonEmptyString = z.string().trim().min(1)
 
@@ -45,7 +46,10 @@ export const clipSchema = z.object({
   // The moment (Epic 14 script beat) this clip was dropped from, when it came from one.
   momentId: nonEmptyString.optional(),
   // Id of the audio clip split off this clip by "detach audio".
-  linkedAudio: nonEmptyString.optional()
+  linkedAudio: nonEmptyString.optional(),
+  // How the clip's source fills the vertical frame (see ./framing.ts). Unset means no framing.
+  // Schema 8 added this key.
+  framing: clipFramingSchema.optional()
 })
 export type Clip = z.infer<typeof clipSchema>
 
