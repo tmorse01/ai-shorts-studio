@@ -5,6 +5,7 @@ import { createStore } from 'zustand'
 import type { ClipAudioChange } from '@shared/timeline/edits'
 import type { DuckingSettings } from '@shared/timeline/ducking'
 import type { ClipFraming } from '@shared/timeline/framing'
+import type { Clip, Timeline } from '@shared/timeline/timeline'
 import { defaultTabFor, type InspectorTab, type SelectionType } from './inspectorModel'
 
 // The sound of the one selected clip, for the clip audio section (Epic 07, #91). The timeline pane
@@ -28,6 +29,15 @@ export interface MusicTarget {
   loopToFill: () => void
 }
 
+// The one selected video clip, for the video clip section (Epic 08, #96). The timeline pane publishes
+// it. apply runs an edit as one history entry; calls with the same mergeKey fold into one entry. The
+// linked audio is the clip's sound when it has one, or null when the sound is detached.
+export interface VideoClipTarget {
+  clip: Clip
+  linkedAudio: Clip | null
+  apply: (label: string, edit: (timeline: Timeline) => Timeline, mergeKey?: string) => void
+}
+
 // The framing of the one selected fill-framed clip, for the pan section (Epic 09, #105). framing is the
 // stored framing, or a centred fill. apply runs an edit on that clip as one history entry.
 export interface FramingTarget {
@@ -42,6 +52,7 @@ export interface InspectorState {
   collapsed: Record<string, boolean>
   audioTarget: AudioTarget | null
   musicTarget: MusicTarget | null
+  videoTarget: VideoClipTarget | null
   framingTarget: FramingTarget | null
 }
 
@@ -52,6 +63,7 @@ export interface InspectorActions {
   toggleSection: (sectionId: string) => void
   setAudioTarget: (target: AudioTarget | null) => void
   setMusicTarget: (target: MusicTarget | null) => void
+  setVideoTarget: (target: VideoClipTarget | null) => void
   setFramingTarget: (target: FramingTarget | null) => void
 }
 
@@ -64,9 +76,11 @@ export function createInspectorStore() {
     collapsed: {},
     audioTarget: null,
     musicTarget: null,
+    videoTarget: null,
+    framingTarget: null,
     setAudioTarget: (audioTarget) => set({ audioTarget }),
     setMusicTarget: (musicTarget) => set({ musicTarget }),
-    framingTarget: null,
+    setVideoTarget: (videoTarget) => set({ videoTarget }),
     setFramingTarget: (framingTarget) => set({ framingTarget }),
     setSelectionType: (selectionType) => {
       if (selectionType === get().selectionType) return

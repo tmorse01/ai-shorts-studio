@@ -438,11 +438,14 @@ export function detachAudio(
   return settle(next)
 }
 
-// Sets a clip's mute and volume. Gain is linear, 0 to 2, and only the fields given change. For a video
-// clip with detached audio, edit the audio clip: that is the one whose sound plays.
+// Sets a clip's mute, volume and fades. Gain is linear, 0 to 2, and only the fields given change. Fades
+// are clamped to the clip's length. For a video clip with detached audio, edit the audio clip: that is
+// the one whose sound plays.
 export interface ClipAudioChange {
   muted?: boolean
   gain?: number
+  fadeInMs?: number
+  fadeOutMs?: number
 }
 
 export function setClipAudio(
@@ -457,10 +460,18 @@ export function setClipAudio(
   ) {
     throw new TimelineEditError('Clip volume must be between 0 and 2.')
   }
+  for (const fade of [change.fadeInMs, change.fadeOutMs]) {
+    if (fade !== undefined && (!Number.isFinite(fade) || fade < 0)) {
+      throw new TimelineEditError('A fade cannot be negative.')
+    }
+  }
+  const fadeLimit = (ms: number) => Math.round(Math.min(ms, clip.durationMs))
   const next: Clip = {
     ...clip,
     ...(change.muted !== undefined ? { muted: change.muted } : {}),
-    ...(change.gain !== undefined ? { gain: change.gain } : {})
+    ...(change.gain !== undefined ? { gain: change.gain } : {}),
+    ...(change.fadeInMs !== undefined ? { fadeInMs: fadeLimit(change.fadeInMs) } : {}),
+    ...(change.fadeOutMs !== undefined ? { fadeOutMs: fadeLimit(change.fadeOutMs) } : {})
   }
   return settle(
     replaceTrack(timeline, {

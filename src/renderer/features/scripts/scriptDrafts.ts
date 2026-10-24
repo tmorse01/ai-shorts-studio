@@ -1,5 +1,6 @@
 // Talks to main for AI script drafts: the cost estimate before a run, and the run itself. Turning the
 // drafts into scripts (with fresh ids) happens here too, so the caller can save them as one command.
+import type { LineRewriteInput } from '@shared/ai/lineRewrite'
 import type { GeneratedScript, ScriptEstimate, ScriptRunInput } from '@shared/ai/scriptGeneration'
 import type { Script } from '@shared/project/schema'
 import type { RendererInvokeApi } from '@shared/ipc'
@@ -53,4 +54,19 @@ export function scriptsFromDrafts(
         : {})
     }))
   }))
+}
+
+/** Rewrites one line as the chosen action asks. Null after a shown error. */
+export async function rewriteLine(
+  api: RendererInvokeApi,
+  input: LineRewriteInput
+): Promise<string | null> {
+  const result = await api.invoke('ai:scripts:rewriteLine', input)
+  if (result.ok) return result.data.text
+  toast.error({
+    title: 'Could not rewrite the line',
+    description: result.error.message,
+    details: result.error.details
+  })
+  return null
 }

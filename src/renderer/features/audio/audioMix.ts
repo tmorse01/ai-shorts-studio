@@ -8,7 +8,7 @@
 import { crossfadeGains } from '@shared/timeline/crossfade'
 import { clipsAt } from '@shared/timeline/resolveFrame'
 import { duckEnvelope, duckingFor, envelopeGainAt, narrationRanges } from '@shared/timeline/ducking'
-import type { Timeline } from '@shared/timeline/timeline'
+import type { Clip, Timeline } from '@shared/timeline/timeline'
 import { FRAME_MS } from '../playback/playbackClock'
 
 export interface AudioSource {
@@ -63,10 +63,31 @@ export function clipAudioSources(
       sourceInMs: clip.sourceInMs,
       sourceTimeMs: clip.sourceInMs + (tMs - clip.startMs),
       // A cut transition fades the sound (see @shared/timeline/transitions). Overlap crossfades (loop-to-fill) are in crossfades.
-      gain: (clip.gain ?? 1) * (active.fade?.gain ?? 1) * (crossfades.get(clip.id) ?? 1) * ducked
+      // The clip's own fade-in and fade-out (#96) apply on top.
+      gain:
+        (clip.gain ?? 1) *
+        fadeGain(clip, tMs) *
+        (active.fade?.gain ?? 1) *
+        (crossfades.get(clip.id) ?? 1) *
+        ducked
     })
   }
   return sources
+}
+
+// The linear fade multiplier of a clip's sound at tMs: it ramps up over fadeInMs from the clip's start
+// and down over fadeOutMs to its end. Outside those ramps it is 1. A clip with no fades is always 1.
+export function fadeGain(
+  clip: Pick<Clip, 'startMs' | 'durationMs' | 'fadeInMs' | 'fadeOutMs'>,
+  tMs: number
+): number {
+  const ramp = (value: number) => Math.min(1, Math.max(0, value))
+  const fadeIn = clip.fadeInMs ?? 0
+  const fadeOut = clip.fadeOutMs ?? 0
+  let gain = 1
+  if (fadeIn > 0) gain = Math.min(gain, ramp((tMs - clip.startMs) / fadeIn))
+  if (fadeOut > 0) gain = Math.min(gain, ramp((clip.startMs + clip.durationMs - tMs) / fadeOut))
+  return gain
 }
 
 // Every source that should sound at tMs: clip sources followed by provider sources.
