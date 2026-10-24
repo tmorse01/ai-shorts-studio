@@ -142,6 +142,27 @@
   background: color-mix(in srgb, var(--color-destructive) 14%, transparent);
 }
 
+/* An empty stretch of the main track. A press selects it; a selected gap shows its menu. */
+.gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.gapSelected {
+  background: color-mix(in srgb, var(--color-focus) 14%, transparent);
+  box-shadow: inset 0 0 0 calc(var(--border-width) * 2) var(--color-focus);
+}
+
+.gapMenu {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .playhead {
   position: absolute;
   top: 0;

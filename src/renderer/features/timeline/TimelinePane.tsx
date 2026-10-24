@@ -6,6 +6,7 @@ import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/timeline'
 import { snapEdge, snapPoints, snapStart } from '@shared/timeline/snap'
+import { mainGaps, type Gap } from '@shared/timeline/gaps'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
@@ -24,6 +25,8 @@ import {
   xToTime
 } from './timelineView'
 import { timelineViewStore } from './timelineViewStore'
+import { closeGapEdit, timelineShortcuts, type TimelineShortcutContext } from './timelineShortcuts'
+import { shortcutRegistry } from '../shortcuts/shortcutRegistry'
 import styles from './TimelinePane.module.css'
 
 export type TimelineEdit = (timeline: Timeline) => Timeline
@@ -102,6 +105,14 @@ interface DragSession {
   moved: boolean
 }
 
+// The selection: some clips, or one gap on the main track. Never both.
+interface Selection {
+  clipIds: string[]
+  gap: Gap | null
+}
+
+const NO_SELECTION: Selection = { clipIds: [], gap: null }
+
 // Timeline pane: a timecode ruler that seeks, fixed lanes with mute and lock, an Add track menu, zoom
 // with Ctrl+wheel and Fit, a playhead that follows playback, and the target band.
 export function TimelinePane({
@@ -120,13 +131,16 @@ export function TimelinePane({
   const playing = usePlaybackStore((state) => state.playing)
   // What the scroll area shows. Only clips in this range are rendered.
   const [viewport, setViewport] = useState({ scrollLeft: 0, width: 0 })
-  // The selected clips. Shift-click adds and removes; a drag moves the whole selection.
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  // What is selected: clips, or one gap on the main track. Shift-click adds and removes clips; a drag
+  // moves the whole clip selection. Selecting a clip clears a gap, and selecting a gap clears clips.
+  const [selection, setSelection] = useState<Selection>(NO_SELECTION)
+  const selectedIds = selection.clipIds
   const [drag, setDrag] = useState<DragPreview | null>(null)
   const [trim, setTrim] = useState<TrimPreview | null>(null)
+  const newTrackId = newId ?? (() => crypto.randomUUID())
   // The latest props for the window listeners of a drag, which are attached once per press.
-  const latest = useRef({ timeline, pxPerMs, snapping, onEdit })
-  latest.current = { timeline, pxPerMs, snapping, onEdit }
+  const latest = useRef({ timeline, pxPerMs, snapping, onEdit, selection, newId: newTrackId })
+  latest.current = { timeline, pxPerMs, snapping, onEdit, selection, newId: newTrackId }
   const releaseDrag = useRef<(() => void) | null>(null)
   useEffect(() => () => releaseDrag.current?.(), [])
 
@@ -138,7 +152,7 @@ export function TimelinePane({
   const band = targetBand(target.minMs, target.maxMs, pxPerMs)
   const ticks = rulerTicks(Math.max(durationMs, target.maxMs, 60_000), pxPerMs)
   const extraTracks = shown.tracks.filter((track) => !FIXED_ROLES.has(track.role))
-  const newTrackId = newId ?? (() => crypto.randomUUID())
+  const gaps = mainGaps(shown)
   const playheadX = timeToX(playheadMs, pxPerMs)
   const laneRange = visibleLaneRange(viewport.scrollLeft, viewport.width, HEADER_PX)
   const offlineIds = new Set(media?.offlineIds ?? [])
@@ -216,17 +230,60 @@ export function TimelinePane({
     onEdit('Add track', (current) => addTrack(current, track))
   }
 
+  function selectClips(update: (ids: string[]) => string[]) {
+    setSelection((current) => ({ clipIds: update(current.clipIds), gap: null }))
+  }
+
+  function selectGap(gap: Gap) {
+    setSelection({ clipIds: [], gap })
+  }
+
+  // Runs an edit as one history entry, unless it changes nothing or is refused. Returns whether it ran.
+  function runEdit(label: string, edit: TimelineEdit): boolean {
+    const current = latest.current.timeline
+    let next: Timeline
+    try {
+      next = edit(current)
+    } catch {
+      return false
+    }
+    if (next === current) return false
+    latest.current.onEdit(label, edit)
+    return true
+  }
+
+  // The shortcuts read the pane through this, so they always see the latest timeline and selection.
+  const readShortcutContext = (): TimelineShortcutContext => ({
+    timeline: latest.current.timeline,
+    selectedIds: latest.current.selection.clipIds,
+    gap: latest.current.selection.gap,
+    playheadMs: playbackStore.getState().playheadMs,
+    newId: latest.current.newId,
+    edit: runEdit,
+    clearSelection: () => setSelection(NO_SELECTION)
+  })
+
+  // Split, Delete and gap shortcuts are live while the pane is mounted.
+  useEffect(() => {
+    const removers = timelineShortcuts(readShortcutContext).map((shortcut) =>
+      shortcutRegistry.register(shortcut)
+    )
+    return () => removers.forEach((remove) => remove())
+    // The context reads only refs and stable setters, so the shortcuts register once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // A press on a clip selects it, or starts a drag of the selection. Shift adds or removes it.
   function pressClip(event: PointerEvent<HTMLDivElement>, clip: Clip, track: Track) {
     if (event.button !== 0) return
     if (event.shiftKey) {
-      setSelectedIds((ids) =>
+      selectClips((ids) =>
         ids.includes(clip.id) ? ids.filter((id) => id !== clip.id) : [...ids, clip.id]
       )
       return
     }
     const inGroup = selectedIds.includes(clip.id)
-    if (!inGroup) setSelectedIds([clip.id])
+    if (!inGroup) selectClips(() => [clip.id])
     if (track.locked) return
 
     // Only clips that move with this one: the same kind, on unlocked tracks.
@@ -291,7 +348,7 @@ export function TimelinePane({
       setDrag(null)
       if (!session.moved) {
         // A click on one clip of a multi-selection selects that clip alone.
-        if (session.pressedWasInGroup) setSelectedIds([session.pressedId])
+        if (session.pressedWasInGroup) selectClips(() => [session.pressedId])
         return
       }
       const { clipIds, targetTrackId, startMs } = session
@@ -322,7 +379,7 @@ export function TimelinePane({
   ) {
     if (event.button !== 0 || track.locked) return
     event.stopPropagation()
-    setSelectedIds([clip.id])
+    selectClips(() => [clip.id])
 
     const startX = event.clientX
     const originMs = edge === 'start' ? clip.startMs : clip.startMs + clip.durationMs
@@ -439,10 +496,52 @@ export function TimelinePane({
           onTrimPointerDown={
             track.locked ? undefined : (edge, event) => pressTrim(event, clip, track, edge)
           }
-          onSelect={() => setSelectedIds([clip.id])}
+          onSelect={() => selectClips(() => [clip.id])}
         />
       )
     })
+  }
+
+  // The gaps on one main track. A gap is selected by a press; a selected gap offers Close gap.
+  function gapElements(trackId: string) {
+    return gaps
+      .filter((gap) => gap.trackId === trackId)
+      .map((gap) => {
+        const selected =
+          selection.gap?.trackId === gap.trackId && selection.gap.startMs === gap.startMs
+        const widthPx = timeToX(gap.endMs - gap.startMs, pxPerMs)
+        return (
+          <div
+            key={`gap-${gap.startMs}`}
+            className={selected ? `${styles.gap} ${styles.gapSelected}` : styles.gap}
+            style={{ left: timeToX(gap.startMs, pxPerMs), width: widthPx }}
+            role="button"
+            aria-label={`Gap of ${formatTimecode(gap.endMs - gap.startMs)} at ${formatTimecode(gap.startMs)}`}
+            aria-pressed={selected}
+            onPointerDown={(event) => {
+              if (event.button === 0) selectGap(gap)
+            }}
+          >
+            {selected ? (
+              <div className={styles.gapMenu}>
+                <DropdownMenu
+                  trigger={<Button variant="ghost">Gap</Button>}
+                  items={[
+                    {
+                      label: 'Close gap',
+                      onSelect: () => {
+                        if (runEdit('Close gap', closeGapEdit(gap))) {
+                          setSelection(NO_SELECTION)
+                        }
+                      }
+                    }
+                  ]}
+                />
+              </div>
+            ) : null}
+          </div>
+        )
+      })
   }
 
   function laneRow(track: Track | undefined, label: string, kind: TrackKind, role: TrackRole) {
@@ -493,6 +592,7 @@ export function TimelinePane({
           data-track-id={track?.id}
         >
           {track ? laneClips(track) : null}
+          {track?.role === 'main' ? gapElements(track.id) : null}
           {track && trim && trimmedClip && trim.trackId === track.id
             ? trimTooltip(trimmedClip, trim.edge)
             : null}

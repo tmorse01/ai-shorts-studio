@@ -352,3 +352,35 @@ export function placeClips(
   )
   return assertMainNoOverlap({ ...timeline, tracks })
 }
+
+// Splits every clip that strictly contains atMs, as one edit (Epic 07, #90). With selectedIds, only the
+// selected clips are split; with none, every clip under atMs on an unlocked track is. Locked tracks are
+// always skipped. newId is called once per split, in track order. Returns the same timeline object when
+// nothing is under atMs, so the caller can tell there was nothing to do.
+export function splitClipsAt(
+  timeline: Timeline,
+  atMs: number,
+  selectedIds: readonly string[],
+  newId: () => string
+): Timeline {
+  const targets: string[] = []
+  for (const track of timeline.tracks) {
+    if (track.locked) continue
+    for (const clip of track.clips) {
+      const selected = selectedIds.length === 0 || selectedIds.includes(clip.id)
+      if (selected && clip.startMs < atMs && atMs < endOf(clip)) targets.push(clip.id)
+    }
+  }
+  return targets.reduce((current, clipId) => splitClip(current, clipId, atMs, newId()), timeline)
+}
+
+// Removes several clips as one edit. A main track is left with a gap where each clip was. Clips on a
+// locked track, and ids that no longer exist, are skipped. Returns the same timeline object when no clip
+// was removed.
+export function deleteClips(timeline: Timeline, clipIds: readonly string[]): Timeline {
+  return [...new Set(clipIds)].reduce((current, clipId) => {
+    const found = timeline.tracks.find((track) => track.clips.some((clip) => clip.id === clipId))
+    if (!found || found.locked) return current
+    return deleteClip(current, clipId)
+  }, timeline)
+}
