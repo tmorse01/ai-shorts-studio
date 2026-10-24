@@ -1,5 +1,5 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type Placement } from '@shared/compositor/frame'
-import type { FrameBackend, FrameBackground } from './frameBackend'
+import type { FrameBackend, FrameBackground, VideoEffect } from './frameBackend'
 
 // Each video layer is a textured quad. The vertex shader places the unit quad at the layer's
 // placement (in canvas pixels), so the transform is applied on the GPU.
@@ -22,13 +22,30 @@ void main() {
 }
 `
 
+// With uBlur set, the frame is averaged over a 9x9 grid of taps spread across uBlur (in UV units).
+// uDim darkens the result. Both are zero for a direct draw, which then reads one texel.
 const FRAGMENT_SHADER = `
 precision mediump float;
 uniform sampler2D uFrame;
+uniform vec2 uBlur;
+uniform float uDim;
 uniform float uOpacity;
 varying vec2 vUv;
 void main() {
-  gl_FragColor = texture2D(uFrame, vUv) * uOpacity;
+  vec4 color;
+  if (uBlur.x > 0.0 || uBlur.y > 0.0) {
+    color = vec4(0.0);
+    for (int i = -4; i <= 4; i++) {
+      for (int j = -4; j <= 4; j++) {
+        vec2 step = vec2(float(i), float(j)) / 4.0;
+        color += texture2D(uFrame, vUv + step * uBlur);
+      }
+    }
+    color /= 81.0;
+  } else {
+    color = texture2D(uFrame, vUv);
+  }
+  gl_FragColor = vec4(color.rgb * (1.0 - uDim), color.a) * uOpacity;
 }
 `
 
@@ -77,7 +94,9 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
   const center = gl.getUniformLocation(program, 'uCenter')
   const size = gl.getUniformLocation(program, 'uSize')
   const rotation = gl.getUniformLocation(program, 'uRotation')
-  const opacity = gl.getUniformLocation(program, 'uOpacity')
+  const blur = gl.getUniformLocation(program, 'uBlur')
+  const dim = gl.getUniformLocation(program, 'uDim')
+  const opacityLocation = gl.getUniformLocation(program, 'uOpacity')
   // Layers blend over each other with premultiplied alpha, so a faded layer shows what is under it.
   gl.enable(gl.BLEND)
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
@@ -106,14 +125,18 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
       gl.clearColor(0, 0, 0, background === 'black' ? 1 : 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
     },
-    drawVideo(video: HTMLVideoElement, placement: Placement, alpha = 1) {
+    drawVideo(video: HTMLVideoElement, placement: Placement, effect?: VideoEffect, opacity = 1) {
       gl.bindTexture(gl.TEXTURE_2D, textureFor(video))
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video)
       const radians = (placement.rotationDeg * Math.PI) / 180
       gl.uniform2f(center, placement.centerX, placement.centerY)
       gl.uniform2f(size, placement.width, placement.height)
       gl.uniform2f(rotation, Math.cos(radians), Math.sin(radians))
-      gl.uniform1f(opacity, alpha)
+      // The blur radius is in canvas pixels, so convert it to UV units across the quad.
+      const blurPx = effect?.blurPx ?? 0
+      gl.uniform2f(blur, blurPx / placement.width, blurPx / placement.height)
+      gl.uniform1f(dim, effect?.dim ?? 0)
+      gl.uniform1f(opacityLocation, opacity)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     },
     dispose() {

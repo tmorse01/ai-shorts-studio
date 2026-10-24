@@ -12,14 +12,24 @@ export interface DialogProps {
   children?: ReactNode
   /** Buttons shown along the bottom edge, usually a cancel and a confirm action. */
   footer?: ReactNode
+  /** A wider panel for editors that need room, such as the script editor. */
+  wide?: boolean
 }
 
-export function Dialog({ open, onOpenChange, title, description, children, footer }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  footer,
+  wide = false
+}: DialogProps) {
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className={styles.overlay} />
-        <RadixDialog.Content className={styles.content}>
+        <RadixDialog.Content className={wide ? `${styles.content} ${styles.wide}` : styles.content}>
           <div className={styles.header}>
             <RadixDialog.Title className={styles.title}>{title}</RadixDialog.Title>
             <RadixDialog.Close asChild>

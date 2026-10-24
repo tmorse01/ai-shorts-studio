@@ -14,10 +14,9 @@ describe('migrateV7ToV8', () => {
     expect(result.shorts).toEqual([{ id: 's1', timeline: { tracks: [] } }])
   })
 
-  it('is the last step and the current version is 8', () => {
-    const last = projectMigrations[projectMigrations.length - 1]
-    expect(last).toMatchObject({ from: 7, to: 8 })
-    expect(CURRENT_SCHEMA_VERSION).toBe(8)
+  it('is registered as the 7 to 8 step, and the current version is at least 8', () => {
+    expect(projectMigrations).toContainEqual(expect.objectContaining({ from: 7, to: 8 }))
+    expect(CURRENT_SCHEMA_VERSION).toBeGreaterThanOrEqual(8)
   })
 
   it('rejects a file that is not an object', () => {

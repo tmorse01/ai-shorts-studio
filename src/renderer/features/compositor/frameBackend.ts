@@ -7,14 +7,27 @@ import { createWebGLBackend } from './webglBackend'
 // What a frame starts from. Black is the fixed value a dip to black needs; it is not a theme colour.
 export type FrameBackground = 'transparent' | 'black'
 
+export interface VideoEffect {
+  // Blur radius in canvas pixels, and darkening from 0 (none) to 1 (black).
+  blurPx: number
+  dim: number
+}
+
 export interface FrameBackend {
   readonly kind: 'webgl' | '2d'
   clear(background?: FrameBackground): void
-  // Draws a video frame at its placement, at an alpha of opacity (0 to 1, default 1). The element must
-  // already hold a decoded frame.
-  drawVideo(video: HTMLVideoElement, placement: Placement, opacity?: number): void
+  // Draws a video frame at its placement. The element must already hold a decoded frame. `effect`
+  // blurs and darkens the frame (the blurFit background); without it the frame is drawn as is.
+  drawVideo(
+    video: HTMLVideoElement,
+    placement: Placement,
+    effect?: VideoEffect,
+    // Alpha from 0 to 1 over what is already drawn. Default 1.
+    opacity?: number
+  ): void
   dispose(): void
 }
+
 export function createFrameBackend(canvas: HTMLCanvasElement): FrameBackend {
   canvas.width = CANVAS_WIDTH
   canvas.height = CANVAS_HEIGHT

@@ -1,10 +1,10 @@
 // The project.json contract, shared by main (storage service) and renderer. Data model from Epic 02
-// (#2). Script `lines` is a permissive placeholder owned by Epic 14. `timeline` comes from Epic 06.
+// (#2). Scripts come from Epic 14 (#14). `timeline` comes from Epic 06.
 import { z } from 'zod'
 import { timelineSchema } from '../timeline/timeline'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 8
+export const CURRENT_SCHEMA_VERSION = 9
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -112,6 +112,8 @@ export const shortSchema = z.object({
   overrides: shortOverridesSchema,
   // Poster frame position in milliseconds. Unset until a poster is chosen.
   posterMs: z.number().int().nonnegative().optional(),
+  // The script this short is written from. Unset until one is attached (schema 8).
+  scriptId: nonEmptyString.optional(),
   exportedAt: isoTimestamp.optional(),
   // Set when an Exported short is edited. Cleared by the next export (Epic 17).
   editedSinceExport: z.boolean(),
@@ -120,11 +122,21 @@ export const shortSchema = z.object({
 })
 export type Short = z.infer<typeof shortSchema>
 
+// One line of a script. `beat` and `footageHints` are optional planning notes for the editor.
+export const scriptLineSchema = z.object({
+  id: nonEmptyString,
+  text: z.string(),
+  beat: z.string().optional(),
+  footageHints: z.array(nonEmptyString).optional()
+})
+export type ScriptLine = z.infer<typeof scriptLineSchema>
+
+// A script stored in the project. Shorts reference one by `scriptId`. Schema 8 changed this shape.
 export const scriptSchema = z.object({
   id: nonEmptyString,
-  name: nonEmptyString,
-  // Placeholder until the script model lands (Epic 14). Each line is kept as-is for now.
-  lines: z.array(z.unknown())
+  title: nonEmptyString,
+  topic: z.string(),
+  lines: z.array(scriptLineSchema)
 })
 export type Script = z.infer<typeof scriptSchema>
 
