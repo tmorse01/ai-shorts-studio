@@ -1,0 +1,92 @@
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.poster {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-void-black);
+  cursor: pointer;
+}
+
+.poster:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.ornament {
+  display: block;
+  width: 40px;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.dot {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  color: var(--color-editorial);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nameInput {
+  min-width: 0;
+}
+
+.meta {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+}
+
+.chip {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+}
+
+.chip[data-status='ready'] {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.menu {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+}
