@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
-import { createRoute, useParams } from '@tanstack/react-router'
+import { createRoute } from '@tanstack/react-router'
+import { EditorShell } from '@renderer/features/layout/EditorShell'
 import { rootRoute } from './rootRoute'
-import { RoutePlaceholder } from './RoutePlaceholder'
 
 export const editorRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -9,13 +9,7 @@ export const editorRoute = createRoute({
   component: EditorPage
 })
 
+// The shell does not read the project or short yet: the project store arrives with epic 02.
 function EditorPage(): JSX.Element {
-  const { projectId, shortId } = useParams({ from: '/project/$projectId/short/$shortId' })
-
-  return (
-    <RoutePlaceholder
-      title="Short editor"
-      description={`Short ${shortId} in project ${projectId}. The editor arrives with epic 03.`}
-    />
-  )
+  return <EditorShell />
 }
