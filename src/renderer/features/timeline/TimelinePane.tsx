@@ -18,6 +18,7 @@ import {
   placeClips,
   removeTransition,
   setClipAudio,
+  setDucking,
   setTrackFlag,
   trimClip,
   addCutTransition,
@@ -380,6 +381,40 @@ export function TimelinePane({
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setAudioTarget(null), [])
 
+  // The music section edits the selected clip when it sits on the Music lane. Ducking and loop to fill
+  // are edits here, so they are undoable like the rest.
+  useEffect(() => {
+    const sound = soundClipFor(timeline, selectedIds)
+    const onMusic = sound
+      ? timeline.tracks.some(
+          (track) => track.role === 'music' && track.clips.some((clip) => clip.id === sound.id)
+        )
+      : false
+    if (!sound || !onMusic) {
+      inspectorStore.getState().setMusicTarget(null)
+      return
+    }
+    const clipId = sound.id
+    const shortEnd = timelineDurationMs(timeline)
+    inspectorStore.getState().setMusicTarget({
+      ducking: duckingFor(timeline),
+      canLoop: sound.startMs + sound.durationMs < shortEnd,
+      applyDucking: (label, change, mergeKey) =>
+        runEdit(label, (current) => setDucking(current, change), mergeKey),
+      loopToFill: () => {
+        const done = runEdit('Loop to fill', (current) =>
+          loopFillClip(current, clipId, timelineDurationMs(current), latest.current.newId)
+        )
+        if (!done) {
+          toast.info({
+            title: 'Cannot loop this clip',
+            description: 'It already reaches the end of the short, or it is too short to repeat.'
+          })
+        }
+      }
+    })
+  }, [timeline, selectedIds, runEdit])
+  useEffect(() => () => inspectorStore.getState().setMusicTarget(null), [])
   // The video clip section edits the one selected video clip and its linked audio. Publish it, or nothing.
   useEffect(() => {
     const selected = videoSelectionFor(timeline, selectedIds)

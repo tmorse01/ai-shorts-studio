@@ -4,6 +4,7 @@
 import { CENTRED_FILL, clipFramingSchema, type ClipFraming } from './framing'
 import type { Clip, Timeline, Track, Transform, Transition, TransitionKind } from './timeline'
 import { loopLayout } from './loopFill'
+import { duckingFor, duckingSchema, type DuckingSettings } from './ducking'
 import {
   clampTransitionMs,
   cutBefore,
@@ -478,6 +479,25 @@ export function setClipAudio(
       clips: track.clips.map((item) => (item.id === clipId ? next : item))
     })
   )
+}
+
+// Changes a short's auto-ducking settings (see ./ducking.ts). Only the fields given change; the rest
+// keep their stored or default values. Values outside the schema's ranges are refused. Returns the same
+// timeline when nothing changes, so no history entry is made.
+export function setDucking(timeline: Timeline, change: Partial<DuckingSettings>): Timeline {
+  const current = duckingFor(timeline)
+  const parsed = duckingSchema.safeParse({ ...current, ...change })
+  if (!parsed.success) throw new TimelineEditError('Ducking settings are out of range.')
+  const next = parsed.data
+  if (
+    timeline.ducking !== undefined &&
+    next.amountDb === current.amountDb &&
+    next.attackMs === current.attackMs &&
+    next.releaseMs === current.releaseMs
+  ) {
+    return timeline
+  }
+  return { ...timeline, ducking: next }
 }
 
 // Turns a track's mute or lock flag on or off. This is the only edit that works on a locked track,

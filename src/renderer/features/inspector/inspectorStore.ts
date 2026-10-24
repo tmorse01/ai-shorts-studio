@@ -3,6 +3,7 @@
 // its state whenever its selection type is shown again.
 import { createStore } from 'zustand'
 import type { ClipAudioChange } from '@shared/timeline/edits'
+import type { DuckingSettings } from '@shared/timeline/ducking'
 import type { ClipFraming } from '@shared/timeline/framing'
 import type { Clip, Timeline } from '@shared/timeline/timeline'
 import { defaultTabFor, type InspectorTab, type SelectionType } from './inspectorModel'
@@ -15,6 +16,17 @@ export interface AudioTarget {
   muted: boolean
   gain: number
   apply: (label: string, change: ClipAudioChange, mergeKey?: string) => void
+}
+
+// The selected clip on the Music lane, for the music section (Epic 12, #125). The timeline pane publishes
+// it. The ducking settings belong to the short, so applyDucking edits the short; each call with the same
+// mergeKey folds into one history entry. loopToFill repeats the clip to the short's length.
+export interface MusicTarget {
+  ducking: DuckingSettings
+  // False when the clip already reaches the end of the short, so there is nothing to loop.
+  canLoop: boolean
+  applyDucking: (label: string, change: Partial<DuckingSettings>, mergeKey?: string) => void
+  loopToFill: () => void
 }
 
 // The one selected video clip, for the video clip section (Epic 08, #96). The timeline pane publishes
@@ -40,6 +52,7 @@ export interface InspectorState {
   tab: InspectorTab
   collapsed: Record<string, boolean>
   audioTarget: AudioTarget | null
+  musicTarget: MusicTarget | null
   videoTarget: VideoClipTarget | null
   framingTarget: FramingTarget | null
 }
@@ -50,6 +63,7 @@ export interface InspectorActions {
   setTab: (tab: InspectorTab) => void
   toggleSection: (sectionId: string) => void
   setAudioTarget: (target: AudioTarget | null) => void
+  setMusicTarget: (target: MusicTarget | null) => void
   setVideoTarget: (target: VideoClipTarget | null) => void
   setFramingTarget: (target: FramingTarget | null) => void
 }
@@ -62,9 +76,11 @@ export function createInspectorStore() {
     tab: defaultTabFor('short'),
     collapsed: {},
     audioTarget: null,
+    musicTarget: null,
     videoTarget: null,
     framingTarget: null,
     setAudioTarget: (audioTarget) => set({ audioTarget }),
+    setMusicTarget: (musicTarget) => set({ musicTarget }),
     setVideoTarget: (videoTarget) => set({ videoTarget }),
     setFramingTarget: (framingTarget) => set({ framingTarget }),
     setSelectionType: (selectionType) => {
