@@ -341,6 +341,22 @@ export const ipcChannels = {
     }),
     output: z.object({ transcript: transcriptSchema.nullable() })
   },
+  // Makes sure each media item has a transcript, transcribing the ones that do not yet. An item whose
+  // transcription fails comes back with a null transcript. Used by caption generation.
+  'captions:transcribe': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      items: z.array(analysisItemSchema).max(500)
+    }),
+    output: z.object({
+      transcripts: z.array(
+        z.object({
+          mediaId: z.string().min(1),
+          transcript: transcriptSchema.nullable()
+        })
+      )
+    })
+  },
   // One media item's vision descriptions, one per described shot. Empty until the vision stage has run
   // for it. The search index reads them to find shots by what is on screen.
   'analysis:vision:read': {
