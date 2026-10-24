@@ -4,6 +4,7 @@ import type { IpcError } from '@shared/ipc'
 import type { RecentProject } from '@shared/project/recentProjects'
 import type { Project } from '@shared/project/schema'
 import { projectStore } from '../project/projectStore'
+import { syncAnalysis } from '../analysis/analysisSync'
 import { toast } from '../toasts/toast'
 
 function reportFailure(title: string, error: IpcError): void {
@@ -21,6 +22,7 @@ async function adoptOpened(
     toast.error({ title: 'Opened from backup', description: warning })
   }
   const adopted = await projectStore.getState().open({ folderPath, project })
+  if (adopted) void syncAnalysis(window.api, folderPath, project.media)
   return adopted ? project.id : null
 }
 

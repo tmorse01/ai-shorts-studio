@@ -104,6 +104,23 @@
   flex: none;
 }
 
+/* The trim readout, pinned under the edge being trimmed. Clicks pass through. */
+.trimTip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* Sits over the lane bodies only, below the ruler (its top is set inline). Clicks pass through. */
 .overlay {
   position: absolute;
@@ -125,10 +142,41 @@
   background: color-mix(in srgb, var(--color-destructive) 14%, transparent);
 }
 
+/* An empty stretch of the main track. A press selects it; a selected gap shows its menu. */
+.gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.gapSelected {
+  background: color-mix(in srgb, var(--color-focus) 14%, transparent);
+  box-shadow: inset 0 0 0 calc(var(--border-width) * 2) var(--color-focus);
+}
+
+.gapMenu {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .playhead {
   position: absolute;
   top: 0;
   bottom: 0;
   width: var(--border-width);
   background: var(--color-primary);
+}
+
+/* The insert indicator a drag shows where the clips would land. Clicks pass through. */
+.dropLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--border-width);
+  background: var(--color-primary);
+  pointer-events: none;
 }

@@ -9,7 +9,8 @@ export function clampToDuration(ms: number, durationMs: number): number {
   return Math.min(Math.max(ms, 0), Math.max(durationMs, 0))
 }
 
-// Moves the playhead by elapsed time at the given rate. Reaching the end stops playback there.
+// Moves the playhead by elapsed time at the given rate. A negative rate (J shuttle) moves backward.
+// Reaching either end stops playback there.
 export function advancePlayhead(
   state: { playheadMs: number; playing: boolean; rate: number },
   elapsedMs: number,
@@ -17,7 +18,8 @@ export function advancePlayhead(
 ): { playheadMs: number; playing: boolean } {
   const next = state.playheadMs + elapsedMs * state.rate
   if (next >= durationMs) return { playheadMs: Math.max(durationMs, 0), playing: false }
-  return { playheadMs: Math.max(next, 0), playing: state.playing }
+  if (next <= 0) return { playheadMs: 0, playing: false }
+  return { playheadMs: next, playing: state.playing }
 }
 
 export function stepFrame(ms: number, direction: 1 | -1, durationMs: number): number {

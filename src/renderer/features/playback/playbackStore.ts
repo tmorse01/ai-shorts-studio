@@ -2,6 +2,7 @@
 // selectors. The clock (usePlaybackClock) moves the playhead while playing.
 import { createStore } from 'zustand'
 import { advancePlayhead, clampToDuration, stepFrame } from './playbackClock'
+import { nextShuttleRate } from '@shared/media/shuttle'
 
 export interface PlaybackState {
   playing: boolean
@@ -14,6 +15,8 @@ export interface PlaybackActions {
   play: () => void
   pause: () => void
   toggle: () => void
+  // J (-1) or L (+1): speeds up while pressed in the same direction, otherwise starts at 1x.
+  shuttle: (direction: 1 | -1) => void
   seek: (ms: number) => void
   step: (direction: 1 | -1) => void
   // Moves the playhead by elapsed time. Stops at the end of the timeline.
@@ -33,14 +36,23 @@ export const playbackStore = createStore<PlaybackStore>()((set, get) => ({
     const { playheadMs, durationMs } = get()
     // Play from the end starts again from the beginning.
     const atEnd = durationMs > 0 && playheadMs >= durationMs
-    set({ playing: true, playheadMs: atEnd ? 0 : playheadMs })
+    set({ playing: true, rate: 1, playheadMs: atEnd ? 0 : playheadMs })
   },
-  pause: () => set({ playing: false }),
+  shuttle: (direction) => {
+    const { playheadMs, durationMs } = get()
+    const rate = nextShuttleRate(get(), direction)
+    // Forward from the end starts again from the beginning, as play does.
+    const atEnd = direction === 1 && durationMs > 0 && playheadMs >= durationMs
+    set({ playing: true, rate, playheadMs: atEnd ? 0 : playheadMs })
+  },
+  // Pausing (K) also returns the rate to 1x, so the next play starts at normal speed.
+  pause: () => set({ playing: false, rate: 1 }),
   toggle: () => (get().playing ? get().pause() : get().play()),
   seek: (ms) => set((state) => ({ playheadMs: clampToDuration(ms, state.durationMs) })),
   step: (direction) =>
     set((state) => ({
       playing: false,
+      rate: 1,
       playheadMs: stepFrame(state.playheadMs, direction, state.durationMs)
     })),
   tick: (elapsedMs) => {

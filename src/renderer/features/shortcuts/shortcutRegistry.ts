@@ -116,6 +116,8 @@ export function formatBinding(binding: string): string {
       if (part === 'mod') return 'Ctrl'
       if (part === 'shift') return 'Shift'
       if (part === 'alt') return 'Alt'
+      if (part === 'delete') return 'Delete'
+      if (part === 'backspace') return 'Backspace'
       return part.length === 1 ? part.toUpperCase() : part
     })
     .join(' + ')

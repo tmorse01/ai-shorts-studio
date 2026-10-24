@@ -1,0 +1,19 @@
+/* The clip fills the canvas above the scrub bar and letterboxes inside it. */
+.stage {
+  position: absolute;
+  top: var(--space-7);
+  right: var(--space-6);
+  bottom: calc(var(--space-7) * 2);
+  left: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.video {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
