@@ -4,10 +4,11 @@
 import type { MediaRef, MediaTag, Project } from '@shared/project/schema'
 import type { Command } from '../history/historyStore'
 
-// Quick tags every project has. They cannot be renamed or deleted.
+// Quick tags every project has. Built-in tags cannot be renamed or deleted; Music marks audio.
 export const BUILT_IN_TAGS: readonly MediaTag[] = [
   { id: 'a-roll', name: 'A-roll' },
-  { id: 'b-roll', name: 'B-roll' }
+  { id: 'b-roll', name: 'B-roll' },
+  { id: 'music', name: 'Music' }
 ]
 
 // Built-in tags first, then custom tags in the order they were made.
