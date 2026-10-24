@@ -113,6 +113,23 @@ export function reorderShortCommand(shortId: string, toIndex: number): Command<P
   }
 }
 
+// Sets the poster frame to a time on the timeline (the editor passes the playhead). The card shows the
+// frame at that time once it is rendered.
+export function setShortPosterCommand(
+  shortId: string,
+  posterMs: number,
+  now: string
+): Command<Project> {
+  return {
+    label: 'Set poster frame',
+    produce: (draft) => {
+      const short = draft.shorts[indexOfShort(draft, shortId)]
+      short.posterMs = Math.max(0, Math.round(posterMs))
+      markEdited(short, now)
+    }
+  }
+}
+
 export function setShortStatusCommand(
   shortId: string,
   status: ManualShortStatus,

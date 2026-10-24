@@ -17,6 +17,8 @@ export interface JobInput {
   mediaKind?: MediaKind
   /** Length of the file in seconds. Filmstrip jobs need it to space their frames. */
   durationSec?: number
+  /** The moment in the file, in seconds, that a poster job grabs its frame from. */
+  sourceTimeSec?: number
 }
 
 export interface JobContext {
@@ -32,6 +34,7 @@ export interface JobResults {
   thumbs: void
   filmstrip: void
   proxy: void
+  poster: void
 }
 
 export type JobExecutors = {
@@ -39,13 +42,20 @@ export type JobExecutors = {
 }
 
 // Lower number runs first. Probing comes before the heavier work so the editor can show clip info.
-export const JOB_PRIORITY: Record<JobKind, number> = { probe: 0, thumbs: 1, filmstrip: 2, proxy: 3 }
+export const JOB_PRIORITY: Record<JobKind, number> = {
+  probe: 0,
+  thumbs: 1,
+  filmstrip: 2,
+  proxy: 3,
+  poster: 1
+}
 
 const JOB_TITLES: Record<JobKind, string> = {
   probe: 'Reading media info',
   thumbs: 'Making thumbnails',
   filmstrip: 'Making the filmstrip',
-  proxy: 'Making a proxy file'
+  proxy: 'Making a proxy file',
+  poster: 'Making a poster frame'
 }
 
 const DEFAULT_CONCURRENCY = 2
@@ -243,6 +253,7 @@ export function unavailableExecutors(): JobExecutors {
     probe: unavailable('probe'),
     thumbs: unavailable('thumbs'),
     filmstrip: unavailable('filmstrip'),
-    proxy: unavailable('proxy')
+    proxy: unavailable('proxy'),
+    poster: unavailable('poster')
   }
 }

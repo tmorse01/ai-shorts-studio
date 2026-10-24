@@ -11,6 +11,8 @@ import { relinkMediaFolder } from '../media/relinkMedia'
 import { statMediaFiles } from '../media/statMedia'
 import { ensureMediaThumbs } from '../media/ensureThumbs'
 import { readThumbDataUrl } from '../media/readThumb'
+import { ensureShortPosters } from '../media/ensurePosters'
+import { readPosterDataUrl } from '../media/posters'
 import { ensureMediaProxies } from '../media/ensureProxies'
 import { MediaSourceRegistry, describeMediaSources } from '../media/mediaSources'
 import type { IpcHandlers } from './dispatch'
@@ -67,6 +69,8 @@ export function createIpcHandlers({
     documentsDir: system.documentsDir ?? unavailable,
     pickMediaFiles: system.pickMediaFiles ?? unavailable
   }
+  // Poster frames queued and not yet settled, so repeated requests do not queue one frame twice.
+  const pendingPosters = new Set<string>()
 
   return {
     'app:echo': ({ text }) => ({ text, length: text.length }),
@@ -141,6 +145,9 @@ export function createIpcHandlers({
     'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs),
     'media:thumb:read': ({ projectFolder, mediaId, file }) =>
       readThumbDataUrl(projectFolder, mediaId, file),
+    'media:posters': ({ projectFolder, items }) =>
+      ensureShortPosters(projectFolder, items, jobs, pendingPosters),
+    'media:poster:read': ({ projectFolder, frame }) => readPosterDataUrl(projectFolder, frame),
     'media:proxy': ({ projectFolder, items }) => ensureMediaProxies(projectFolder, items, jobs),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)

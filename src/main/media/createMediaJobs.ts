@@ -6,6 +6,7 @@ import { resolveBinary, type BinaryLocation } from './binaries'
 import { probeMedia } from './probeMedia'
 import { makeFilmstrip, makeThumb } from './thumbnails'
 import { makeProxy } from './proxies'
+import { makePosterFrame } from './posters'
 import { UserFacingError } from '../errors'
 
 export function createMediaJobs(): JobQueue {
@@ -35,6 +36,15 @@ export function createMediaJobs(): JobQueue {
         ffmpeg: resolveBinary('ffmpeg', location),
         signal,
         onProgress: reportProgress
+      })
+    },
+    poster: ({ path, outPath, sourceTimeSec }, { signal }) => {
+      if (!outPath || sourceTimeSec === undefined) {
+        throw new UserFacingError('The poster job lost its details.')
+      }
+      return makePosterFrame(path, outPath, sourceTimeSec, {
+        ffmpeg: resolveBinary('ffmpeg', location),
+        signal
       })
     },
     filmstrip: ({ path, outDir, durationSec }, { signal }) => {

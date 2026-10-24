@@ -23,6 +23,7 @@ import {
   xToTime
 } from './timelineView'
 import { timelineViewStore } from './timelineViewStore'
+import { SetPosterButton } from '../shorts/SetPosterButton'
 import styles from './TimelinePane.module.css'
 
 export type TimelineEdit = (timeline: Timeline) => Timeline
@@ -271,6 +272,7 @@ export function TimelinePane({
               })
           }))}
         />
+        <SetPosterButton />
         <div className={styles.zoom}>
           <IconButton
             icon={ZoomOut}

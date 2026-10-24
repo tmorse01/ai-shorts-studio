@@ -1,7 +1,7 @@
 // Background media jobs as the renderer sees them. Main owns the queue; the renderer gets snapshots.
 import { z } from 'zod'
 
-export const jobKindSchema = z.enum(['probe', 'thumbs', 'filmstrip', 'proxy'])
+export const jobKindSchema = z.enum(['probe', 'thumbs', 'filmstrip', 'proxy', 'poster'])
 export type JobKind = z.infer<typeof jobKindSchema>
 
 export const jobStatusSchema = z.enum(['queued', 'running', 'done', 'failed', 'cancelled'])
