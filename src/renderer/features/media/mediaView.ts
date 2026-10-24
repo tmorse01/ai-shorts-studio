@@ -113,7 +113,7 @@ export function filterMedia(media: readonly MediaRef[], filter: MediaFilter): Me
   })
 }
 
-// Removes media from the project. The files on disk are left alone.
+// Removes media from the project, with the moments saved from it. The files on disk are left alone.
 export function removeMediaCommand(ids: readonly string[]): Command<Project> {
   return {
     label: ids.length === 1 ? 'Remove 1 file' : `Remove ${ids.length} files`,
@@ -121,6 +121,7 @@ export function removeMediaCommand(ids: readonly string[]): Command<Project> {
       for (let index = draft.media.length - 1; index >= 0; index -= 1) {
         if (ids.includes(draft.media[index]?.id ?? '')) draft.media.splice(index, 1)
       }
+      draft.moments = draft.moments.filter((moment) => !ids.includes(moment.mediaId))
     }
   }
 }

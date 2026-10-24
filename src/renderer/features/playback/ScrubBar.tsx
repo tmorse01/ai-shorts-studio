@@ -1,6 +1,7 @@
 import { useStore } from 'zustand'
 import { markedRange, rangePercent } from '@shared/media/sourceMarks'
 import { MasterVolume } from '../audio/MasterVolume'
+import { SaveMomentControl } from '../moments/SaveMomentControl'
 import { sourceStore } from '../source/sourceStore'
 import { usePlaybackClock } from './usePlaybackClock'
 import { formatTimecode } from './playbackClock'
@@ -49,6 +50,7 @@ export function ScrubBar() {
           {outMs === null ? '--:--:--' : formatTimecode(outMs)}
         </span>
       ) : null}
+      <SaveMomentControl />
       <MasterVolume />
       <span className={styles.timecode}>
         {formatTimecode(playheadMs)} / {formatTimecode(durationMs)}

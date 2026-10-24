@@ -10,6 +10,7 @@ function sampleProject() {
     createdAt: '2026-10-23T09:00:00.000Z',
     updatedAt: '2026-10-23T09:30:00.000Z',
     mediaTags: [],
+    moments: [],
     media: [
       {
         id: 'media_1',

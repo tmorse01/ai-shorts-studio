@@ -5,12 +5,12 @@ import { basename } from 'node:path'
 import { isJobFinished, type JobKind, type JobSnapshot } from '@shared/media/jobs'
 import type { MediaKind } from '@shared/project/schema'
 import type { ProbeResult } from '@shared/media/probe'
-import type { AnalysisStage, StageOutcome } from '@shared/analysis/analysis'
+import type { AnalysisStage, StageResult } from '@shared/analysis/analysis'
 import { UserFacingError } from '../errors'
 
 export interface JobInput {
   path: string
-  /** Folder the job writes its output into. Set for thumbnail and filmstrip jobs. */
+  /** Folder the job writes its output into. Set for thumbnail, filmstrip and analysis (shots) jobs. */
   outDir?: string
   /** The file a proxy job writes. */
   outPath?: string
@@ -38,7 +38,7 @@ export interface JobResults {
   filmstrip: void
   proxy: void
   poster: void
-  analysis: StageOutcome
+  analysis: StageResult
 }
 
 export type JobExecutors = {

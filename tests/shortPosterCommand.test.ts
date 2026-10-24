@@ -52,6 +52,7 @@ function projectWithShort(): Project {
     updatedAt: NOW,
     media: [],
     mediaTags: [],
+    moments: [],
     defaults: DEFAULT_SHORT_DEFAULTS,
     shorts: [short],
     scripts: []

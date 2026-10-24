@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { timelineSchema } from '../timeline/timeline'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 6
+export const CURRENT_SCHEMA_VERSION = 7
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -40,6 +40,27 @@ export const mediaTagSchema = z.object({
   name: nonEmptyString
 })
 export type MediaTag = z.infer<typeof mediaTagSchema>
+
+export const momentCreatorSchema = z.enum(['user', 'ai'])
+export type MomentCreator = z.infer<typeof momentCreatorSchema>
+
+// A named range of one source clip, saved from the source viewer. Times are source milliseconds.
+// `tags` holds tag ids from the same list as media tags (built-in and custom).
+export const momentSchema = z
+  .object({
+    id: nonEmptyString,
+    mediaId: nonEmptyString,
+    name: nonEmptyString,
+    inMs: z.number().int().nonnegative(),
+    outMs: z.number().int().nonnegative(),
+    tags: z.array(nonEmptyString),
+    createdBy: momentCreatorSchema,
+    note: z.string().optional()
+  })
+  .refine((moment) => moment.outMs > moment.inMs, {
+    message: 'outMs must be greater than inMs'
+  })
+export type Moment = z.infer<typeof momentSchema>
 
 export const shortStatusSchema = z.enum(['draft', 'ready', 'exported'])
 export type ShortStatus = z.infer<typeof shortStatusSchema>
@@ -116,6 +137,8 @@ export const projectSchema = z.object({
   media: z.array(mediaRefSchema),
   // Custom media tags, in the order the user created them. Schema 6 added this list.
   mediaTags: z.array(mediaTagSchema),
+  // Saved source ranges, in the order they were made. Schema 7 added this list.
+  moments: z.array(momentSchema),
   defaults: shortDefaultsSchema,
   shorts: z.array(shortSchema),
   scripts: z.array(scriptSchema)

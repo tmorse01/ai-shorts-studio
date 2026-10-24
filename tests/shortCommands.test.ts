@@ -58,6 +58,7 @@ function projectWith(shorts: Short[]): Project {
     updatedAt: '2026-10-23T09:00:00.000Z',
     media: [],
     mediaTags: [],
+    moments: [],
     defaults: { ...DEFAULT_SHORT_DEFAULTS, targetLength: { minSec: 20, maxSec: 45 } },
     shorts,
     scripts: []
