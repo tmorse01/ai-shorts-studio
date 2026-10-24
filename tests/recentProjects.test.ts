@@ -75,6 +75,11 @@ describe('recent projects registry', () => {
       createdAt: t1.toISOString(),
       updatedAt: t1.toISOString(),
       status: 'draft',
+      order: 0,
+      targetLength: { minSec: 30, maxSec: 60 },
+      platform: 'generic',
+      overrides: {},
+      editedSinceExport: false,
       timeline: {}
     }
     await saveProject(folder, { ...opened.project, shorts: [short] })

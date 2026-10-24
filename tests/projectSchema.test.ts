@@ -20,6 +20,11 @@ function sampleProject() {
         kind: 'video'
       }
     ],
+    defaults: {
+      targetLength: { minSec: 30, maxSec: 60 },
+      platform: 'youtube',
+      safeZones: true
+    },
     shorts: [
       {
         id: 'short_1',
@@ -27,6 +32,11 @@ function sampleProject() {
         createdAt: '2026-10-23T09:10:00.000Z',
         updatedAt: '2026-10-23T09:20:00.000Z',
         status: 'draft',
+        order: 0,
+        targetLength: { minSec: 30, maxSec: 60 },
+        platform: 'youtube',
+        overrides: {},
+        editedSinceExport: false,
         timeline: { tracks: [{ kind: 'video' }] }
       }
     ],

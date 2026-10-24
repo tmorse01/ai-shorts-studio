@@ -5,7 +5,12 @@ import { randomUUID } from 'node:crypto'
 import { constants as fsConstants } from 'node:fs'
 import { copyFile, mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { CURRENT_SCHEMA_VERSION, projectSchema, type Project } from '@shared/project/schema'
+import {
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_SHORT_DEFAULTS,
+  projectSchema,
+  type Project
+} from '@shared/project/schema'
 import { loadProjectText, type LoadedProject, type ProjectError } from '@shared/project/loadProject'
 import { UserFacingError } from '../errors'
 import { offlineMediaIds } from '../media/mediaPaths'
@@ -45,6 +50,10 @@ export async function createProject(folderPath: string, name: string): Promise<O
     createdAt: now,
     updatedAt: now,
     media: [],
+    defaults: {
+      ...DEFAULT_SHORT_DEFAULTS,
+      targetLength: { ...DEFAULT_SHORT_DEFAULTS.targetLength }
+    },
     shorts: [],
     scripts: []
   }
