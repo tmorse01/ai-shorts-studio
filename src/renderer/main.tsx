@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { App } from '@renderer/App'
 import { projectStore } from '@renderer/features/project/projectStore'
 import { watchMediaJobs } from '@renderer/features/media/mediaJobToasts'
+import {
+  watchAnalysisRecords,
+  watchPlaybackForAnalysis
+} from '@renderer/features/analysis/analysisSync'
+import { playbackStore } from '@renderer/features/playback/playbackStore'
 import { toast } from '@renderer/features/toasts/toast'
 import './theme/fonts'
 import './theme/tokens.css'
@@ -17,6 +22,9 @@ if (window.api) {
   watchMediaJobs(window.api, (input) => {
     toast.error(input)
   })
+  // Analysis records come from main. Playback pauses analysis while the user is playing.
+  watchAnalysisRecords(window.api)
+  watchPlaybackForAnalysis(window.api, playbackStore)
 }
 
 createRoot(document.getElementById('root') as HTMLElement).render(

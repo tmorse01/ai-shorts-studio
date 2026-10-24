@@ -69,6 +69,30 @@
   pointer-events: none;
 }
 
+/* Trim handles sit on the clip's edges. They show on hover and on a selected clip. */
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--space-2);
+  cursor: ew-resize;
+  opacity: 0;
+  background: var(--color-primary);
+}
+
+.handleStart {
+  left: 0;
+}
+
+.handleEnd {
+  right: 0;
+}
+
+.clip:hover .handle,
+.selected .handle {
+  opacity: 0.8;
+}
+
 .label {
   position: absolute;
   left: var(--space-1);

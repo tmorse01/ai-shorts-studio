@@ -1,0 +1,262 @@
+// Runs each media item's analysis stages in order (transcript, shots, vision) as analysis jobs on the
+// shared job queue. It keeps the per-project records in step with the jobs and pauses while playback
+// runs. Pure rules live in @shared/analysis/analysis; this class only wires them to the queue and disk.
+import {
+  newAnalysisRecord,
+  nextPendingStage,
+  reanalyzedRecord,
+  recoverInterruptedStages,
+  withStageStatus,
+  type AnalysisFile,
+  type AnalysisRecord,
+  type AnalysisStage,
+  type StageOutcome
+} from '@shared/analysis/analysis'
+import { JobCancelledError } from '../jobs/jobQueue'
+import { UserFacingError } from '../errors'
+import { logError } from '../errors/errorLog'
+
+export interface MediaTarget {
+  id: string
+  path: string
+}
+
+// The part of the job queue the service needs. Tests pass a fake; the app passes the real queue.
+export interface AnalysisQueue {
+  enqueue: (
+    kind: 'analysis',
+    path: string,
+    extra: { stage: AnalysisStage }
+  ) => { id: string; done: Promise<StageOutcome> }
+  cancel: (id: string) => boolean
+  setHeld: (kind: 'analysis', held: boolean) => void
+}
+
+export interface AnalysisStorage {
+  load: (projectFolder: string) => Promise<AnalysisFile>
+  save: (projectFolder: string, file: AnalysisFile) => Promise<void>
+}
+
+export interface AnalysisChange {
+  projectFolder: string
+  file: AnalysisFile
+}
+
+export interface AnalysisServiceOptions {
+  queue: AnalysisQueue
+  storage: AnalysisStorage
+  onChange?: (change: AnalysisChange) => void
+}
+
+const STAGE_LABELS: Record<AnalysisStage, string> = {
+  transcript: 'Transcribing',
+  shots: 'Finding shots',
+  vision: 'Describing the footage'
+}
+
+interface Inflight {
+  jobId: string
+  stage: AnalysisStage
+  version: number
+}
+
+function keyOf(projectFolder: string, mediaId: string): string {
+  return JSON.stringify([projectFolder, mediaId])
+}
+
+export class AnalysisService {
+  private readonly state = new Map<string, AnalysisFile>()
+  private readonly writes = new Map<string, Promise<void>>()
+  private readonly inflight = new Map<string, Inflight>()
+  // Media whose stage was interrupted by playback, waiting for playback to stop.
+  private readonly resumable = new Map<string, { projectFolder: string; item: MediaTarget }>()
+  // The media each project last synced. Used to resume after playback.
+  private readonly targets = new Map<string, MediaTarget[]>()
+  private paused = false
+
+  constructor(private readonly options: AnalysisServiceOptions) {}
+
+  /**
+   * Makes sure every media item has a record. Stages left running by an earlier session go back to
+   * pending. When the project has analysis turned on, the pending stages are queued.
+   */
+  async sync(projectFolder: string, media: readonly MediaTarget[]): Promise<AnalysisFile> {
+    const file = await this.ensure(projectFolder)
+    this.targets.set(projectFolder, [...media])
+    const records = { ...file.records }
+    for (const item of media) {
+      const existing = records[item.id]
+      if (!existing) {
+        records[item.id] = newAnalysisRecord(item.id)
+      } else if (!this.inflight.has(keyOf(projectFolder, item.id))) {
+        records[item.id] = recoverInterruptedStages(existing)
+      }
+    }
+    this.commit(projectFolder, { ...file, records })
+    if (this.state.get(projectFolder)?.autoAnalyze) {
+      for (const item of media) this.advance(projectFolder, item)
+    }
+    return this.state.get(projectFolder) ?? file
+  }
+
+  /** Turns the project's "Analyze automatically" toggle on or off. Turning it on queues pending work. */
+  async setAutoAnalyze(
+    projectFolder: string,
+    enabled: boolean,
+    media: readonly MediaTarget[]
+  ): Promise<AnalysisFile> {
+    const file = await this.ensure(projectFolder)
+    this.commit(projectFolder, { ...file, autoAnalyze: enabled })
+    return this.sync(projectFolder, media)
+  }
+
+  /** Starts a media item over from its first stage. Any stage already running is cancelled. */
+  async reanalyze(projectFolder: string, item: MediaTarget): Promise<AnalysisFile> {
+    const file = await this.ensure(projectFolder)
+    const key = keyOf(projectFolder, item.id)
+    const running = this.inflight.get(key)
+    if (running) {
+      this.inflight.delete(key)
+      this.options.queue.cancel(running.jobId)
+    }
+    this.resumable.delete(key)
+    const current = file.records[item.id] ?? newAnalysisRecord(item.id)
+    this.commit(projectFolder, {
+      ...file,
+      records: { ...file.records, [item.id]: reanalyzedRecord(current) }
+    })
+    this.rememberTarget(projectFolder, item)
+    if (this.paused) this.resumable.set(key, { projectFolder, item })
+    else this.advance(projectFolder, item)
+    return this.state.get(projectFolder) ?? file
+  }
+
+  /** Called when playback starts or stops. Playing holds analysis; stopping lets it continue. */
+  setPlaybackActive(active: boolean): void {
+    if (active === this.paused) return
+    this.paused = active
+    this.options.queue.setHeld('analysis', active)
+    if (active) return
+    const waiting = [...this.resumable.values()]
+    this.resumable.clear()
+    for (const { projectFolder, item } of waiting) this.advance(projectFolder, item)
+  }
+
+  private async ensure(projectFolder: string): Promise<AnalysisFile> {
+    const cached = this.state.get(projectFolder)
+    if (cached) return cached
+    const loaded = await this.options.storage.load(projectFolder)
+    // Another call may have loaded the project while this one waited on the disk.
+    const existing = this.state.get(projectFolder)
+    if (existing) return existing
+    this.state.set(projectFolder, loaded)
+    return loaded
+  }
+
+  private rememberTarget(projectFolder: string, item: MediaTarget): void {
+    const list = (this.targets.get(projectFolder) ?? []).filter((target) => target.id !== item.id)
+    this.targets.set(projectFolder, [...list, item])
+  }
+
+  private currentRecord(projectFolder: string, mediaId: string): AnalysisRecord | undefined {
+    return this.state.get(projectFolder)?.records[mediaId]
+  }
+
+  private setRecord(projectFolder: string, record: AnalysisRecord): void {
+    const file = this.state.get(projectFolder)
+    if (!file) return
+    this.commit(projectFolder, { ...file, records: { ...file.records, [record.mediaId]: record } })
+  }
+
+  // Updates the in-memory file, tells the renderer, and writes to disk. Writes run one after another
+  // per project, so the last change is the one left on disk.
+  private commit(projectFolder: string, file: AnalysisFile): void {
+    this.state.set(projectFolder, file)
+    this.options.onChange?.({ projectFolder, file })
+    const previous = this.writes.get(projectFolder) ?? Promise.resolve()
+    const next = previous
+      .then(() => this.options.storage.save(projectFolder, file))
+      .catch((error: unknown) => {
+        logError({
+          occurredAt: new Date().toISOString(),
+          source: 'main',
+          context: 'analysis',
+          summary: `Could not save analysis for ${projectFolder}: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        })
+      })
+    this.writes.set(projectFolder, next)
+  }
+
+  // Queues the next pending stage of one media item, if nothing is already running for it.
+  private advance(projectFolder: string, item: MediaTarget): void {
+    if (this.paused) return
+    const key = keyOf(projectFolder, item.id)
+    if (this.inflight.has(key)) return
+    const record = this.currentRecord(projectFolder, item.id)
+    const stage = record ? nextPendingStage(record) : undefined
+    if (!record || !stage) return
+
+    const job = this.options.queue.enqueue('analysis', item.path, { stage })
+    this.inflight.set(key, { jobId: job.id, stage, version: record.version })
+    this.setRecord(projectFolder, withStageStatus(record, stage, 'running'))
+    job.done.then(
+      (outcome) => this.onStageDone(projectFolder, item, job.id, outcome),
+      (error: unknown) => this.onStageFailed(projectFolder, item, job.id, error)
+    )
+  }
+
+  // Takes the job out of the in-flight map. Returns undefined when the job was already replaced (for
+  // example by a re-analyze), so its late result is ignored.
+  private claim(projectFolder: string, item: MediaTarget, jobId: string): Inflight | undefined {
+    const key = keyOf(projectFolder, item.id)
+    const current = this.inflight.get(key)
+    if (!current || current.jobId !== jobId) return undefined
+    this.inflight.delete(key)
+    return current
+  }
+
+  private onStageDone(
+    projectFolder: string,
+    item: MediaTarget,
+    jobId: string,
+    outcome: StageOutcome
+  ): void {
+    const claimed = this.claim(projectFolder, item, jobId)
+    if (!claimed) return
+    const record = this.currentRecord(projectFolder, item.id)
+    if (!record || record.version !== claimed.version) return
+    this.setRecord(projectFolder, withStageStatus(record, claimed.stage, outcome))
+    this.advance(projectFolder, item)
+  }
+
+  private onStageFailed(
+    projectFolder: string,
+    item: MediaTarget,
+    jobId: string,
+    error: unknown
+  ): void {
+    const claimed = this.claim(projectFolder, item, jobId)
+    if (!claimed) return
+    const record = this.currentRecord(projectFolder, item.id)
+    if (!record || record.version !== claimed.version) return
+
+    if (error instanceof JobCancelledError) {
+      // Cancelled by playback: the stage goes back to pending and runs again when playback stops.
+      this.setRecord(projectFolder, withStageStatus(record, claimed.stage, 'pending'))
+      this.resumable.set(keyOf(projectFolder, item.id), { projectFolder, item })
+      if (!this.paused) this.advance(projectFolder, item)
+      return
+    }
+
+    const failure =
+      error instanceof UserFacingError
+        ? { message: error.message, details: error.details }
+        : {
+            message: `${STAGE_LABELS[claimed.stage]} failed.`,
+            details: error instanceof Error ? error.message : String(error)
+          }
+    this.setRecord(projectFolder, withStageStatus(record, claimed.stage, 'failed', failure))
+  }
+}

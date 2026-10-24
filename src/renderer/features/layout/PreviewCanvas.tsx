@@ -1,4 +1,5 @@
 import { useEffect, useRef, type JSX } from 'react'
+import { useStore } from 'zustand'
 import { hasClips } from '@shared/compositor/frame'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { Timeline } from '@shared/timeline/timeline'
@@ -11,6 +12,9 @@ import { usePlaybackStore } from '../playback/usePlaybackStore'
 import { EMPTY_TIMELINE } from '../preview/previewFrame'
 import { useMediaSourceSync } from '../preview/useMediaSourceSync'
 import { useVideoPreview } from '../preview/useVideoPreview'
+import { SourceViewer } from '../source/SourceViewer'
+import { ViewModeToggle } from '../source/ViewModeToggle'
+import { sourceStore } from '../source/sourceStore'
 import { EmptyState } from './EmptyState'
 import styles from './PreviewCanvas.module.css'
 
@@ -21,33 +25,46 @@ export interface PreviewCanvasProps {
 }
 
 // The centre of the editor: a near-black canvas holding a 9:16 frame, with the scrub bar along the
-// bottom edge. The frame is drawn by the compositor from the short's timeline. A short with no clips
-// shows an empty state, and offline footage shows a placeholder. A layer is selected and moved on the
-// frame when the short is paused.
+// bottom edge. In Short view the frame is drawn by the compositor from the short's timeline; a short
+// with no clips shows an empty state, and offline footage shows a placeholder. In Source view the
+// clip being viewed replaces the frame, and the timeline stays silent and idle. A layer is selected
+// and moved on the frame when the short is paused.
 export function PreviewCanvas({
   timeline = EMPTY_TIMELINE,
   shortId
 }: PreviewCanvasProps): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
+  const mode = useStore(sourceStore, (state) => state.mode)
+  const inShort = mode === 'short'
+  const shortTimeline = inShort ? timeline : EMPTY_TIMELINE
   useMediaSourceSync()
-  const { offline, droppedFrames } = useVideoPreview(canvasRef, timeline)
-  useAudioPreview(timeline)
+  const { offline, droppedFrames } = useVideoPreview(canvasRef, shortTimeline)
+  useAudioPreview(shortTimeline, inShort)
   const playing = usePlaybackStore((state) => state.playing)
-  const { guides, handlers } = useCanvasGizmo({ shortId, timeline, frameRef })
+  const { guides, handlers } = useCanvasGizmo({
+    shortId: inShort ? shortId : undefined,
+    timeline: shortTimeline,
+    frameRef
+  })
 
+  // The playback length follows the short's timeline in Short view only; a source clip sets its own.
   useEffect(() => {
-    playbackStore.getState().setDurationMs(timelineDurationMs(timeline))
-  }, [timeline])
+    if (inShort) playbackStore.getState().setDurationMs(timelineDurationMs(timeline))
+  }, [timeline, inShort])
 
   return (
     <section className={styles.canvas} aria-label="Preview">
+      <div className={styles.toggle}>
+        <ViewModeToggle />
+      </div>
       <div
         ref={frameRef}
         className={styles.frame}
         role="img"
         aria-label="9:16 preview frame"
         tabIndex={0}
+        hidden={!inShort}
         {...handlers}
       >
         <span className={styles.mark} aria-hidden="true" />
@@ -55,8 +72,8 @@ export function PreviewCanvas({
           9:16
         </span>
         <canvas ref={canvasRef} className={styles.video} aria-hidden="true" />
-        {!playing ? <CanvasGizmo guides={guides} /> : null}
-        {!hasClips(timeline) ? (
+        {inShort && !playing ? <CanvasGizmo guides={guides} /> : null}
+        {inShort && !hasClips(timeline) ? (
           <div className={styles.overlay}>
             <EmptyState
               title="No clips yet"
@@ -64,18 +81,19 @@ export function PreviewCanvas({
             />
           </div>
         ) : null}
-        {offline ? (
+        {inShort && offline ? (
           <div className={styles.offline} role="status">
             <span className={styles.offlineTitle}>Media offline</span>
             <span className={styles.offlineHint}>Relink this footage to preview it.</span>
           </div>
         ) : null}
-        {import.meta.env.DEV ? (
+        {import.meta.env.DEV && inShort ? (
           <span className={styles.dropped} aria-hidden="true">
             Dropped {droppedFrames}
           </span>
         ) : null}
       </div>
+      {inShort ? null : <SourceViewer />}
       <div className={styles.scrub}>
         <ScrubBar />
       </div>

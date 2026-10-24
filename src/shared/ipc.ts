@@ -9,6 +9,12 @@ import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
+import { analysisFileSchema } from './analysis/analysis'
+
+const analysisItemSchema = z.object({
+  id: z.string().min(1),
+  path: z.string().trim().min(1)
+})
 import { THUMB_READ_FILES } from './media/thumbs'
 import { mediaSourceInfoSchema, mediaSourceRefSchema } from './media/mediaSources'
 
@@ -248,6 +254,37 @@ export const ipcChannels = {
       files: z.array(importCandidateSchema),
       missing: z.array(z.string())
     })
+  },
+  // Makes sure every media item in the project has an analysis record, and queues pending stages when
+  // the project analyzes automatically. Stages a restart interrupted go back to pending.
+  'analysis:sync': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      items: z.array(analysisItemSchema).max(2000)
+    }),
+    output: z.object({ file: analysisFileSchema })
+  },
+  // Turns the project's "Analyze automatically" toggle on or off.
+  'analysis:setAuto': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      enabled: z.boolean(),
+      items: z.array(analysisItemSchema).max(2000)
+    }),
+    output: z.object({ file: analysisFileSchema })
+  },
+  // Starts one media item over from its first analysis stage.
+  'analysis:reanalyze': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      item: analysisItemSchema
+    }),
+    output: z.object({ file: analysisFileSchema })
+  },
+  // Tells main that playback started or stopped. Analysis pauses while playback runs.
+  'analysis:playback': {
+    input: z.object({ playing: z.boolean() }),
+    output: z.object({ playing: z.boolean() })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 
@@ -266,7 +303,11 @@ export type IpcOutput<C extends IpcChannelName> = z.output<(typeof ipcChannels)[
 export const ipcEvents = {
   'app:error': { payload: appErrorSchema },
   // Sent whenever a media job changes status or progress.
-  'media:job:changed': { payload: jobSnapshotSchema }
+  'media:job:changed': { payload: jobSnapshotSchema },
+  // Sent whenever a project's analysis records change.
+  'analysis:changed': {
+    payload: z.object({ projectFolder: z.string().min(1), file: analysisFileSchema })
+  }
 } satisfies Record<string, { payload: z.ZodType }>
 
 export type IpcEventName = keyof typeof ipcEvents

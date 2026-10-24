@@ -53,6 +53,14 @@
   font-feature-settings: var(--font-mono-features);
 }
 
+/* The view toggle sits in the top corner, clear of the frame. */
+.toggle {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1;
+}
+
 /* The scrub bar sits in the margin below the frame, so the frame keeps its size. */
 .scrub {
   position: absolute;
