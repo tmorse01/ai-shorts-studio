@@ -2,6 +2,7 @@
 // input is never mutated. The renderer wraps these as undoable commands. Every edit ends with the
 // Main-track check, so a Main track never overlaps after any edit.
 import type { Clip, Timeline, Track, Transform, Transition } from './timeline'
+import { loopLayout } from './loopFill'
 
 export class TimelineEditError extends Error {
   constructor(message: string) {
@@ -402,4 +403,28 @@ export function deleteClips(timeline: Timeline, clipIds: readonly string[]): Tim
     if (!found || found.locked) return current
     return deleteClip(current, clipId)
   }, timeline)
+}
+
+// The most copies one loop may add. A clip much shorter than the short would otherwise add thousands.
+export const MAX_LOOP_COPIES = 200
+
+// Repeats a music clip on its own lane until untilMs, with a crossfade at each loop point, as one
+// edit. Copies go after the original on the same track. Returns the same timeline when the clip
+// already reaches untilMs. Only the Music lane takes loops.
+export function loopFillClip(
+  timeline: Timeline,
+  clipId: string,
+  untilMs: number,
+  newId: () => string
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  if (track.role !== 'music') throw new TimelineEditError('Loop to fill works on the Music lane.')
+  if (!Number.isInteger(untilMs)) throw new TimelineEditError('A loop needs a whole length.')
+  if (untilMs <= endOf(clip)) return timeline
+  if ((untilMs - clip.startMs) / clip.durationMs > MAX_LOOP_COPIES) {
+    throw new TimelineEditError('The clip would repeat too many times to fill this length.')
+  }
+  const { copies, transitions } = loopLayout(clip, untilMs, newId)
+  const next = replaceTrack(timeline, { ...track, clips: [...track.clips, ...copies] })
+  return { ...next, transitions: [...(timeline.transitions ?? []), ...transitions] }
 }
