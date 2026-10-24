@@ -1,0 +1,22 @@
+/* Global reset and base styles. Colours and type come from tokens.css. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  -webkit-font-smoothing: antialiased;
+}

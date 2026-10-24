@@ -1,0 +1,80 @@
+/*
+ * Design tokens. Source: docs/rebuild/DESIGN.md (sections 2, 3, 5 and 9).
+ * Components read these variables. Do not hard-code colours, sizes or durations elsewhere.
+ */
+:root {
+  /* Palette (DESIGN.md §2) */
+  --color-galactic-black: #0b0d0c;
+  --color-void-black: #050606;
+  --color-haunted-charcoal: #1c211e;
+  --color-undead-sage: #c4dca5;
+  --color-spectral-lavender: #cbb6e8;
+  --color-galactic-white: #f5f5f0;
+  --color-aged-ivory: #f0e8d5;
+  --color-muted-moss: #728d71;
+  --color-occult-mauve: #8c719f;
+  --color-subtle-border: #343b36;
+  --color-muted-red: #c4746d;
+
+  /* Semantic roles */
+  --color-bg: var(--color-galactic-black);
+  --color-canvas: var(--color-void-black);
+  --color-surface: var(--color-haunted-charcoal);
+  --color-border: var(--color-subtle-border);
+  --color-text: var(--color-galactic-white);
+  --color-text-2: #a8b0aa;
+  --color-primary: var(--color-undead-sage);
+  --color-primary-hover: #d6e8bc;
+  --color-ai: var(--color-spectral-lavender);
+  --color-on-primary: var(--color-galactic-black);
+  --color-on-ai: var(--color-galactic-black);
+  --color-destructive: var(--color-muted-red);
+  --color-on-destructive: var(--color-galactic-black);
+  --color-focus: var(--color-undead-sage);
+  --color-success: var(--color-muted-moss);
+  --color-ai-secondary: var(--color-occult-mauve);
+  --color-editorial: var(--color-aged-ivory);
+
+  /* Fonts (DESIGN.md §3). Bundled locally through src/renderer/theme/fonts.ts. */
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-heading: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-ui: 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --font-mono-features: 'tnum' 1, 'zero' 1;
+
+  /* Type scale: one size, line height and tracking per tier */
+  --type-display-size: 40px;
+  --type-display-line: 48px;
+  --type-display-tracking: 0;
+  --type-heading-size: 13px;
+  --type-heading-line: 18px;
+  --type-heading-tracking: 0.08em;
+  --type-ui-size: 13px;
+  --type-ui-line: 18px;
+  --type-ui-tracking: 0;
+  --type-small-size: 11px;
+  --type-small-line: 16px;
+  --type-small-tracking: 0.02em;
+  --type-mono-size: 12px;
+  --type-mono-line: 16px;
+  --type-mono-tracking: 0;
+
+  /* Spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* Shape and elevation */
+  --radius: 4px;
+  --border-width: 1px;
+
+  /* Motion (DESIGN.md §9) */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 250ms;
+  --ease-standard: cubic-bezier(0.2, 0.7, 0.2, 1);
+}

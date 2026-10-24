@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { APP_NAME } from '@shared/app'
+import { APP_BACKGROUND } from '@shared/theme'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -9,6 +10,7 @@ function createWindow(): void {
     minWidth: 1280,
     minHeight: 720,
     title: APP_NAME,
+    backgroundColor: APP_BACKGROUND,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
