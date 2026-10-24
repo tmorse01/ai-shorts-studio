@@ -18,26 +18,24 @@ Manual selection (Set in / Set out / Add manual short) works without any API key
 
 ```bash
 pnpm install
-pnpm fetch:bin      # copies FFmpeg from PATH, builds parakeet-cli (whisper.cpp v1.9.5, CPU) and downloads the Parakeet model (SHA-256 verified). Needs git and CMake with Visual Studio C++ tools.
 pnpm dev            # run the app with hot reload
 ```
 
-Set `FFMPEG_DIR` if FFmpeg is not on PATH. Your Anthropic API key is entered in the app's Settings and
-stored with Windows DPAPI via Electron `safeStorage`. It is never written to disk in plain text.
+The `rebuild` branch is a ground-up rebuild in progress. The current code is a minimal scaffold: a window
+that shows a placeholder. The FFmpeg and Parakeet features from the previous version are not yet ported.
 
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` | Lint, strict TypeScript, Vitest (unit + real FFmpeg + real Parakeet) |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint, strict TypeScript, Vitest |
 | `pnpm build` | Compile main, preload and renderer with electron-vite |
 | `pnpm package:win` | Build the NSIS installer into `release/` |
-| `pnpm e2e` | Drive the real Electron app over DevTools: import, export, AI error path, cancel, relaunch, crash recovery |
 
 ## Website and releases
 
 - `site/` is the public Astro marketing site. See [site/README.md](site/README.md).
-- `.github/workflows/ci.yml` runs lint, typecheck and tests on Windows, and builds the site, on every push and PR.
+- `.github/workflows/ci.yml` runs lint, typecheck, tests and build on Windows, and builds the site, on pushes and PRs to `rebuild` and `main`.
 - The site deploys to Netlify from GitHub on every push to `main` that touches `site/`. Netlify's GitHub
   integration does the build, using `site/netlify.toml`. Pull requests get preview deploys. No repo secrets are needed.
 - `.github/workflows/release.yml` builds the installer on a `v*` tag and attaches it, with a SHA-256 checksum, to a GitHub Release.
