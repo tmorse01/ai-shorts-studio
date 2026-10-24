@@ -22,7 +22,7 @@ const short: Short = {
   platform: 'tiktok',
   overrides: { safeZones: false },
   editedSinceExport: false,
-  timeline: {}
+  timeline: { tracks: [] }
 }
 
 function projectWithShort(): Project {
