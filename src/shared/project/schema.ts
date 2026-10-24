@@ -25,7 +25,9 @@ export const mediaRefSchema = z.object({
   sizeBytes: z.number().int().nonnegative(),
   // Not an integer: durations can be fractional (for example 61.25 seconds in ms).
   durationMs: z.number().nonnegative().optional(),
-  kind: mediaKindSchema
+  kind: mediaKindSchema,
+  // Set by the user's "Use proxy" toggle. Playback reads the proxy only when this is true and it is ready.
+  useProxy: z.boolean().optional()
 })
 export type MediaRef = z.infer<typeof mediaRefSchema>
 

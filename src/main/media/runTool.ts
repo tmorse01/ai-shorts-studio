@@ -6,7 +6,9 @@ import { UserFacingError } from '../errors'
 export function runTool(
   bin: string,
   args: readonly string[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  // Sees each stdout chunk as it arrives, for long jobs that report progress there.
+  onStdout?: (chunk: string) => void
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { windowsHide: true, shell: false, signal })
@@ -14,7 +16,10 @@ export function runTool(
     let stderr = ''
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
-    child.stdout.on('data', (chunk: string) => (stdout += chunk))
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+      onStdout?.(chunk)
+    })
     child.stderr.on('data', (chunk: string) => (stderr += chunk))
     // Also fires when the signal aborts; the queue checks the signal to tell cancel from failure.
     child.on('error', reject)

@@ -32,20 +32,35 @@ async function requestThumbs(folderPath: string, items: ThumbInput[]): Promise<v
 
 // Probes an imported file, records its duration, then queues its thumbnails. A failed probe already
 // shows a toast from the job watcher, so a failure here only leaves the ref pending.
-async function probeImported(
-  mediaId: string,
-  path: string,
-  kind: MediaRef['kind'],
-  folderPath: string
-): Promise<void> {
-  const result = await window.api.invoke('media:probe', { path })
+async function probeImported(ref: MediaRef, folderPath: string): Promise<void> {
+  const result = await window.api.invoke('media:probe', { path: ref.path })
   if (!result.ok) return
-  const durationSec = result.data.durationSec
+  const { durationSec, video } = result.data
   projectStore.getState().edit((draft) => {
-    const ref = draft.media.find((media) => media.id === mediaId)
-    if (ref) ref.durationMs = Math.round(durationSec * 1000)
+    const stored = draft.media.find((media) => media.id === ref.id)
+    if (stored) stored.durationMs = Math.round(durationSec * 1000)
   })
-  await requestThumbs(folderPath, [{ id: mediaId, path, kind, durationSec }])
+  await requestThumbs(folderPath, [{ id: ref.id, path: ref.path, kind: ref.kind, durationSec }])
+  const proxies = await window.api.invoke('media:proxy', {
+    projectFolder: folderPath,
+    items: [
+      {
+        id: ref.id,
+        path: ref.path,
+        kind: ref.kind,
+        sizeBytes: ref.sizeBytes,
+        durationSec,
+        video: video ?? undefined
+      }
+    ]
+  })
+  if (!proxies.ok) {
+    toast.error({
+      title: 'Could not make a proxy',
+      description: proxies.error.message,
+      details: proxies.error.details
+    })
+  }
 }
 
 export async function importMediaPaths(paths: readonly string[]): Promise<void> {
@@ -109,7 +124,7 @@ export async function importMediaPaths(paths: readonly string[]): Promise<void> 
     if (ref.kind === 'image') {
       void requestThumbs(opened.folderPath, [{ id: ref.id, path: ref.path, kind: ref.kind }])
     } else {
-      void probeImported(ref.id, ref.path, ref.kind, opened.folderPath)
+      void probeImported(ref, opened.folderPath)
     }
   }
 }

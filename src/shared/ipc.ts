@@ -196,6 +196,30 @@ export const ipcChannels = {
       waiting: z.number().int().nonnegative()
     })
   },
+  // Queues a 720p proxy for each video that needs one and has no file on disk. Items that do not
+  // need one are skipped; the renderer sends the probe's video info so main can decide.
+  'media:proxy': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      items: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            path: z.string().min(1),
+            kind: mediaKindSchema,
+            sizeBytes: z.number().int().nonnegative(),
+            durationSec: z.number().positive().optional(),
+            video: z.object({ width: z.number(), height: z.number(), codec: z.string() }).optional()
+          })
+        )
+        .max(500)
+    }),
+    output: z.object({
+      queued: z.number().int().nonnegative(),
+      cached: z.number().int().nonnegative(),
+      skipped: z.number().int().nonnegative()
+    })
+  },
   // Reads the name and size of each path. Paths that are not files come back in missing.
   'media:stat': {
     input: z.object({ paths: z.array(z.string().trim().min(1)).min(1).max(500) }),

@@ -11,6 +11,8 @@ export interface JobInput {
   path: string
   /** Folder the job writes its output into. Set for thumbnail and filmstrip jobs. */
   outDir?: string
+  /** The file a proxy job writes. */
+  outPath?: string
   /** What kind of media the file is. Thumbnail jobs pick their output from it. */
   mediaKind?: MediaKind
   /** Length of the file in seconds. Filmstrip jobs need it to space their frames. */
