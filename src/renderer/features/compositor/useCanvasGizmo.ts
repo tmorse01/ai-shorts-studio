@@ -17,14 +17,55 @@ import {
   type Guides,
   type NudgeDirection
 } from '@shared/compositor/gizmo'
+import { CANVAS_HEIGHT, CANVAS_WIDTH, type FrameLayer } from '@shared/compositor/frame'
+import { CENTRED_FILL, framingAfterGesture, type ClipFraming } from '@shared/timeline/framing'
 import { playbackStore } from '../playback/playbackStore'
 import { layerFrameStore } from './layerFrameStore'
 import { layerRegistry } from './layerRenderers'
 import { layerSelectionStore } from './layerSelectionStore'
-import { applyTransformEdit } from './layerTransformCommands'
+import { rememberFraming } from './framingMemory'
+import {
+  applyFramingEdit,
+  applyTransformEdit,
+  GESTURE_MERGE_WINDOW_MS
+} from './layerTransformCommands'
 
 // How far from a corner handle a press still counts as grabbing it, in screen pixels.
 const HANDLE_RADIUS_PX = 12
+
+// A fill-framed video layer is edited through its framing: the gizmo moves the crop and zooms it,
+// instead of moving the layer's transform.
+interface FramedEdit {
+  mediaId: string
+  startFraming: ClipFraming
+  source: { width: number; height: number }
+}
+
+// The framing edit for a layer, when the gizmo edits its framing. Blur-fit clips keep the transform.
+function framedEditFor(layer: FrameLayer, clip: Clip): FramedEdit | null {
+  if (layer.trackKind !== 'video' || !layer.source || !clip.mediaId) return null
+  const startFraming = clip.framing ?? { ...CENTRED_FILL }
+  if (startFraming.mode !== 'fill') return null
+  return { mediaId: clip.mediaId, startFraming, source: layer.source }
+}
+
+function applyFramedGesture(
+  shortId: string,
+  clipId: string,
+  label: string,
+  mergeKey: string,
+  framed: FramedEdit,
+  gesture: { dxCanvas: number; dyCanvas: number; scaleFactor: number },
+  mergeWindowMs?: number
+): void {
+  const pose = framingAfterGesture(framed.startFraming, gesture, framed.source, {
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT
+  })
+  const next: ClipFraming = { ...framed.startFraming, ...pose }
+  applyFramingEdit(shortId, clipId, label, mergeKey, () => next, mergeWindowMs)
+  rememberFraming(framed.mediaId, next)
+}
 
 const ARROW_DIRECTIONS: Record<string, NudgeDirection> = {
   ArrowLeft: 'left',
@@ -39,6 +80,7 @@ interface ActiveDrag {
   shortId: string
   label: string
   mergeKey: string
+  framed: FramedEdit | null
 }
 
 export interface UseCanvasGizmoOptions {
@@ -127,7 +169,8 @@ export function useCanvasGizmo({
       clipId: target.clipId,
       shortId,
       label: hit.kind === 'move' ? 'Move layer' : 'Scale layer',
-      mergeKey: `gizmo:${target.clipId}:${dragCount.current}`
+      mergeKey: `gizmo:${target.clipId}:${dragCount.current}`,
+      framed: framedEditFor(target, found.clip)
     }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
@@ -141,7 +184,32 @@ export function useCanvasGizmo({
     const result = dragTransform(active.session, point, event.shiftKey)
     setGuides(result.guides)
     const next = result.transform
-    applyTransformEdit(active.shortId, active.clipId, active.label, active.mergeKey, () => next)
+    if (active.framed) {
+      // The transform gives the drag's offset and scale ratio; the framing takes them from its start.
+      const start = active.session.start
+      applyFramedGesture(
+        active.shortId,
+        active.clipId,
+        active.label,
+        active.mergeKey,
+        active.framed,
+        {
+          dxCanvas: next.x - start.x,
+          dyCanvas: next.y - start.y,
+          scaleFactor: next.scale / start.scale
+        },
+        GESTURE_MERGE_WINDOW_MS
+      )
+      return
+    }
+    applyTransformEdit(
+      active.shortId,
+      active.clipId,
+      active.label,
+      active.mergeKey,
+      () => next,
+      GESTURE_MERGE_WINDOW_MS
+    )
   }
 
   const endDrag = (event: PointerEvent<HTMLDivElement>) => {
@@ -171,9 +239,26 @@ export function useCanvasGizmo({
     if (!found || found.track.locked) return
 
     const offset = nudgeOffset(direction, event.shiftKey)
-    applyTransformEdit(shortId, selectedId, 'Nudge layer', `nudge:${selectedId}`, (current) =>
-      moveTransform(current, offset.x, offset.y)
-    )
+    const layer = transformableLayers().find((item) => item.clipId === selectedId)
+    const framed = layer ? framedEditFor(layer, found.clip) : null
+    if (framed) {
+      // Read the framing as it is stored now, so quick repeated presses each move from the last one.
+      applyFramingEdit(shortId, selectedId, 'Nudge layer', `nudge:${selectedId}`, (current) => {
+        const pose = framingAfterGesture(
+          current,
+          { dxCanvas: offset.x, dyCanvas: offset.y, scaleFactor: 1 },
+          framed.source,
+          { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }
+        )
+        const next = { ...current, ...pose }
+        rememberFraming(framed.mediaId, next)
+        return next
+      })
+    } else {
+      applyTransformEdit(shortId, selectedId, 'Nudge layer', `nudge:${selectedId}`, (current) =>
+        moveTransform(current, offset.x, offset.y)
+      )
+    }
     // The arrows nudge the layer, so they do not also step the playhead.
     event.preventDefault()
     event.stopPropagation()
