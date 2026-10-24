@@ -1,4 +1,5 @@
-import { useRef, type JSX } from 'react'
+import { useRef, useState, type JSX } from 'react'
+import type { LineRewriteAction } from '@shared/ai/lineRewrite'
 import type { Script, Short } from '@shared/project/schema'
 import { X } from 'lucide-react'
 import { Button } from '@renderer/ui/Button'
@@ -14,8 +15,10 @@ import {
   createShortFromScriptCommand,
   editScriptLineCommand,
   moveScriptLineCommand,
-  removeScriptLineCommand
+  removeScriptLineCommand,
+  rewriteScriptLineCommand
 } from './scriptCommands'
+import { rewriteLine } from './scriptDrafts'
 import { ScriptLineRow } from './ScriptLineRow'
 import { estimatedReadSeconds, formatReadTime, scriptWordCount } from './scriptStats'
 import styles from './ScriptEditor.module.css'
@@ -47,9 +50,20 @@ export function ScriptEditor({ scriptId, onOpenChange }: ScriptEditorProps): JSX
   )
 }
 
+// How many neighbouring lines on each side go to the rewrite as context.
+const CONTEXT_LINES = 3
+
+interface Suggestion {
+  lineId: string
+  action: LineRewriteAction
+  text: string
+}
+
 function ScriptEditorBody({ script }: { script: Script }): JSX.Element {
   const shorts = useProjectStore((state) => state.current?.project.shorts ?? NO_SHORTS)
   const draggedIdRef = useRef<string | null>(null)
+  const [rewritingLineId, setRewritingLineId] = useState<string | null>(null)
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
   const now = () => new Date().toISOString()
 
   const words = scriptWordCount(script)
@@ -79,6 +93,35 @@ function ScriptEditorBody({ script }: { script: Script }): JSX.Element {
     moveLine(fromId, targetIndex)
   }
 
+  // Asks for a rewrite of one line and shows it as a suggestion. Nothing changes until Accept.
+  async function rewrite(lineId: string, action: LineRewriteAction) {
+    const index = script.lines.findIndex((line) => line.id === lineId)
+    if (index === -1 || rewritingLineId !== null) return
+    setSuggestion(null)
+    setRewritingLineId(lineId)
+    const text = await rewriteLine(window.api, {
+      action,
+      text: script.lines[index].text,
+      scriptTitle: script.title,
+      before: script.lines
+        .slice(Math.max(0, index - CONTEXT_LINES), index)
+        .map((line) => line.text),
+      after: script.lines.slice(index + 1, index + 1 + CONTEXT_LINES).map((line) => line.text)
+    })
+    setRewritingLineId(null)
+    if (text !== null) setSuggestion({ lineId, action, text })
+  }
+
+  function acceptSuggestion() {
+    if (!suggestion) return
+    applyProjectCommand(rewriteScriptLineCommand(script.id, suggestion.lineId, suggestion.text))
+    setSuggestion(null)
+    toast.info({
+      title: 'Rewrote the line',
+      action: { label: 'Undo', run: () => undoProjectEdit() }
+    })
+  }
+
   function newShortFromScript() {
     const shortId = crypto.randomUUID()
     applyProjectCommand(createShortFromScriptCommand(shortId, script.id, now()))
@@ -105,15 +148,25 @@ function ScriptEditorBody({ script }: { script: Script }): JSX.Element {
               index={index}
               lineCount={script.lines.length}
               text={line.text}
-              onChangeText={(text) =>
+              onChangeText={(text) => {
+                if (suggestion?.lineId === line.id) setSuggestion(null)
                 applyProjectCommand(editScriptLineCommand(script.id, line.id, text))
-              }
+              }}
               onRemove={() => removeLine(line.id)}
               onMove={(toIndex) => moveLine(line.id, toIndex)}
               onDragStart={() => {
                 draggedIdRef.current = line.id
               }}
               onDropHere={() => dropOn(index)}
+              onRewrite={(action) => void rewrite(line.id, action)}
+              rewriting={rewritingLineId === line.id}
+              suggestion={
+                suggestion?.lineId === line.id
+                  ? { text: suggestion.text, action: suggestion.action }
+                  : null
+              }
+              onAcceptSuggestion={acceptSuggestion}
+              onDiscardSuggestion={() => setSuggestion(null)}
             />
           ))}
         </ol>

@@ -13,7 +13,8 @@ import {
   createScriptCommand,
   editScriptLineCommand,
   moveScriptLineCommand,
-  removeScriptLineCommand
+  removeScriptLineCommand,
+  rewriteScriptLineCommand
 } from '@renderer/features/scripts/scriptCommands'
 
 const NOW = '2026-10-24T12:00:00.000Z'
@@ -212,5 +213,34 @@ describe('script commands through the project history', () => {
     expect(history.getState().past).toHaveLength(1)
     history.getState().undo()
     expect(history.getState().present.scripts[0].lines[0].text).toBe('Opening line')
+  })
+})
+
+describe('rewrite script line command', () => {
+  it('replaces the line text and undoes it in one step', () => {
+    const history = createHistoryStore(projectWith([script()]))
+    history.getState().execute(rewriteScriptLineCommand('s1', 'l2', '  Shorter line  '))
+    expect(history.getState().present.scripts[0].lines[1].text).toBe('Shorter line')
+
+    history.getState().undo()
+    expect(history.getState().present.scripts[0].lines[1].text).toBe('Second line')
+  })
+
+  it('stays its own step after typing, so undo restores the typed text', () => {
+    const history = createHistoryStore(projectWith([script()]))
+    history.getState().execute(editScriptLineCommand('s1', 'l2', 'Typed edit'))
+    history.getState().execute(rewriteScriptLineCommand('s1', 'l2', 'Rewritten'))
+    history.getState().undo()
+    expect(history.getState().present.scripts[0].lines[1].text).toBe('Typed edit')
+  })
+
+  it('refuses an empty rewrite and a missing line', () => {
+    const history = createHistoryStore(projectWith([script()]))
+    expect(() => history.getState().execute(rewriteScriptLineCommand('s1', 'l2', '   '))).toThrow(
+      'A line needs some text.'
+    )
+    expect(() =>
+      history.getState().execute(rewriteScriptLineCommand('s1', 'nope', 'Text'))
+    ).toThrow('This line no longer exists.')
   })
 })
