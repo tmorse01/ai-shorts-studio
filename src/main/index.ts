@@ -4,6 +4,7 @@ import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
 import { registerIpcHandlers } from './ipc/register'
 import { createIpcHandlers } from './ipc/handlers'
+import { setupErrorReporting } from './errors/setupErrorReporting'
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -29,6 +30,7 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  setupErrorReporting()
   registerIpcHandlers(
     createIpcHandlers({ layoutFile: join(app.getPath('userData'), 'ui-layout.json') })
   )

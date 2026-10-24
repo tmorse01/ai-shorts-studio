@@ -2,9 +2,10 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { createBridge } from '../src/preload/bridge'
+import { createBridge, createEventBridge } from '../src/preload/bridge'
 import { dispatchIpc, routeIpc, type IpcHandlers } from '../src/main/ipc/dispatch'
 import { createIpcHandlers } from '../src/main/ipc/handlers'
+import { setErrorLogSink } from '../src/main/errors/errorLog'
 import type { IpcResult } from '@shared/ipc'
 
 const ipcHandlers = createIpcHandlers({
@@ -86,5 +87,77 @@ describe('app:echo round trip', () => {
     const result = await api.invoke('app:echo', { text: 'hi' })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('INVALID_RESPONSE')
+  })
+})
+
+describe('app:report-error round trip', () => {
+  it('logs a renderer report in main and returns logged: true', async () => {
+    const lines: string[] = []
+    setErrorLogSink((text) => lines.push(text))
+    try {
+      const { api } = makeBridge()
+      const result = await api.invoke('app:report-error', {
+        message: 'TypeError: x is undefined',
+        context: 'Demo pane',
+        stack: 'TypeError: x is undefined\n    at Demo'
+      })
+      expect(result).toEqual({ ok: true, data: { logged: true } })
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toContain('[renderer] (Demo pane) TypeError: x is undefined')
+      expect(lines[0]).toContain('at Demo')
+    } finally {
+      setErrorLogSink((text) => console.error(text))
+    }
+  })
+
+  it('rejects an empty report as VALIDATION_FAILED', async () => {
+    const { api } = makeBridge()
+    const result = await api.invoke('app:report-error', { message: '   ' })
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.code).toBe('VALIDATION_FAILED')
+  })
+})
+
+describe('main-to-renderer events', () => {
+  const sample = {
+    id: 'main-1',
+    source: 'main' as const,
+    message: 'The app hit an unexpected problem.',
+    details: 'Error: boom',
+    occurredAt: '2026-10-23T10:00:00.000Z'
+  }
+
+  // Captures the listener the bridge registers, so a test can play the part of main sending an event.
+  function fakeTransport() {
+    let emit: (raw: unknown) => void = () => undefined
+    const unsubscribe = vi.fn()
+    const on = createEventBridge((_channel, listener) => {
+      emit = listener
+      return unsubscribe
+    })
+    return { on, unsubscribe, emit: (raw: unknown) => emit(raw) }
+  }
+
+  it('passes a valid app:error payload to the listener', () => {
+    const { on, emit } = fakeTransport()
+    const received = vi.fn()
+    on('app:error', received)
+    emit(sample)
+    expect(received).toHaveBeenCalledWith(sample)
+  })
+
+  it('drops a payload that fails the event schema', () => {
+    const { on, emit } = fakeTransport()
+    const received = vi.fn()
+    on('app:error', received)
+    emit({ ...sample, source: 'elsewhere' })
+    expect(received).not.toHaveBeenCalled()
+  })
+
+  it('removes the transport listener on unsubscribe', () => {
+    const { on, unsubscribe } = fakeTransport()
+    const stop = on('app:error', () => undefined)
+    stop()
+    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })

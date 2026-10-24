@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import type { PaneId } from '@shared/layout'
 import { IconButton } from '@renderer/ui/IconButton'
+import { PaneErrorBoundary } from '@renderer/features/errors/PaneErrorBoundary'
 import { ResizeHandle } from './ResizeHandle'
 import { clampPaneSize } from './paneSizing'
 import { useUiStore } from './useUiStore'
@@ -94,9 +95,8 @@ export function PaneFrame({ pane, title, accent = 'default', children }: PaneFra
         />
       </header>
       <div className={styles.body}>
-        {/* Error boundary: wrap this content in the pane error boundary when task #27 lands, so
-            one broken pane does not take down the window. */}
-        {children}
+        {/* One broken pane shows its own fallback; the rest of the window keeps working. */}
+        <PaneErrorBoundary name={title}>{children}</PaneErrorBoundary>
       </div>
       <ResizeHandle
         axis={config.axis}
