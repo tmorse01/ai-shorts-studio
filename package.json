@@ -33,6 +33,7 @@
     "lucide-react": "^1.61.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sherpa-onnx-node": "1.13.8",
     "zod": "4.6.7",
     "zustand": "5.0.16"
   },
@@ -71,6 +72,9 @@
       }
     ],
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/sherpa-onnx-*/**/*"
+    ],
     "win": {
       "target": [
         "nsis"

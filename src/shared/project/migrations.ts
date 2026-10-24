@@ -96,13 +96,19 @@ export function migrateV6ToV7(data: unknown): unknown {
   return { ...data, schemaVersion: 7, moments: [] }
 }
 
-// v7 stored scripts as placeholders: a `name` and untyped `lines`. Each script becomes a titled
-// script with an empty topic. A line keeps its text when it is a string or an object with text, and
-// gets a generated id. Any other line shape is dropped, since no version ever wrote one.
+// v7 had no clip framing. Clips keep no framing key until one is set, so only the version changes.
 export function migrateV7ToV8(data: unknown): unknown {
   if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 8 }
+}
+
+// v8 stored scripts as placeholders: a `name` and untyped `lines`. Each script becomes a titled
+// script with an empty topic. A line keeps its text when it is a string or an object with text, and
+// gets a generated id. Any other line shape is dropped, since no version ever wrote one.
+export function migrateV8ToV9(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
   const scripts = data.scripts
-  if (scripts === undefined) return { ...data, schemaVersion: 8 }
+  if (scripts === undefined) return { ...data, schemaVersion: 9 }
   if (!Array.isArray(scripts)) throw new Error('"scripts" is not a list')
 
   const upgradedScripts = scripts.map((item, index) => {
@@ -115,7 +121,7 @@ export function migrateV7ToV8(data: unknown): unknown {
     const lines = rawLines.flatMap((line, lineIndex) => scriptLineOrNone(scriptId, line, lineIndex))
     return { id: scriptId, title, topic: '', lines }
   })
-  return { ...data, schemaVersion: 8, scripts: upgradedScripts }
+  return { ...data, schemaVersion: 9, scripts: upgradedScripts }
 }
 
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
@@ -136,7 +142,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 4, to: 5, up: migrateV4ToV5 },
   { from: 5, to: 6, up: migrateV5ToV6 },
   { from: 6, to: 7, up: migrateV6ToV7 },
-  { from: 7, to: 8, up: migrateV7ToV8 }
+  { from: 7, to: 8, up: migrateV7ToV8 },
+  { from: 8, to: 9, up: migrateV8ToV9 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
