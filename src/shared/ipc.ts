@@ -23,6 +23,7 @@ import {
   scriptEstimateSchema,
   scriptRunInputSchema
 } from './ai/scriptGeneration'
+import { lineRewriteInputSchema, lineRewriteOutputSchema } from './ai/lineRewrite'
 
 const analysisItemSchema = z.object({
   id: z.string().min(1),
@@ -385,6 +386,12 @@ export const ipcChannels = {
   'ai:scripts:generate': {
     input: scriptRunInputSchema,
     output: z.object({ scripts: z.array(generatedScriptSchema).min(1) })
+  },
+  // Rewrites one line. The reply is text only; the renderer shows it as a suggestion and saves it
+  // through a project command when the user accepts it.
+  'ai:scripts:rewriteLine': {
+    input: lineRewriteInputSchema,
+    output: lineRewriteOutputSchema
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 
