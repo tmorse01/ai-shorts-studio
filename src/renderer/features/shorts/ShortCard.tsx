@@ -1,0 +1,128 @@
+import { useRef, type JSX, type KeyboardEvent } from 'react'
+import { MoreHorizontal } from 'lucide-react'
+import type { Short, ShortDefaults, ShortStatus } from '@shared/project/schema'
+import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
+import { IconButton } from '@renderer/ui/IconButton'
+import { Input } from '@renderer/ui/Input'
+import type { ManualShortStatus } from './shortCommands'
+import styles from './ShortCard.module.css'
+
+export interface ShortCardProps {
+  short: Short
+  // Effective settings: the project defaults with this short's overrides applied.
+  target: ShortDefaults
+  renaming: boolean
+  onOpen: () => void
+  onStartRename: () => void
+  onCommitRename: (name: string) => void
+  onCancelRename: () => void
+  onDuplicate: () => void
+  onSetStatus: (status: ManualShortStatus) => void
+  onDelete: () => void
+}
+
+const STATUS_LABEL: Record<ShortStatus, string> = {
+  draft: 'Draft',
+  ready: 'Ready',
+  exported: 'Exported'
+}
+
+// One short as a 9:16 poster card. Double-click or Enter opens it, F2 renames it.
+export function ShortCard({
+  short,
+  target,
+  renaming,
+  onOpen,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
+  onDuplicate,
+  onSetStatus,
+  onDelete
+}: ShortCardProps): JSX.Element {
+  // Set once a rename has ended by Enter or Escape, so the blur that follows does not commit again.
+  const settledRef = useRef(false)
+  const items: DropdownMenuItem[] = [
+    { label: 'Open', onSelect: onOpen },
+    { label: 'Rename', onSelect: onStartRename },
+    { label: 'Duplicate', onSelect: onDuplicate }
+  ]
+  if (short.status !== 'exported') {
+    const nextStatus: ManualShortStatus = short.status === 'ready' ? 'draft' : 'ready'
+    items.push({
+      label: nextStatus === 'ready' ? 'Mark Ready' : 'Mark Draft',
+      onSelect: () => onSetStatus(nextStatus)
+    })
+  }
+  items.push({ label: 'Delete', onSelect: onDelete, destructive: true })
+
+  function startRename() {
+    settledRef.current = false
+    onStartRename()
+  }
+
+  function onPosterKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'Enter') onOpen()
+    if (event.key === 'F2') startRename()
+  }
+
+  function onRenameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter') {
+      settledRef.current = true
+      onCommitRename(event.currentTarget.value)
+    }
+    if (event.key === 'Escape') {
+      settledRef.current = true
+      onCancelRename()
+    }
+  }
+
+  return (
+    <article className={styles.card} data-short-card>
+      <button
+        type="button"
+        data-short-open
+        className={styles.poster}
+        aria-label={`Open ${short.name}`}
+        onDoubleClick={onOpen}
+        onKeyDown={onPosterKeyDown}
+      >
+        <span className={styles.ornament} aria-hidden="true" />
+        {short.editedSinceExport && (
+          <span className={styles.dot} role="img" aria-label="Edited since export" />
+        )}
+      </button>
+
+      <div className={styles.body}>
+        {renaming ? (
+          <Input
+            aria-label="Short name"
+            className={styles.nameInput}
+            defaultValue={short.name}
+            maxLength={120}
+            autoFocus
+            onKeyDown={onRenameKeyDown}
+            onBlur={(event) => {
+              if (!settledRef.current) onCommitRename(event.currentTarget.value)
+            }}
+          />
+        ) : (
+          <span className={styles.name}>{short.name}</span>
+        )}
+        <span className={styles.meta}>
+          Target {target.targetLength.minSec}–{target.targetLength.maxSec} s
+        </span>
+        <span className={styles.chip} data-status={short.status}>
+          {STATUS_LABEL[short.status]}
+        </span>
+      </div>
+
+      <div className={styles.menu}>
+        <DropdownMenu
+          trigger={<IconButton icon={MoreHorizontal} label={`Actions for ${short.name}`} />}
+          items={items}
+        />
+      </div>
+    </article>
+  )
+}
