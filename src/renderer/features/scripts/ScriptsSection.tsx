@@ -3,6 +3,7 @@ import type { Script } from '@shared/project/schema'
 import { Button } from '@renderer/ui/Button'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { useProjectStore } from '../project/useProjectStore'
+import { GenerateScriptsDialog } from './GenerateScriptsDialog'
 import { NewScriptDialog } from './NewScriptDialog'
 import { ScriptEditor } from './ScriptEditor'
 import { estimatedReadSeconds, formatReadTime, scriptWordCount } from './scriptStats'
@@ -15,15 +16,21 @@ const NO_SCRIPTS: Script[] = []
 export function ScriptsSection(): JSX.Element {
   const scripts = useProjectStore((state) => state.current?.project.scripts ?? NO_SCRIPTS)
   const [creating, setCreating] = useState(false)
+  const [drafting, setDrafting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   return (
     <section aria-label="Scripts" className={styles.section}>
       <div className={styles.toolbar}>
         <h2 className={styles.heading}>Scripts</h2>
-        <Button variant="primary" onClick={() => setCreating(true)}>
-          New script
-        </Button>
+        <div className={styles.actions}>
+          <Button variant="ai" onClick={() => setDrafting(true)}>
+            Draft with AI
+          </Button>
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            New script
+          </Button>
+        </div>
       </div>
 
       {scripts.length === 0 ? (
@@ -54,6 +61,7 @@ export function ScriptsSection(): JSX.Element {
       )}
 
       <NewScriptDialog open={creating} onOpenChange={setCreating} onCreated={setEditingId} />
+      <GenerateScriptsDialog open={drafting} onOpenChange={setDrafting} />
       <ScriptEditor scriptId={editingId} onOpenChange={(open) => !open && setEditingId(null)} />
     </section>
   )

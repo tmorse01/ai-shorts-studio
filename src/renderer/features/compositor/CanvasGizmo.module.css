@@ -12,6 +12,18 @@
   border: var(--border-width) solid var(--color-spectral-lavender);
 }
 
+/* The start and end crops of a pan. Dashed, so they read as guides rather than the selection. */
+.outlineStart,
+.outlineEnd {
+  position: absolute;
+  box-sizing: border-box;
+  border: var(--border-width) dashed var(--color-spectral-lavender);
+}
+
+.outlineEnd {
+  border-color: var(--color-undead-sage);
+}
+
 .handle {
   position: absolute;
   width: var(--space-2);
