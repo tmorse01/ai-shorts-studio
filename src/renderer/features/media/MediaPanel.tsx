@@ -30,6 +30,7 @@ import { MediaTagsDialog } from './MediaTagsDialog'
 import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
 import { sourceStore } from '../source/sourceStore'
 import { MomentRows } from '../moments/MomentRows'
+import { MomentSearch } from '../search/MomentSearch'
 import { momentsOfMedia } from '../moments/momentView'
 import { clipPayload, DRAG_MIME, encodeDragPayload } from '@shared/timeline/dragPayload'
 import { mediaUsageIndex, shortCountForMedia, usedInLabel } from '@shared/timeline/mediaUsage'
@@ -59,6 +60,8 @@ export function MediaPanel(): JSX.Element {
   const selection = useStore(mediaPanelStore, (state) => state.selection)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
+  // The footage search text. While it is set, the panel shows ranked results instead of the grid.
+  const [searchText, setSearchText] = useState('')
   // Clips whose saved moments are shown under them. Moments start collapsed.
   const [openMomentIds, setOpenMomentIds] = useState<string[]>([])
   const analysisFile = useStore(analysisStore, (state) =>
@@ -269,9 +272,18 @@ export function MediaPanel(): JSX.Element {
         />
       </div>
 
-      <MediaFilterBar folderPath={current.folderPath} filter={filter} tags={tags} />
+      <MomentSearch
+        folderPath={current.folderPath}
+        project={current.project}
+        query={searchText}
+        onQueryChange={setSearchText}
+      />
 
-      {selectedIds.length > 0 ? (
+      {searchText.trim() === '' ? (
+        <MediaFilterBar folderPath={current.folderPath} filter={filter} tags={tags} />
+      ) : null}
+
+      {selectedIds.length > 0 && searchText.trim() === '' ? (
         <div className={styles.tagBar} role="group" aria-label="Tag selected files">
           <span className={styles.tagBarLabel}>
             {selectedIds.length === 1 ? '1 selected' : `${selectedIds.length} selected`}
@@ -294,7 +306,7 @@ export function MediaPanel(): JSX.Element {
         </div>
       ) : null}
 
-      {activeView === 'list' ? (
+      {searchText.trim() === '' && activeView === 'list' ? (
         <div className={styles.header} role="presentation">
           {sortButton('name', 'Name')}
           {sortButton('duration', 'Duration')}
@@ -302,7 +314,7 @@ export function MediaPanel(): JSX.Element {
         </div>
       ) : null}
 
-      {items.length === 0 ? (
+      {searchText.trim() !== '' ? null : items.length === 0 ? (
         <p className={styles.empty}>No files match the search and filters.</p>
       ) : (
         <div className={activeView === 'grid' ? styles.grid : styles.list}>
