@@ -41,6 +41,7 @@ void app.whenReady().then(() => {
       layoutFile: join(app.getPath('userData'), 'ui-layout.json'),
       recentFile: join(app.getPath('userData'), 'recent-projects.json'),
       jobs,
+      onAnalysisChanged: (change) => emitIpcEvent('analysis:changed', change),
       system: {
         pickFolder: async () => {
           const result = await dialog.showOpenDialog({

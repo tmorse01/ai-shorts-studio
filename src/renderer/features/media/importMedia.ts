@@ -4,6 +4,7 @@ import { planImport } from '@shared/media/importFiles'
 import type { MediaRef } from '@shared/project/schema'
 import { projectStore } from '../project/projectStore'
 import { toast } from '../toasts/toast'
+import { syncAnalysis } from '../analysis/analysisSync'
 import { importMediaCommand } from './mediaCommands'
 
 // Where a media ref's file is. Relative refs resolve against the project folder.
@@ -127,6 +128,12 @@ export async function importMediaPaths(paths: readonly string[]): Promise<void> 
       void probeImported(ref, opened.folderPath)
     }
   }
+  // Analysis starts behind probing, thumbnails and proxies. Main queues it at low priority.
+  void syncAnalysis(
+    window.api,
+    opened.folderPath,
+    projectStore.getState().current?.project.media ?? []
+  )
 }
 
 // Native picker, then import. Does nothing when no project is open.

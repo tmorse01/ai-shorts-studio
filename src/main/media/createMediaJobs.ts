@@ -7,6 +7,7 @@ import { probeMedia } from './probeMedia'
 import { makeFilmstrip, makeThumb } from './thumbnails'
 import { makeProxy } from './proxies'
 import { UserFacingError } from '../errors'
+import { analysisExecutor, skippedStageRunners } from '../analysis/stageRunners'
 
 export function createMediaJobs(): JobQueue {
   const location: BinaryLocation = {
@@ -37,6 +38,8 @@ export function createMediaJobs(): JobQueue {
         onProgress: reportProgress
       })
     },
+    // Every stage is skipped until a provider is wired in (Epic 04 tasks). The runners are the seam.
+    analysis: analysisExecutor(skippedStageRunners()),
     filmstrip: ({ path, outDir, durationSec }, { signal }) => {
       if (!outDir || durationSec === undefined) {
         throw new UserFacingError('The filmstrip job lost its details.')
