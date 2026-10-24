@@ -1,7 +1,8 @@
+import { ScrubBar } from '../playback/ScrubBar'
 import styles from './PreviewCanvas.module.css'
 
-// The centre of the editor: a near-black canvas holding an empty 9:16 frame. Real video replaces
-// the frame in epic 03.
+// The centre of the editor: a near-black canvas holding an empty 9:16 frame, with the scrub bar
+// along the bottom edge. Real video replaces the frame in epic 03.
 export function PreviewCanvas() {
   return (
     <section className={styles.canvas} aria-label="Preview">
@@ -10,6 +11,9 @@ export function PreviewCanvas() {
         <span className={styles.ratio} aria-hidden="true">
           9:16
         </span>
+      </div>
+      <div className={styles.scrub}>
+        <ScrubBar />
       </div>
     </section>
   )
