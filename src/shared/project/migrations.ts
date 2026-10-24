@@ -143,6 +143,13 @@ export function migrateV11ToV12(data: unknown): unknown {
   return { ...data, schemaVersion: 12 }
 }
 
+// v12 clips had no lock and no assembly metadata. Clips keep no such keys until one is set, so only the
+// version changes.
+export function migrateV12ToV13(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 13 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -165,7 +172,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 8, to: 9, up: migrateV8ToV9 },
   { from: 9, to: 10, up: migrateV9ToV10 },
   { from: 10, to: 11, up: migrateV10ToV11 },
-  { from: 11, to: 12, up: migrateV11ToV12 }
+  { from: 11, to: 12, up: migrateV11ToV12 },
+  { from: 12, to: 13, up: migrateV12ToV13 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
