@@ -188,6 +188,11 @@ export function clearPan(framing: ClipFraming): ClipFraming {
   return { mode: framing.mode, x: framing.x, y: framing.y, scale: framing.scale }
 }
 
+// Puts the crop back to a centred view at the cover zoom, and removes the pan. The framing mode is kept.
+export function resetFraming(framing: ClipFraming): ClipFraming {
+  return clearPan({ ...framing, x: 0, y: 0, scale: MIN_FRAMING_SCALE })
+}
+
 // The framing a clip starts with when it has none: a centred fill at the cover crop.
 export const CENTRED_FILL: ClipFraming = { mode: 'fill', x: 0, y: 0, scale: MIN_FRAMING_SCALE }
 

@@ -4,7 +4,7 @@
 import { ClipAudioSection } from '@renderer/features/audio/ClipAudioSection'
 import { ShortPropertiesSection } from '@renderer/features/shorts/ShortPropertiesSection'
 import { TranscriptSection } from '@renderer/features/transcript/TranscriptSection'
-import { PanSection } from '@renderer/features/framing/PanSection'
+import { FramingSection } from '@renderer/features/framing/FramingSection'
 import { SELECTION_TYPES, type InspectorSectionDef } from './inspectorModel'
 
 export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
@@ -34,11 +34,11 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     Component: TranscriptSection
   },
   {
-    id: 'clip-pan',
-    title: 'Pan',
+    id: 'clip-framing',
+    title: 'Framing',
     tab: 'video',
     order: 10,
     selections: ['video-clip'],
-    Component: PanSection
+    Component: FramingSection
   }
 ]

@@ -45,7 +45,7 @@ import { IconButton } from '@renderer/ui/IconButton'
 import { soundClipFor } from '../audio/clipSound'
 import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
-import { framedClipFor } from '../compositor/panTarget'
+import { framingClipFor } from '../compositor/panTarget'
 import { inspectorStore } from '../inspector/inspectorStore'
 import { selectionTypeFor } from '../inspector/inspectorModel'
 import { formatTimecode } from '../playback/playbackClock'
@@ -379,17 +379,16 @@ export function TimelinePane({
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setAudioTarget(null), [])
 
-  // The pan section edits the framing of the one selected fill-framed video clip. Publish that clip, or
-  // nothing.
+  // The framing section edits the framing of the one selected video clip. Publish that clip, or nothing.
   useEffect(() => {
-    const framed = framedClipFor(timeline, selectedIds)
+    const framed = framingClipFor(timeline, selectedIds)
     inspectorStore.getState().setFramingTarget(
       framed
         ? {
             clipId: framed.id,
             framing: framed.framing ?? { ...CENTRED_FILL },
-            apply: (label, edit) =>
-              runEdit(label, (current) => updateClipFraming(current, framed.id, edit))
+            apply: (label, edit, mergeKey) =>
+              runEdit(label, (current) => updateClipFraming(current, framed.id, edit), mergeKey)
           }
         : null
     )
