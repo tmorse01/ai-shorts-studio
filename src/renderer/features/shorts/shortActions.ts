@@ -18,6 +18,11 @@ function historyFor(project: Project): HistoryApi<Project> {
   return history
 }
 
+// Forgets the project's undo steps, for example when another project opens.
+export function clearProjectHistory(): void {
+  history = null
+}
+
 function publish(next: Project): void {
   projectStore.getState().replaceProject(next)
 }

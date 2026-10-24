@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { clipFramingSchema } from './framing'
 import { duckingSchema } from './ducking'
+import { captionBlockSchema } from '../captions/captionBlock'
 
 const nonEmptyString = z.string().trim().min(1)
 
@@ -69,7 +70,10 @@ export const trackSchema = z.object({
   muted: z.boolean(),
   // A locked track refuses clip edits. Optional so existing tracks need no key. Read it as `?? false`.
   locked: z.boolean().optional(),
-  clips: z.array(clipSchema)
+  clips: z.array(clipSchema),
+  // Caption blocks on a captions track (see ../captions/captionBlock.ts). Optional so existing tracks
+  // need no key. Read it as `?? []`. Schema 12 added this key.
+  captions: z.array(captionBlockSchema).optional()
 })
 export type Track = z.infer<typeof trackSchema>
 
