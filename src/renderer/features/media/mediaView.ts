@@ -1,6 +1,6 @@
 // Pure logic behind the media panel: sorting, selection with Ctrl and Shift, the display of durations,
 // and the command that removes media from a project. Kept free of React so it is tested directly.
-import type { MediaRef, Project } from '@shared/project/schema'
+import type { MediaKind, MediaRef, Project } from '@shared/project/schema'
 import type { Command } from '../history/historyStore'
 
 export type MediaSortKey = 'name' | 'duration' | 'size'
@@ -67,6 +67,50 @@ export function selectItem(
     return { ids, anchor: id }
   }
   return { ids: [id], anchor: id }
+}
+
+// What the media panel filters by. An empty list or blank query means no filter on that field.
+// Tags match when a file has any of the chosen tags. Durations are in seconds; a file with no known
+// duration does not match a duration bound.
+export interface MediaFilter {
+  query: string
+  kinds: MediaKind[]
+  tagIds: string[]
+  minDurationSec?: number
+  maxDurationSec?: number
+}
+
+export const EMPTY_MEDIA_FILTER: MediaFilter = { query: '', kinds: [], tagIds: [] }
+
+export function isMediaFilterActive(filter: MediaFilter): boolean {
+  return (
+    filter.query.trim() !== '' ||
+    filter.kinds.length > 0 ||
+    filter.tagIds.length > 0 ||
+    filter.minDurationSec !== undefined ||
+    filter.maxDurationSec !== undefined
+  )
+}
+
+// Keeps the media that pass every active part of the filter, in the order given.
+export function filterMedia(media: readonly MediaRef[], filter: MediaFilter): MediaRef[] {
+  const query = filter.query.trim().toLowerCase()
+  const minMs = filter.minDurationSec === undefined ? undefined : filter.minDurationSec * 1000
+  const maxMs = filter.maxDurationSec === undefined ? undefined : filter.maxDurationSec * 1000
+  return media.filter((ref) => {
+    if (query !== '' && !ref.fileName.toLowerCase().includes(query)) return false
+    if (filter.kinds.length > 0 && !filter.kinds.includes(ref.kind)) return false
+    if (filter.tagIds.length > 0) {
+      const tags = ref.tagIds ?? []
+      if (!filter.tagIds.some((tagId) => tags.includes(tagId))) return false
+    }
+    if (minMs !== undefined || maxMs !== undefined) {
+      if (ref.durationMs === undefined) return false
+      if (minMs !== undefined && ref.durationMs < minMs) return false
+      if (maxMs !== undefined && ref.durationMs > maxMs) return false
+    }
+    return true
+  })
 }
 
 // Removes media from the project. The files on disk are left alone.

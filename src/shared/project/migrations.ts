@@ -84,12 +84,19 @@ export function migrateV4ToV5(data: unknown): unknown {
   return { ...data, schemaVersion: 5, shorts: upgradedShorts }
 }
 
+// v5 had no media tags. The project gets an empty custom tag list. Media keeps no tag ids until one is set.
+export function migrateV5ToV6(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 6, mediaTags: [] }
+}
+
 // The ordered list the app ships with. Append new migrations here; never edit an old one.
 export const projectMigrations: readonly ProjectMigration[] = [
   { from: 1, to: 2, up: migrateV1ToV2 },
   { from: 2, to: 3, up: migrateV2ToV3 },
   { from: 3, to: 4, up: migrateV3ToV4 },
-  { from: 4, to: 5, up: migrateV4ToV5 }
+  { from: 4, to: 5, up: migrateV4ToV5 },
+  { from: 5, to: 6, up: migrateV5ToV6 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
