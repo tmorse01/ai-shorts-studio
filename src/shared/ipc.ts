@@ -12,6 +12,7 @@ import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
 import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
 import { transcriptSchema } from './analysis/transcript'
+import { visionShotSchema } from './analysis/vision'
 import {
   aiStatusSchema,
   MAX_CAP_USD,
@@ -339,6 +340,17 @@ export const ipcChannels = {
       mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/)
     }),
     output: z.object({ transcript: transcriptSchema.nullable() })
+  },
+  // One media item's vision descriptions, one per described shot. Empty until the vision stage has run
+  // for it. The search index reads them to find shots by what is on screen.
+  'analysis:vision:read': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/)
+    }),
+    output: z.object({
+      shots: z.array(visionShotSchema.pick({ shotIndex: true, description: true, tags: true }))
+    })
   },
   // Tells main that playback started or stopped. Analysis pauses while playback runs.
   'analysis:playback': {
