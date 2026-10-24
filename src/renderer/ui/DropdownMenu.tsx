@@ -7,6 +7,8 @@ export interface DropdownMenuItem {
   onSelect: () => void
   destructive?: boolean
   disabled?: boolean
+  /** Short muted text after the label, for example a status. */
+  detail?: string
 }
 
 export interface DropdownMenuProps {
@@ -22,14 +24,15 @@ export function DropdownMenu({ trigger, items, align = 'end' }: DropdownMenuProp
       <RadixDropdown.Trigger asChild>{trigger}</RadixDropdown.Trigger>
       <RadixDropdown.Portal>
         <RadixDropdown.Content className={styles.content} sideOffset={4} align={align}>
-          {items.map((item) => (
+          {items.map((item, index) => (
             <RadixDropdown.Item
-              key={item.label}
+              key={`${index}-${item.label}`}
               className={item.destructive ? styles.destructiveItem : styles.item}
               disabled={item.disabled}
               onSelect={item.onSelect}
             >
               {item.label}
+              {item.detail && <span className={styles.detail}>{item.detail}</span>}
             </RadixDropdown.Item>
           ))}
         </RadixDropdown.Content>
