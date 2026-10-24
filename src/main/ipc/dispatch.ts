@@ -8,6 +8,7 @@ import {
   type IpcOutput,
   type IpcResult
 } from '@shared/ipc'
+import { UserFacingError } from '../errors'
 
 export type IpcHandler<C extends IpcChannelName> = (
   input: IpcInput<C>
@@ -43,6 +44,9 @@ export async function dispatchIpc<C extends IpcChannelName>(
     }
     return { ok: true, data: response.data as IpcOutput<C> }
   } catch (error) {
+    if (error instanceof UserFacingError) {
+      return ipcFailure('HANDLER_FAILED', error.message, error.details)
+    }
     return ipcFailure(
       'HANDLER_FAILED',
       `${channel} failed.`,
