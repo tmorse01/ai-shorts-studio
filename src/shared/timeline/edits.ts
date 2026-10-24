@@ -1,6 +1,7 @@
 // Pure edit operations on a timeline (Epic 07, #84). Each takes a timeline and returns a new one; the
 // input is never mutated. The renderer wraps these as undoable commands. Every edit ends with settle(),
 // which runs the Main-track check and keeps linked audio on its video clip's time (#91).
+import { CENTRED_FILL, clipFramingSchema, type ClipFraming } from './framing'
 import type { Clip, Timeline, Track, Transform, Transition } from './timeline'
 
 export class TimelineEditError extends Error {
@@ -443,6 +444,27 @@ export function updateClipTransform(
   return replaceTrack(timeline, {
     ...track,
     clips: track.clips.map((item) => (item.id === clip.id ? { ...item, transform: next } : item))
+  })
+}
+
+// Changes one clip's framing (the crop of a vertical short, see ./framing.ts). The update gets the
+// stored framing, or a centred fill when the clip has none. Refused on a locked track.
+export function updateClipFraming(
+  timeline: Timeline,
+  clipId: string,
+  update: (framing: ClipFraming) => ClipFraming
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  const next = update(clip.framing ?? { ...CENTRED_FILL })
+  const parsed = clipFramingSchema.safeParse(next)
+  if (!parsed.success) {
+    throw new TimelineEditError(`Clip "${clipId}" got an invalid framing.`)
+  }
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) =>
+      item.id === clip.id ? { ...item, framing: parsed.data } : item
+    )
   })
 }
 
