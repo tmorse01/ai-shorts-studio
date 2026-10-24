@@ -297,3 +297,58 @@ export function addTrack(timeline: Timeline, track: Track): Timeline {
   }
   return { ...timeline, tracks: [...timeline.tracks, { ...track, clips: [] }] }
 }
+
+// Moves one or more clips to startMs on a track, as one edit (Epic 07, #88). The moving clips keep
+// their spacing: startMs is where the first clip's block starts. On the main track the block is
+// inserted there: clips from that point onward shift right by the block's span, and the gap the block
+// leaves behind stays where it was. An insert point inside another main clip snaps to that clip's
+// nearer edge. Free layers take the clips where they are dropped and may overlap. A clip moves only to
+// a track of its own kind (main and overlay video both count as video), and no move touches a locked
+// track.
+export function placeClips(
+  timeline: Timeline,
+  clipIds: readonly string[],
+  toTrackId: string,
+  startMs: number
+): Timeline {
+  if (clipIds.length === 0) return timeline
+  if (new Set(clipIds).size !== clipIds.length) {
+    throw new TimelineEditError('Each clip can be moved only once in one edit.')
+  }
+  const moving = clipIds.map((id) => locate(timeline, id).clip)
+  const sources = clipIds.map((id) => locate(timeline, id).track)
+  const target = trackById(timeline, toTrackId)
+  if (target.locked) throw new TimelineEditError(`Track "${target.id}" is locked.`)
+  for (const source of sources) {
+    if (source.locked) throw new TimelineEditError(`Track "${source.id}" is locked.`)
+    if (source.kind !== target.kind) {
+      throw new TimelineEditError('Clips can only move to a track of the same kind.')
+    }
+  }
+
+  const movingIds = new Set(clipIds)
+  const base = Math.min(...moving.map((clip) => clip.startMs))
+  const span = Math.max(...moving.map(endOf)) - base
+  const stripped = timeline.tracks.map((track) => ({
+    ...track,
+    clips: track.clips.filter((clip) => !movingIds.has(clip.id))
+  }))
+
+  let at = Math.max(0, Math.round(startMs))
+  let remaining = stripped.find((track) => track.id === toTrackId)?.clips ?? []
+  if (target.role === 'main') {
+    const inside = remaining.find((item) => item.startMs < at && at < endOf(item))
+    if (inside) {
+      at = at - inside.startMs <= endOf(inside) - at ? inside.startMs : endOf(inside)
+    }
+    remaining = remaining.map((item) =>
+      item.startMs >= at ? { ...item, startMs: item.startMs + span } : item
+    )
+  }
+
+  const placed = moving.map((clip) => ({ ...clip, startMs: at + (clip.startMs - base) }))
+  const tracks = stripped.map((track) =>
+    track.id === toTrackId ? { ...track, clips: [...remaining, ...placed] } : track
+  )
+  return assertMainNoOverlap({ ...timeline, tracks })
+}
