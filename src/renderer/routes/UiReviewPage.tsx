@@ -12,6 +12,8 @@ import { Tabs } from '../ui/Tabs'
 import { Switch } from '../ui/Switch'
 import { toast } from '../features/toasts/toast'
 import { ErrorDemo } from '../features/errors/ErrorDemo'
+import { TimelinePane } from '../features/timeline/TimelinePane'
+import type { Timeline } from '@shared/timeline/timeline'
 import styles from './UiReviewPage.module.css'
 
 const aspectOptions = [
@@ -20,11 +22,15 @@ const aspectOptions = [
   { value: '1:1', label: '1:1' }
 ]
 
+// The timeline gallery starts empty, so every lane shows its Add action.
+const EMPTY_DEMO_TIMELINE: Timeline = { tracks: [] }
+
 // Dev-only sheet that shows every UI primitive and its states, for visual review (#21).
 export function UiReviewPage(): JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [aspect, setAspect] = useState('9:16')
   const [captions, setCaptions] = useState(true)
+  const [demoTimeline, setDemoTimeline] = useState<Timeline>(EMPTY_DEMO_TIMELINE)
 
   return (
     <main className={styles.page}>
@@ -185,6 +191,19 @@ export function UiReviewPage(): JSX.Element {
             { value: 'captions', label: 'Captions', content: <p>Caption styling.</p> }
           ]}
         />
+      </section>
+
+      <section className={styles.section} aria-labelledby="timeline-heading">
+        <h2 id="timeline-heading" className={styles.heading}>
+          Timeline
+        </h2>
+        <div style={{ height: 320 }}>
+          <TimelinePane
+            timeline={demoTimeline}
+            target={{ minMs: 30_000, maxMs: 60_000 }}
+            onEdit={(_label, edit) => setDemoTimeline((current) => edit(current))}
+          />
+        </div>
       </section>
     </main>
   )
