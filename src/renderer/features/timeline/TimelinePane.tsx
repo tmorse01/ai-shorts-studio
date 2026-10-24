@@ -32,6 +32,7 @@ import {
 } from '@shared/timeline/transitions'
 import { audioClipForDrop } from '@shared/timeline/audioDrop'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
+import { duckEnvelope, duckingFor, narrationRanges } from '@shared/timeline/ducking'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/timeline'
 import { snapEdge, snapPoints, snapStart } from '@shared/timeline/snap'
@@ -48,8 +49,8 @@ import { formatTimecode } from '../playback/playbackClock'
 import { toast } from '../toasts/toast'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
-import { clipsInRange, trimReadout, visibleLaneRange } from './clipView'
-import { TimelineClip } from './TimelineClip'
+import { clipsInRange, gainLinePoints, trimReadout, visibleLaneRange } from './clipView'
+import { CLIP_HEIGHT_PX, TimelineClip } from './TimelineClip'
 import {
   fitPxPerMs,
   followPlayhead,
@@ -195,6 +196,7 @@ export function TimelinePane({
   // The timeline as it will look if the drag or trim drops now. It is committed only on release.
   const shown = trim ? previewTrimmed(timeline, trim) : previewTimeline(timeline, drag)
   const trimmedClip = trim ? findClip(shown, trim.clipId)?.clip : undefined
+  const duckPoints = duckEnvelope(narrationRanges(shown), duckingFor(shown))
   const durationMs = timelineDurationMs(timeline)
   const widthPx = timelineWidthPx(durationMs, target.maxMs, pxPerMs)
   const band = targetBand(target.minMs, target.maxMs, pxPerMs)
@@ -612,6 +614,11 @@ export function TimelinePane({
                     media: linkedMedia,
                     offline: linkedClip.mediaId !== undefined && offlineIds.has(linkedClip.mediaId)
                   }
+                : undefined
+            }
+            gainLine={
+              track.role === 'music'
+                ? gainLinePoints(clip, duckPoints, pxPerMs, CLIP_HEIGHT_PX)
                 : undefined
             }
             onPointerDown={(event) => pressClip(event, clip, track)}

@@ -31,6 +31,8 @@ export interface TimelineClipProps {
   // The project folder the cache lives in. Without it, clips show no thumbnails.
   projectFolder?: string
   linked?: LinkedAudio
+  // The gain line of a music clip, as SVG points (see gainLinePoints). Absent on other clips.
+  gainLine?: string
   // Pointer down starts a press: select, or start a drag. The pane handles the rest.
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
   // Pointer down on a trim handle. Absent on a locked track, which shows no handles.
@@ -53,6 +55,7 @@ export function TimelineClip({
   offline,
   projectFolder,
   linked,
+  gainLine,
   onPointerDown,
   onTrimPointerDown,
   onSelect
@@ -143,6 +146,16 @@ export function TimelineClip({
             backgroundPosition: `${bodyWave.offsetPx}px 0`
           }}
         />
+      ) : null}
+      {gainLine !== undefined ? (
+        <svg
+          className={styles.gainLine}
+          viewBox={`0 0 ${box.widthPx} ${CLIP_HEIGHT_PX}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <polyline points={gainLine} />
+        </svg>
       ) : null}
       {linkedStrip && linkedWave ? (
         <div

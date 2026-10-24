@@ -3,6 +3,7 @@
 // the renderer. Behaviour lives in ./resolveFrame.ts.
 import { z } from 'zod'
 import { clipFramingSchema } from './framing'
+import { duckingSchema } from './ducking'
 
 const nonEmptyString = z.string().trim().min(1)
 
@@ -86,6 +87,9 @@ export type Transition = z.infer<typeof transitionSchema>
 export const timelineSchema = z.object({
   tracks: z.array(trackSchema),
   // Optional so a timeline with no transitions needs no key. Read it as `?? []`.
-  transitions: z.array(transitionSchema).optional()
+  transitions: z.array(transitionSchema).optional(),
+  // Auto-ducking under narration (see ./ducking.ts). Optional, so a short without it uses the defaults.
+  // Schema 10 added this key.
+  ducking: duckingSchema.optional()
 })
 export type Timeline = z.infer<typeof timelineSchema>

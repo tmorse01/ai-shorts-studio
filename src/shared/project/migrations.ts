@@ -124,6 +124,12 @@ export function migrateV8ToV9(data: unknown): unknown {
   return { ...data, schemaVersion: 9, scripts: upgradedScripts }
 }
 
+// v9 had no auto-ducking. A short keeps no ducking key until one is set, so only the version changes.
+export function migrateV9ToV10(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 10 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -143,7 +149,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 5, to: 6, up: migrateV5ToV6 },
   { from: 6, to: 7, up: migrateV6ToV7 },
   { from: 7, to: 8, up: migrateV7ToV8 },
-  { from: 8, to: 9, up: migrateV8ToV9 }
+  { from: 8, to: 9, up: migrateV8ToV9 },
+  { from: 9, to: 10, up: migrateV9ToV10 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
