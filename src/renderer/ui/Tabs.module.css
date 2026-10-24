@@ -1,0 +1,60 @@
+.root {
+  display: flex;
+  flex-direction: column;
+}
+
+.list {
+  display: flex;
+  gap: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.trigger {
+  position: relative;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-text-2);
+  font-family: var(--font-heading);
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line);
+  font-weight: 500;
+  letter-spacing: var(--type-heading-tracking);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.trigger:hover {
+  color: var(--color-text);
+}
+
+.trigger:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.trigger[data-state='active'] {
+  color: var(--color-text);
+}
+
+/* Active tab marker: a thin sage line on the list's bottom border. */
+.trigger[data-state='active']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--border-width) * -1);
+  height: 2px;
+  background: var(--color-primary);
+}
+
+.panel {
+  padding: var(--space-4) 0;
+}
+
+.panel:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 2px;
+}
