@@ -23,11 +23,12 @@ const timeline: Timeline = {
     {
       id: 'v1',
       kind: 'video',
+      role: 'main',
       muted: false,
       clips: [clip('a', 0, 1000, 5000), clip('b', 2000, 1000)]
     },
-    { id: 'o1', kind: 'overlay', muted: false, clips: [clip('c', 500, 1000)] },
-    { id: 'm1', kind: 'audio', muted: true, clips: [clip('d', 0, 3000)] }
+    { id: 'o1', kind: 'overlay', role: 'overlay', muted: false, clips: [clip('c', 500, 1000)] },
+    { id: 'm1', kind: 'audio', role: 'music', muted: true, clips: [clip('d', 0, 3000)] }
   ]
 }
 
@@ -44,6 +45,7 @@ describe('timeline schema', () => {
         {
           id: 't',
           kind: 'video',
+          role: 'main',
           muted: false,
           clips: [{ ...clip('k', 0, 10), transform: undefined }]
         }
@@ -69,7 +71,13 @@ describe('clipsAt', () => {
   it('returns nothing in a gap between clips', () => {
     const solo: Timeline = {
       tracks: [
-        { id: 'v', kind: 'video', muted: false, clips: [clip('a', 0, 100), clip('b', 300, 100)] }
+        {
+          id: 'v',
+          kind: 'video',
+          role: 'main',
+          muted: false,
+          clips: [clip('a', 0, 100), clip('b', 300, 100)]
+        }
       ]
     }
     expect(clipsAt(solo, 150)).toEqual([])
@@ -77,7 +85,7 @@ describe('clipsAt', () => {
 
   it('treats the start as inside and the end as outside a clip', () => {
     const solo: Timeline = {
-      tracks: [{ id: 'v', kind: 'video', muted: false, clips: [clip('a', 100, 100)] }]
+      tracks: [{ id: 'v', kind: 'video', role: 'main', muted: false, clips: [clip('a', 100, 100)] }]
     }
     expect(clipsAt(solo, 100).map((c) => c.clip.id)).toEqual(['a'])
     expect(clipsAt(solo, 199).map((c) => c.clip.id)).toEqual(['a'])

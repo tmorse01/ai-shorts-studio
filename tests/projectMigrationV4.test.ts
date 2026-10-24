@@ -28,7 +28,7 @@ describe('migrateV3ToV4', () => {
   })
 
   it('keeps a timeline that already matches the schema', () => {
-    const timeline = { tracks: [{ id: 't', kind: 'text', muted: false, clips: [] }] }
+    const timeline = { tracks: [{ id: 't', kind: 'text', role: 'text', muted: false, clips: [] }] }
     const result = migrateV3ToV4({ schemaVersion: 3, shorts: [shortWithTimeline(timeline)] }) as {
       shorts: { timeline: unknown }[]
     }

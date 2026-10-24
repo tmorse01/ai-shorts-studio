@@ -13,6 +13,7 @@ const SAMPLE_TIMELINE = {
     {
       id: 'v1',
       kind: 'video' as const,
+      role: 'main' as const,
       muted: false,
       clips: [
         { id: 'c1', startMs: 0, durationMs: 1000, sourceInMs: 0, transform: IDENTITY_TRANSFORM }
