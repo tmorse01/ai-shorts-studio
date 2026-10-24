@@ -1,5 +1,5 @@
 import { readLayoutFile, writeLayoutFile } from '../layoutFile'
-import { createProject, openProject } from '../project/projectStorage'
+import { createProject, openProject, saveProject } from '../project/projectStorage'
 import {
   listRecentProjects,
   locateRecentProject,
@@ -40,6 +40,10 @@ export function createIpcHandlers({ layoutFile, recentFile }: IpcHandlerOptions)
       const opened = await openProject(folderPath)
       await recordRecentProject(recentFile, opened)
       return opened
+    },
+    'project:save': async ({ folderPath, project }) => {
+      await saveProject(folderPath, project)
+      return { savedAt: new Date().toISOString() }
     },
     'project:relinkFolder': ({ folderPath, searchFolder }) =>
       relinkMediaFolder(folderPath, searchFolder),

@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 import { createRoute, useParams } from '@tanstack/react-router'
 import { rootRoute } from './rootRoute'
 import { RoutePlaceholder } from './RoutePlaceholder'
+import { SaveStatus } from '@renderer/features/project/SaveStatus'
 
 export const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -16,6 +17,7 @@ function ProjectPage(): JSX.Element {
     <RoutePlaceholder
       title="Project home"
       description={`Project ${projectId}. Its shorts list arrives with epic 02.`}
+      actions={<SaveStatus />}
     />
   )
 }
