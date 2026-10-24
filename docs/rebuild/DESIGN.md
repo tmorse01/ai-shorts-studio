@@ -75,7 +75,7 @@ competing backgrounds.
 
 Three tiers:
 
-- **Display:** Cormorant Garamond or Cinzel — branding, empty states, onboarding, prominent
+- **Display:** Cormorant Garamond (chosen over Cinzel) — branding, empty states, onboarding, prominent
   editorial headings.
 - **Interface headings:** Barlow Condensed — panel names, section headings, tool groups,
   navigation. Prefer uppercase with moderate letter spacing.
