@@ -18,6 +18,7 @@ import { pickAndImportMedia } from './importMedia'
 import { MediaFilterBar } from './MediaFilterBar'
 import { MediaTagsDialog } from './MediaTagsDialog'
 import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
+import { sourceStore } from '../source/sourceStore'
 import { allMediaTags, setMediaTagCommand, tagCoverage, tagsOfMedia } from './mediaTags'
 import {
   EMPTY_MEDIA_FILTER,
@@ -79,6 +80,11 @@ export function MediaPanel(): JSX.Element {
     mediaPanelStore
       .getState()
       .select(id, { additive: event.ctrlKey || event.metaKey, range: event.shiftKey }, order)
+    // A plain click on a video opens it in the centre pane's Source view.
+    const plain = !event.ctrlKey && !event.metaKey && !event.shiftKey
+    if (plain && current?.project.media.find((ref) => ref.id === id)?.kind === 'video') {
+      sourceStore.getState().openSource(id)
+    }
   }
 
   const removeSelected = () => {

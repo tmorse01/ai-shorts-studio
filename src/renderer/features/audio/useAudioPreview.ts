@@ -11,7 +11,9 @@ import { mediaSourceStore } from '../preview/mediaSourceStore'
 import { AudioGraph } from './audioGraph'
 import { useAudioSettings } from './audioSettingsStore'
 
-export function useAudioPreview(timeline: Timeline): void {
+// `enabled` is false while a source clip is in view: the timeline is then silent and its clock is not
+// registered, so the source video keeps the playhead.
+export function useAudioPreview(timeline: Timeline, enabled = true): void {
   const graphRef = useRef<AudioGraph | null>(null)
   if (graphRef.current === null) graphRef.current = new AudioGraph()
 
@@ -30,10 +32,10 @@ export function useAudioPreview(timeline: Timeline): void {
 
   useEffect(() => {
     const graph = graphRef.current
-    if (!graph) return undefined
+    if (!graph || !enabled) return undefined
     setAudioClock(() => graph.clockMs())
     return () => setAudioClock(null)
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
     graphRef.current?.update({

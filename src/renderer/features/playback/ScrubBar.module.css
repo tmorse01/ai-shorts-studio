@@ -5,10 +5,40 @@
   width: 100%;
 }
 
-.slider {
+.track {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-width: 0;
+}
+
+.slider {
+  width: 100%;
   accent-color: var(--color-primary);
+}
+
+/* A thin row under the slider where the marked range is drawn. */
+.markRow {
+  position: relative;
+  height: 4px;
+}
+
+.range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-primary);
+  opacity: 0.6;
+}
+
+.marks {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  letter-spacing: var(--type-mono-tracking);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .timecode {
