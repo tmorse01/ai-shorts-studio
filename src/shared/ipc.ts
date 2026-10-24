@@ -64,6 +64,10 @@ export const ipcChannels = {
   'project:open': {
     input: z.object({ folderPath: z.string().trim().min(1) }),
     output: projectOpenedSchema
+  },
+  'project:save': {
+    input: z.object({ folderPath: z.string().trim().min(1), project: projectSchema }),
+    output: z.object({ savedAt: z.iso.datetime() })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 

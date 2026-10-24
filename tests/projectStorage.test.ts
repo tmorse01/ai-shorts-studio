@@ -193,6 +193,19 @@ describe('project IPC channels', () => {
     if (opened.ok) expect(opened.data.project.name).toBe('Harbour')
   })
 
+  it('project:save round-trip through the bridge writes project.json', async () => {
+    const api = makeBridge()
+    const created = await api.invoke('project:create', { folderPath: folder, name: 'Harbour' })
+    if (!created.ok) throw new Error('create failed')
+
+    const edited = { ...created.data.project, name: 'Harbour v2' }
+    const saved = await api.invoke('project:save', { folderPath: folder, project: edited })
+    expect(saved.ok).toBe(true)
+
+    const onDisk = await readJson(join(folder, PROJECT_FILE))
+    expect(onDisk).toMatchObject({ name: 'Harbour v2' })
+  })
+
   it('returns the recovery warning through the bridge', async () => {
     const api = makeBridge()
     await api.invoke('project:create', { folderPath: folder, name: 'Harbour' })
