@@ -1,0 +1,23 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+/* Everything below the toolbar: the row of panes, then the full-width timeline. */
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
