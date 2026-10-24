@@ -1,9 +1,10 @@
 // The project.json contract, shared by main (storage service) and renderer. Data model from Epic 02
-// (#2). `timeline` and script `lines` are permissive placeholders owned by Epics 07 and 14.
+// (#2). Script `lines` is a permissive placeholder owned by Epic 14. `timeline` comes from Epic 06.
 import { z } from 'zod'
+import { timelineSchema } from '../timeline/timeline'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 3
+export const CURRENT_SCHEMA_VERSION = 4
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -81,8 +82,8 @@ export const shortSchema = z.object({
   exportedAt: isoTimestamp.optional(),
   // Set when an Exported short is edited. Cleared by the next export (Epic 17).
   editedSinceExport: z.boolean(),
-  // Placeholder until the timeline model lands (Epic 07). Unknown keys are kept, not stripped.
-  timeline: z.looseObject({})
+  // The short's edit timeline (see src/shared/timeline). Empty for a new short.
+  timeline: timelineSchema
 })
 export type Short = z.infer<typeof shortSchema>
 

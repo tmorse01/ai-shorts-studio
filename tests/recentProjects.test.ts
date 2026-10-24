@@ -80,7 +80,7 @@ describe('recent projects registry', () => {
       platform: 'generic',
       overrides: {},
       editedSinceExport: false,
-      timeline: {}
+      timeline: { tracks: [] }
     }
     await saveProject(folder, { ...opened.project, shorts: [short] })
     await recordRecentProject(registry, await openProject(folder), t2)
