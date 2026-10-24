@@ -53,7 +53,18 @@ export function ToastHost() {
             description={item.description}
             duration={item.dismissAfterMs ?? Infinity}
             action={
-              item.details ? (
+              item.action ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    item.action?.run()
+                    toast.dismiss(item.id)
+                  }}
+                >
+                  {item.action.label}
+                </Button>
+              ) : item.details ? (
                 <Button variant="ghost" size="sm" onClick={() => setDetails(item)}>
                   Details
                 </Button>

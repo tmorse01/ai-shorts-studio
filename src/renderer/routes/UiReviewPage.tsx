@@ -10,6 +10,9 @@ import { DropdownMenu } from '../ui/DropdownMenu'
 import { Tooltip } from '../ui/Tooltip'
 import { Tabs } from '../ui/Tabs'
 import { Switch } from '../ui/Switch'
+import { ScrubLabel } from '../ui/ScrubLabel'
+import { TimecodeField } from '../ui/TimecodeField'
+import { DbField, SliderNumberField } from '../ui/SliderNumberField'
 import { toast } from '../features/toasts/toast'
 import { ErrorDemo } from '../features/errors/ErrorDemo'
 import { TimelinePane } from '../features/timeline/TimelinePane'
@@ -31,6 +34,10 @@ export function UiReviewPage(): JSX.Element {
   const [aspect, setAspect] = useState('9:16')
   const [captions, setCaptions] = useState(true)
   const [demoTimeline, setDemoTimeline] = useState<Timeline>(EMPTY_DEMO_TIMELINE)
+  const [scrubbed, setScrubbed] = useState(0)
+  const [clipMs, setClipMs] = useState(61_250)
+  const [volumeDb, setVolumeDb] = useState(-6)
+  const [opacity, setOpacity] = useState(100)
 
   return (
     <main className={styles.page}>
@@ -93,6 +100,47 @@ export function UiReviewPage(): JSX.Element {
           <Switch checked={captions} onCheckedChange={setCaptions}>
             Auto captions
           </Switch>
+        </div>
+      </section>
+
+      <section className={styles.section} aria-labelledby="inspector-heading">
+        <h2 id="inspector-heading" className={styles.heading}>
+          Inspector fields
+        </h2>
+        <div className={styles.fields}>
+          <ScrubLabel
+            label="Position"
+            value={scrubbed}
+            step={1}
+            format={(value) => `${Math.round(value)} px`}
+            onChange={setScrubbed}
+          />
+          <TimecodeField label="Clip start" valueMs={clipMs} onChange={setClipMs} />
+          <DbField label="Volume" value={volumeDb} onChange={setVolumeDb} />
+          <SliderNumberField
+            label="Opacity"
+            value={opacity}
+            min={0}
+            max={100}
+            step={1}
+            format={(value) => `${value}%`}
+            parse={(text) => {
+              const number = Number(text.replace('%', '').trim())
+              return text.trim() === '' || Number.isNaN(number) ? null : number
+            }}
+            onChange={setOpacity}
+          />
+          <SliderNumberField
+            label="Opacity (mixed)"
+            value={0}
+            mixed
+            min={0}
+            max={100}
+            step={1}
+            format={(value) => `${value}%`}
+            parse={() => null}
+            onChange={() => undefined}
+          />
         </div>
       </section>
 

@@ -1,9 +1,49 @@
-// Applies a project-level command to the open project. The edit autosaves. Project history is not
-// wired to the app yet, so these edits are not on an undo stack.
+// Project-level edits. Each command runs through the project history, so undo and redo can bring
+// back the exact project it replaced: same ids, order and content. The result is written to the
+// project store, which autosaves it.
 import type { Project } from '@shared/project/schema'
-import type { Command } from '../history/historyStore'
+import { createHistoryStore, type Command, type HistoryApi } from '../history/historyStore'
 import { projectStore } from '../project/projectStore'
 
+let history: HistoryApi<Project> | null = null
+
+// The history for the open project. It starts again when the project object was replaced by an edit
+// outside the history, or when another project opened, because its undo steps no longer match.
+function historyFor(project: Project): HistoryApi<Project> {
+  if (!history) {
+    history = createHistoryStore(project)
+  } else if (history.getState().present !== project) {
+    history.getState().reset(project)
+  }
+  return history
+}
+
+function publish(next: Project): void {
+  projectStore.getState().replaceProject(next)
+}
+
 export function applyProjectCommand(command: Command<Project>): void {
-  projectStore.getState().edit((draft) => command.produce(draft))
+  const current = projectStore.getState().current
+  if (!current) return
+  const project = historyFor(current.project)
+  if (project.getState().execute(command)) publish(project.getState().present)
+}
+
+// Undoes the last project-level edit. Returns false when there is nothing to undo.
+export function undoProjectEdit(): boolean {
+  const current = projectStore.getState().current
+  if (!current || !history) return false
+  const project = historyFor(current.project)
+  if (!project.getState().undo()) return false
+  publish(project.getState().present)
+  return true
+}
+
+export function redoProjectEdit(): boolean {
+  const current = projectStore.getState().current
+  if (!current || !history) return false
+  const project = historyFor(current.project)
+  if (!project.getState().redo()) return false
+  publish(project.getState().present)
+  return true
 }

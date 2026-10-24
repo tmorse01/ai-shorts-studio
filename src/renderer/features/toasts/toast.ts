@@ -2,7 +2,7 @@
 //   toast.info({ title: 'Export queued' })
 //   toast.error({ title: 'Export failed', description: 'Try again.', details: 'ENOSPC: disk full' })
 // Info, success and AI toasts close after a few seconds. Error toasts stay until the user closes them.
-import { toastStore, type ToastItem, type ToastTone } from './toastStore'
+import { toastStore, type ToastAction, type ToastItem, type ToastTone } from './toastStore'
 
 export const AUTO_DISMISS_MS = 5000
 
@@ -10,6 +10,7 @@ export interface ToastInput {
   title: string
   description?: string
   details?: string
+  action?: ToastAction
 }
 
 let sequence = 0
@@ -23,6 +24,7 @@ function show(tone: ToastTone, input: ToastInput): string {
     title: input.title,
     description: input.description,
     details: input.details,
+    action: input.action,
     dismissAfterMs: tone === 'error' ? null : AUTO_DISMISS_MS
   }
   toastStore.getState().add(item)

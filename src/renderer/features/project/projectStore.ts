@@ -26,6 +26,9 @@ export interface ProjectActions {
   open: (opened: OpenProject) => Promise<boolean>
   // Applies an edit to the open project and schedules an autosave.
   edit: (recipe: (draft: Draft<Project>) => void) => void
+  // Replaces the open project with a whole project object, such as the result of a command or an
+  // undo, and schedules an autosave. The object is kept as given, so its identity can be compared.
+  replaceProject: (project: Project) => void
   // Writes pending changes now.
   flush: () => Promise<void>
 }
@@ -56,6 +59,14 @@ export function createProjectStore(saveOpened: (opened: OpenProject) => Promise<
         recipe(draft)
         draft.updatedAt = new Date().toISOString()
       })
+      const next = { folderPath: current.folderPath, project }
+      set({ current: next })
+      autosaver.schedule(next)
+    },
+
+    replaceProject: (project) => {
+      const { current } = get()
+      if (!current) return
       const next = { folderPath: current.folderPath, project }
       set({ current: next })
       autosaver.schedule(next)

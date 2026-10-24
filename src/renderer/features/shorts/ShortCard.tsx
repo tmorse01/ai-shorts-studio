@@ -64,6 +64,7 @@ export function ShortCard({
   function onPosterKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (event.key === 'Enter') onOpen()
     if (event.key === 'F2') startRename()
+    if (event.key === 'Delete') onDelete()
   }
 
   function onRenameKeyDown(event: KeyboardEvent<HTMLInputElement>) {

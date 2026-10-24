@@ -1,0 +1,29 @@
+.scrub {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  cursor: ew-resize;
+  user-select: none;
+  touch-action: none;
+  border-radius: var(--radius);
+}
+
+.scrub:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.label {
+  font-family: var(--font-ui);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}

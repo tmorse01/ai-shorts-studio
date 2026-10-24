@@ -1,4 +1,5 @@
 import { editorHistory } from '@renderer/features/history/editorHistory'
+import { redoProjectEdit, undoProjectEdit } from '@renderer/features/shorts/shortActions'
 import { uiStore } from '@renderer/features/layout/useUiStore'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
 import type { PaneId } from '@shared/layout'
@@ -23,14 +24,23 @@ export function editorShortcuts(): ShortcutDefinition[] {
       keys: ['mod+z'],
       label: 'Undo',
       group: 'Edit',
-      run: () => editorHistory.active()?.getState().undo()
+      // With no short open, undo applies to the project (Project home).
+      run: () => {
+        const short = editorHistory.active()
+        if (short) short.getState().undo()
+        else undoProjectEdit()
+      }
     },
     {
       id: 'history.redo',
       keys: ['mod+shift+z', 'mod+y'],
       label: 'Redo',
       group: 'Edit',
-      run: () => editorHistory.active()?.getState().redo()
+      run: () => {
+        const short = editorHistory.active()
+        if (short) short.getState().redo()
+        else redoProjectEdit()
+      }
     },
     {
       id: 'playback.toggle',

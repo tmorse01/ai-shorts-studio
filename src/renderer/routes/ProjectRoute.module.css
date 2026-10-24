@@ -7,18 +7,7 @@
   overflow: auto;
 }
 
-.header {
+.section {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--type-heading-size);
-  line-height: var(--type-heading-line);
-  font-weight: 400;
-  color: var(--color-editorial);
+  flex-direction: column;
 }
