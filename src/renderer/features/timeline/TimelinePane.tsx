@@ -15,10 +15,20 @@ import {
   detachAudio,
   insertClip,
   placeClips,
+  removeTransition,
   setClipAudio,
   setTrackFlag,
-  trimClip
+  trimClip,
+  addCutTransition
 } from '@shared/timeline/edits'
+import {
+  DEFAULT_TRANSITION_MS,
+  TRANSITION_KINDS,
+  TRANSITION_LABELS,
+  cutBefore,
+  kindOf,
+  transitionWindow
+} from '@shared/timeline/transitions'
 import { audioClipForDrop } from '@shared/timeline/audioDrop'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { MediaRef } from '@shared/project/schema'
@@ -628,12 +638,76 @@ export function TimelinePane({
           runEdit(label, (current) => setClipAudio(current, sound.id, { muted: !sound.muted }))
       })
     }
+    if (track.role === 'main') items.push(...cutMenuItems(clip))
     if (items.length === 0) return null
     return (
       <div className={styles.clipMenu} style={{ left: timeToX(clip.startMs, pxPerMs) }}>
         <DropdownMenu trigger={<Button variant="ghost">Clip</Button>} items={items} />
       </div>
     )
+  }
+
+  // The cut before a selected main-track clip: add a crossfade or a dip to black there at the default
+  // length (clamped to the handles), or remove the transition already on it.
+  function cutMenuItems(clip: Clip): DropdownMenuItem[] {
+    const cut = cutBefore(timeline, clip.id)
+    if (!cut) return []
+    const existing = (timeline.transitions ?? []).find(
+      (item) => item.fromClipId === cut.from.id && item.toClipId === clip.id
+    )
+    if (existing) {
+      return [
+        {
+          label: 'Remove transition',
+          onSelect: () =>
+            runEdit('Remove transition', (current) => removeTransition(current, existing.id))
+        }
+      ]
+    }
+    return TRANSITION_KINDS.map((kind) => {
+      const label = `Add ${TRANSITION_LABELS[kind].toLowerCase()} at cut`
+      return {
+        label,
+        onSelect: () =>
+          runEdit(label, (current) =>
+            addCutTransition(
+              current,
+              latest.current.newId(),
+              clip.id,
+              kind,
+              DEFAULT_TRANSITION_MS,
+              clipSourceLength
+            )
+          )
+      }
+    })
+  }
+
+  function clipSourceLength(clip: Clip): number | undefined {
+    return media?.items.find((ref) => ref.id === clip.mediaId)?.durationMs
+  }
+
+  // The transitions on one main track, drawn over their cuts. Each is a window centred on its cut.
+  function transitionElements(trackId: string) {
+    const track = timeline.tracks.find((item) => item.id === trackId)
+    const clips = new Map((track?.clips ?? []).map((item) => [item.id, item]))
+    return (timeline.transitions ?? []).flatMap((transition) => {
+      const to = clips.get(transition.toClipId)
+      if (!to || !clips.has(transition.fromClipId)) return []
+      const window = transitionWindow(transition, to.startMs)
+      const seconds = (transition.durationMs / 1000).toFixed(2)
+      return [
+        <div
+          key={`transition-${transition.id}`}
+          className={styles.transition}
+          title={`${TRANSITION_LABELS[kindOf(transition)]}, ${seconds} s`}
+          style={{
+            left: timeToX(window.startMs, pxPerMs),
+            width: timeToX(transition.durationMs, pxPerMs)
+          }}
+        />
+      ]
+    })
   }
 
   // The gaps on one main track. A gap is selected by a press; a selected gap offers Close gap.
@@ -729,6 +803,7 @@ export function TimelinePane({
         >
           {track ? laneClips(track) : null}
           {track?.role === 'main' ? gapElements(track.id) : null}
+          {track?.role === 'main' ? transitionElements(track.id) : null}
           {track && trim && trimmedClip && trim.trackId === track.id
             ? trimTooltip(trimmedClip, trim.edge)
             : null}

@@ -56,7 +56,8 @@ export function clipAudioSources(
       startMs: clip.startMs,
       sourceInMs: clip.sourceInMs,
       sourceTimeMs: clip.sourceInMs + (tMs - clip.startMs),
-      gain: clip.gain ?? 1
+      // A transition fades the sound in or out over its window (see @shared/timeline/transitions).
+      gain: (clip.gain ?? 1) * (active.fade?.gain ?? 1)
     })
   }
   return sources

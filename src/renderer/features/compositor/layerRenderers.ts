@@ -23,7 +23,9 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
     'video',
     (layer, context) => {
       const source = context.sourceOf(layer)
-      if (source.state === 'ready') context.backend.drawVideo(source.element, layer.placement)
+      if (source.state === 'ready') {
+        context.backend.drawVideo(source.element, layer.placement, layer.fade?.opacity ?? 1)
+      }
     },
     { transformable: true }
   )

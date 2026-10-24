@@ -1,7 +1,15 @@
 // Pure edit operations on a timeline (Epic 07, #84). Each takes a timeline and returns a new one; the
 // input is never mutated. The renderer wraps these as undoable commands. Every edit ends with settle(),
 // which runs the Main-track check and keeps linked audio on its video clip's time (#91).
-import type { Clip, Timeline, Track, Transform, Transition } from './timeline'
+import type { Clip, Timeline, Track, Transform, Transition, TransitionKind } from './timeline'
+import {
+  clampTransitionMs,
+  cutBefore,
+  isCut,
+  transitionFitsCut,
+  transitionLimitFor,
+  transitionLimitMs
+} from './transitions'
 
 export class TimelineEditError extends Error {
   constructor(message: string) {
@@ -81,9 +89,17 @@ export function assertMainNoOverlap(timeline: Timeline): Timeline {
 // The last step of every edit. It runs the Main-track check, then sets each linked audio clip to the
 // start, length and source in of its video clip, on whatever audio track it sits. A locked audio track
 // refuses the change, like any other clip edit.
+// Drops transitions whose cut no longer fits: a clip moved, trimmed or deleted off the cut.
+function pruneTransitions(timeline: Timeline): Timeline {
+  const transitions = timeline.transitions
+  if (!transitions || transitions.length === 0) return timeline
+  const kept = transitions.filter((item) => transitionFitsCut(timeline, item))
+  return kept.length === transitions.length ? timeline : { ...timeline, transitions: kept }
+}
+
 export function settle(timeline: Timeline): Timeline {
   assertMainNoOverlap(timeline)
-  let next = timeline
+  let next = pruneTransitions(timeline)
   for (const track of timeline.tracks) {
     for (const clip of track.clips) {
       if (!clip.linkedAudio) continue
@@ -307,6 +323,9 @@ export function addTransition(timeline: Timeline, transition: Transition): Timel
   if (from.clip.startMs >= to.clip.startMs) {
     throw new TimelineEditError('The first clip of a transition must start before the second.')
   }
+  if (!isCut(from.clip, to.clip)) {
+    throw new TimelineEditError('A transition sits on a cut: the clips must meet.')
+  }
   const existing = timeline.transitions ?? []
   if (existing.some((item) => item.id === transition.id)) {
     throw new TimelineEditError(`A transition with id "${transition.id}" already exists.`)
@@ -337,6 +356,52 @@ export function resizeTransition(
     ...timeline,
     transitions: existing.map((item) => (item.id === transitionId ? { ...item, durationMs } : item))
   }
+}
+
+// Adds a transition on the cut before toClipId. The length is clamped to the handles on that cut, so
+// it can be shorter than asked. sourceLengthOf gives a clip's footage length, when it is known.
+export function addCutTransition(
+  timeline: Timeline,
+  transitionId: string,
+  toClipId: string,
+  kind: TransitionKind,
+  requestedMs: number,
+  sourceLengthOf: (clip: Clip) => number | undefined
+): Timeline {
+  const cut = cutBefore(timeline, toClipId)
+  if (!cut) {
+    throw new TimelineEditError('A transition needs a cut: the clip must follow another clip.')
+  }
+  const limit = transitionLimitMs(cut.from, cut.to, sourceLengthOf(cut.from))
+  const durationMs = clampTransitionMs(requestedMs, limit)
+  if (durationMs < 1) {
+    throw new TimelineEditError('The handles on this cut are too short for a transition.')
+  }
+  return addTransition(timeline, {
+    id: transitionId,
+    fromClipId: cut.from.id,
+    toClipId,
+    durationMs,
+    kind
+  })
+}
+
+// Sets a transition's length, clamped to the handles on its cut. Dragging a transition edge calls this.
+export function resizeCutTransition(
+  timeline: Timeline,
+  transitionId: string,
+  requestedMs: number,
+  sourceLengthOf: (clip: Clip) => number | undefined
+): Timeline {
+  const transition = (timeline.transitions ?? []).find((item) => item.id === transitionId)
+  if (!transition) throw new TimelineEditError(`No transition with id "${transitionId}".`)
+  const limit = transitionLimitFor(timeline, transition, sourceLengthOf)
+  if (limit === null) throw new TimelineEditError('The transition has no cut to sit on.')
+  const durationMs = clampTransitionMs(requestedMs, limit)
+  if (durationMs < 1) {
+    throw new TimelineEditError('The handles on this cut are too short for a transition.')
+  }
+  return resizeTransition(timeline, transitionId, durationMs)
 }
 
 // Splits the sound off a clip onto an audio track. The new audio clip covers the same source and
