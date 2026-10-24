@@ -3,14 +3,14 @@ import { Download, Keyboard, Redo2, Undo2 } from 'lucide-react'
 import { APP_NAME } from '@shared/app'
 import { Button } from '@renderer/ui/Button'
 import { IconButton } from '@renderer/ui/IconButton'
+import { shortcutHelpStore } from '@renderer/features/shortcuts/shortcutHelpStore'
 import { useUiStore } from './useUiStore'
 import styles from './EditorToolbar.module.css'
 
 // Until the project store lands (epic 02), the toolbar shows a placeholder name and status.
 const PROJECT_NAME_PLACEHOLDER = 'Untitled project'
 
-// Undo, redo and shortcuts are inert placeholders. Task #24 wires undo and redo through the
-// command history, and the shortcuts sheet arrives with the keyboard work.
+// Undo and redo are bound to Ctrl+Z and Ctrl+Y and stay disabled here until a short is open.
 export function EditorToolbar() {
   const setLeftTool = useUiStore((s) => s.setLeftTool)
   const setPaneCollapsed = useUiStore((s) => s.setPaneCollapsed)
@@ -33,7 +33,11 @@ export function EditorToolbar() {
       <div className={styles.group}>
         <IconButton icon={Undo2} label="Undo" disabled />
         <IconButton icon={Redo2} label="Redo" disabled />
-        <IconButton icon={Keyboard} label="Keyboard shortcuts" disabled />
+        <IconButton
+          icon={Keyboard}
+          label="Keyboard shortcuts"
+          onClick={() => shortcutHelpStore.getState().setOpen(true)}
+        />
         <Button
           variant="primary"
           size="sm"
