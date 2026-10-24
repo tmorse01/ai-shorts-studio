@@ -10,6 +10,7 @@ import {
 import { relinkMediaFolder } from '../media/relinkMedia'
 import { statMediaFiles } from '../media/statMedia'
 import { ensureMediaThumbs } from '../media/ensureThumbs'
+import { readThumbDataUrl } from '../media/readThumb'
 import { ensureMediaProxies } from '../media/ensureProxies'
 import { MediaSourceRegistry, describeMediaSources } from '../media/mediaSources'
 import type { IpcHandlers } from './dispatch'
@@ -138,6 +139,8 @@ export function createIpcHandlers({
     'media:pick': async () => ({ paths: await actions.pickMediaFiles() }),
     'media:stat': ({ paths }) => statMediaFiles(paths),
     'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs),
+    'media:thumb:read': ({ projectFolder, mediaId, file }) =>
+      readThumbDataUrl(projectFolder, mediaId, file),
     'media:proxy': ({ projectFolder, items }) => ensureMediaProxies(projectFolder, items, jobs),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
