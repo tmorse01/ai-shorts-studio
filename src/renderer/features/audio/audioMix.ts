@@ -5,7 +5,9 @@
 // Extension hook (Epic 06 narration and music): a feature that adds sounds that are not clips on the
 // timeline calls registerAudioSourceProvider with a function that returns AudioSource entries for a
 // time. Each entry is played through the same graph as clip sources, with the same gain and resync.
+import { crossfadeGains } from '@shared/timeline/crossfade'
 import { clipsAt } from '@shared/timeline/resolveFrame'
+import { duckEnvelope, duckingFor, envelopeGainAt, narrationRanges } from '@shared/timeline/ducking'
 import type { Timeline } from '@shared/timeline/timeline'
 import { FRAME_MS } from '../playback/playbackClock'
 
@@ -39,25 +41,29 @@ export function registerAudioSourceProvider(provider: AudioSourceProvider): () =
 // Clip sources at tMs: one per active clip that has footage and sits on an audio or video track.
 // Muted tracks and muted clips are silent. A video clip with detached audio is silent, because its sound now plays
 // from the audio clip it links to. `hasAudio` says whether a media id has a sound track at all.
+// A clip inside a crossfade takes its fade gain. Music under narration takes the ducking gain.
 export function clipAudioSources(
   timeline: Timeline,
   tMs: number,
   hasAudio: (mediaId: string) => boolean = () => true
 ): AudioSource[] {
   const sources: AudioSource[] = []
+  const crossfades = crossfadeGains(timeline, tMs)
+  const duck = envelopeGainAt(duckEnvelope(narrationRanges(timeline), duckingFor(timeline)), tMs)
   for (const active of clipsAt(timeline, tMs)) {
-    const { clip, trackKind, trackMuted } = active
+    const { clip, trackKind, trackMuted, trackIndex } = active
     if (trackMuted || clip.muted || !clip.mediaId || !hasAudio(clip.mediaId)) continue
     if (trackKind !== 'audio' && trackKind !== 'video') continue
     if (trackKind === 'video' && clip.linkedAudio) continue
+    const ducked = timeline.tracks[trackIndex]?.role === 'music' ? duck : 1
     sources.push({
       key: clip.id,
       mediaId: clip.mediaId,
       startMs: clip.startMs,
       sourceInMs: clip.sourceInMs,
       sourceTimeMs: clip.sourceInMs + (tMs - clip.startMs),
-      // A transition fades the sound in or out over its window (see @shared/timeline/transitions).
-      gain: (clip.gain ?? 1) * (active.fade?.gain ?? 1)
+      // A cut transition fades the sound (see @shared/timeline/transitions). Overlap crossfades (loop-to-fill) are in crossfades.
+      gain: (clip.gain ?? 1) * (active.fade?.gain ?? 1) * (crossfades.get(clip.id) ?? 1) * ducked
     })
   }
   return sources
