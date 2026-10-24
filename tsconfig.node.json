@@ -23,6 +23,7 @@
     "vitest.config.ts",
     "src/main/**/*",
     "src/preload/**/*",
+    "src/renderer/css-modules.d.ts",
     "src/shared/**/*",
     "tests/**/*"
   ]
