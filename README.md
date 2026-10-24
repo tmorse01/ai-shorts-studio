@@ -26,11 +26,11 @@ that shows a placeholder. The FFmpeg and Parakeet features from the previous ver
 
 ## Scripts
 
-| Command                                      | What it does                                          |
-| -------------------------------------------- | ----------------------------------------------------- |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint, strict TypeScript, Vitest                     |
-| `pnpm build`                                 | Compile main, preload and renderer with electron-vite |
-| `pnpm package:win`                           | Build the NSIS installer into `release/`              |
+| Command | What it does |
+| --- | --- |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint, strict TypeScript, Vitest |
+| `pnpm build` | Compile main, preload and renderer with electron-vite |
+| `pnpm package:win` | Build the NSIS installer into `release/` |
 
 ## Website and releases
 

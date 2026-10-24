@@ -45,18 +45,18 @@ oversized rounded cards.
 
 ### Primary palette
 
-| Token             | Hex       | Usage                                           |
-| ----------------- | --------- | ----------------------------------------------- |
-| Galactic Black    | `#0B0D0C` | Main application background                     |
-| Void Black        | `#050606` | Deepest surfaces and video canvas               |
-| Haunted Charcoal  | `#1C211E` | Panels, sidebars, timeline tracks               |
-| Undead Sage       | `#C4DCA5` | Primary actions, active tools, playhead accents |
-| Spectral Lavender | `#CBB6E8` | AI tools, generated content, selected effects   |
-| Galactic White    | `#F5F5F0` | Primary text, prominent headings                |
-| Aged Ivory        | `#F0E8D5` | Editorial accents and decorative elements       |
-| Muted Moss        | `#728D71` | Secondary green states                          |
-| Occult Mauve      | `#8C719F` | Secondary purple states                         |
-| Subtle Border     | `#343B36` | Dividers, panel borders                         |
+| Token | Hex | Usage |
+|---|---|---|
+| Galactic Black | `#0B0D0C` | Main application background |
+| Void Black | `#050606` | Deepest surfaces and video canvas |
+| Haunted Charcoal | `#1C211E` | Panels, sidebars, timeline tracks |
+| Undead Sage | `#C4DCA5` | Primary actions, active tools, playhead accents |
+| Spectral Lavender | `#CBB6E8` | AI tools, generated content, selected effects |
+| Galactic White | `#F5F5F0` | Primary text, prominent headings |
+| Aged Ivory | `#F0E8D5` | Editorial accents and decorative elements |
+| Muted Moss | `#728D71` | Secondary green states |
+| Occult Mauve | `#8C719F` | Secondary purple states |
+| Subtle Border | `#343B36` | Dividers, panel borders |
 
 ### Color distribution
 
@@ -181,7 +181,8 @@ decoration.
 React, TypeScript, Lucide icons, centralized CSS variables for the full theme. Customize components
 heavily enough that nothing looks stock.
 
-Priorities: 1. editing ergonomics 2. consistent hierarchy 3. contrast and accessibility 4. distinctive identity 5. responsive layouts 6. smooth interactions and performance.
+Priorities: 1. editing ergonomics 2. consistent hierarchy 3. contrast and accessibility
+4. distinctive identity 5. responsive layouts 6. smooth interactions and performance.
 
 Must feel like a polished, commercially viable creative tool — not a generic admin dashboard. Avoid
 excessive cards, needless borders, huge empty panels, and decoration that reduces editing space.
@@ -192,10 +193,10 @@ Inspiration: DaVinci Resolve, Premiere Pro, CapCut — with its own identity.
 **Keywords:** Galactic, Occult, Art Deco, Cinematic, Undead, Minimal, Editorial, Precise,
 Supernatural, Premium.
 
-**North star:** _A professional video editing suite built inside a supernatural observatory:
+**North star:** *A professional video editing suite built inside a supernatural observatory:
 near-black workstations, crisp white controls, pale undead-green highlights, soft spectral-purple
 intelligence, and just enough vintage occult character to make the product instantly
-recognizable._
+recognizable.*
 
 Roughly **80% professional editing software, 15% Deadlock-inspired identity, 5% atmospheric
 decoration.** Beautiful, but never at the expense of editing usability.
