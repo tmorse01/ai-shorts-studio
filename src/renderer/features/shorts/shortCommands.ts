@@ -53,7 +53,7 @@ export function createShortCommand(shortId: string, now: string): Command<Projec
         platform: draft.defaults.platform,
         overrides: {},
         editedSinceExport: false,
-        timeline: {}
+        timeline: { tracks: [] }
       })
     }
   }

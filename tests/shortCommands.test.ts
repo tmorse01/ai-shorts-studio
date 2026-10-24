@@ -6,6 +6,20 @@ import {
   type Short
 } from '@shared/project/schema'
 import { createHistoryStore, type HistoryApi } from '@renderer/features/history/historyStore'
+import { IDENTITY_TRANSFORM } from '@shared/timeline/timeline'
+
+const SAMPLE_TIMELINE = {
+  tracks: [
+    {
+      id: 'v1',
+      kind: 'video' as const,
+      muted: false,
+      clips: [
+        { id: 'c1', startMs: 0, durationMs: 1000, sourceInMs: 0, transform: IDENTITY_TRANSFORM }
+      ]
+    }
+  ]
+}
 import {
   createShortCommand,
   deleteShortCommand,
@@ -30,7 +44,7 @@ function short(id: string, name: string, status: Short['status'], order: number)
     platform: 'youtube',
     overrides: {},
     editedSinceExport: false,
-    timeline: { tracks: [{ clips: ['c1'] }] }
+    timeline: SAMPLE_TIMELINE
   }
 }
 
@@ -147,7 +161,7 @@ describe('duplicate short', () => {
       updatedAt: NOW,
       status: 'draft'
     })
-    expect(history.getState().present.shorts[1].timeline).toEqual({ tracks: [{ clips: ['c1'] }] })
+    expect(history.getState().present.shorts[1].timeline).toEqual(SAMPLE_TIMELINE)
   })
 
   it('makes a deep copy, so editing the copy leaves the original alone', () => {
@@ -156,10 +170,13 @@ describe('duplicate short', () => {
     history.getState().execute({
       label: 'Touch copy timeline',
       produce: (draft) => {
-        ;(draft.shorts[1].timeline.tracks as { clips: string[] }[])[0].clips.push('c2')
+        draft.shorts[1].timeline.tracks[0].clips.push({
+          ...SAMPLE_TIMELINE.tracks[0].clips[0],
+          id: 'c2'
+        })
       }
     })
-    expect(history.getState().present.shorts[0].timeline).toEqual({ tracks: [{ clips: ['c1'] }] })
+    expect(history.getState().present.shorts[0].timeline).toEqual(SAMPLE_TIMELINE)
   })
 
   it('turns an Exported original into a Draft copy with no export date', () => {

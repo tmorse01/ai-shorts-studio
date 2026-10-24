@@ -37,7 +37,7 @@ function sampleProject() {
         platform: 'youtube',
         overrides: {},
         editedSinceExport: false,
-        timeline: { tracks: [{ kind: 'video' }] }
+        timeline: { tracks: [] }
       }
     ],
     scripts: [{ id: 'script_1', name: 'Hook options', lines: ['Opening line', { text: 'x' }] }]
@@ -55,12 +55,18 @@ describe('project schema: valid load', () => {
     expect(result.value.project).toEqual(sampleProject())
   })
 
-  it('keeps unknown keys inside the timeline and script lines placeholders', () => {
+  it('keeps unknown keys in the script lines placeholder', () => {
     const result = loadProject(sampleProject())
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.project.shorts[0].timeline).toEqual({ tracks: [{ kind: 'video' }] })
+    expect(result.value.project.shorts[0].timeline).toEqual({ tracks: [] })
     expect(result.value.project.scripts[0].lines).toEqual(['Opening line', { text: 'x' }])
+  })
+
+  it('rejects a short whose timeline does not match the schema', () => {
+    const project = sampleProject()
+    project.shorts[0].timeline = { tracks: [{ kind: 'video' }] } as never
+    expect(loadProject(project).ok).toBe(false)
   })
 
   it('accepts a project with no media, shorts or scripts', () => {
