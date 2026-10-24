@@ -20,21 +20,36 @@ function lineIndex(script: ProjectDraft['scripts'][number], lineId: string): num
   return index
 }
 
-export function createScriptCommand(script: Script): Command<Project> {
+function pushScript(draft: ProjectDraft, script: Script): void {
   const title = script.title.trim()
+  if (title === '') throw new Error('A script needs a title.')
+  if (draft.scripts.some((existing) => existing.id === script.id)) {
+    throw new Error('A script with this id already exists.')
+  }
+  draft.scripts.push({
+    id: script.id,
+    title,
+    topic: script.topic.trim(),
+    lines: script.lines.map((line) => ({ ...line }))
+  })
+}
+
+export function createScriptCommand(script: Script): Command<Project> {
   return {
-    label: `Create script ${title}`,
+    label: `Create script ${script.title.trim()}`,
+    produce: (draft) => pushScript(draft, script)
+  }
+}
+
+// Adds several scripts in one step, so one undo removes the whole batch (for example, AI drafts).
+export function createScriptsCommand(scripts: readonly Script[]): Command<Project> {
+  return {
+    label:
+      scripts.length === 1
+        ? `Create script ${scripts[0].title.trim()}`
+        : `Create ${scripts.length} scripts`,
     produce: (draft) => {
-      if (title === '') throw new Error('A script needs a title.')
-      if (draft.scripts.some((existing) => existing.id === script.id)) {
-        throw new Error('A script with this id already exists.')
-      }
-      draft.scripts.push({
-        id: script.id,
-        title,
-        topic: script.topic.trim(),
-        lines: script.lines.map((line) => ({ ...line }))
-      })
+      for (const script of scripts) pushScript(draft, script)
     }
   }
 }
