@@ -33,7 +33,7 @@ function renumber(shorts: ProjectDraft['shorts']): void {
 }
 
 // A content edit. Editing an Exported short flags it until its next export.
-function markEdited(short: Draft<Short>, now: string): void {
+export function markEdited(short: Draft<Short>, now: string): void {
   short.updatedAt = now
   if (short.status === 'exported') short.editedSinceExport = true
 }

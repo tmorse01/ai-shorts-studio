@@ -8,6 +8,11 @@ const nonEmptyString = z.string().trim().min(1)
 export const trackKindSchema = z.enum(['video', 'audio', 'text', 'overlay'])
 export type TrackKind = z.infer<typeof trackKindSchema>
 
+// What a track is for. Only the main track is a sequence: its clips never overlap and an insert
+// shifts later clips. The other roles are free layers.
+export const trackRoleSchema = z.enum(['main', 'overlay', 'narration', 'music', 'captions', 'text'])
+export type TrackRole = z.infer<typeof trackRoleSchema>
+
 export const transformSchema = z.object({
   // Offsets from the frame centre, in canvas pixels.
   x: z.number(),
@@ -29,20 +34,37 @@ export const clipSchema = z.object({
   // Where in the source the clip starts playing. Source time = sourceInMs + (t - startMs).
   sourceInMs: z.number().int().nonnegative(),
   transform: transformSchema,
-  text: z.string().optional()
+  text: z.string().optional(),
+  label: z.string().optional(),
+  // The moment (Epic 14 script beat) this clip was dropped from, when it came from one.
+  momentId: nonEmptyString.optional(),
+  // Id of the audio clip split off this clip by "detach audio".
+  linkedAudio: nonEmptyString.optional()
 })
 export type Clip = z.infer<typeof clipSchema>
 
 export const trackSchema = z.object({
   id: nonEmptyString,
   kind: trackKindSchema,
+  role: trackRoleSchema,
   muted: z.boolean(),
   clips: z.array(clipSchema)
 })
 export type Track = z.infer<typeof trackSchema>
 
+// A transition between two clips on the same track. Its length is the overlap the edit shows.
+export const transitionSchema = z.object({
+  id: nonEmptyString,
+  fromClipId: nonEmptyString,
+  toClipId: nonEmptyString,
+  durationMs: z.number().int().positive()
+})
+export type Transition = z.infer<typeof transitionSchema>
+
 // Tracks are listed bottom to top: a later track draws over an earlier one.
 export const timelineSchema = z.object({
-  tracks: z.array(trackSchema)
+  tracks: z.array(trackSchema),
+  // Optional so a timeline with no transitions needs no key. Read it as `?? []`.
+  transitions: z.array(transitionSchema).optional()
 })
 export type Timeline = z.infer<typeof timelineSchema>
