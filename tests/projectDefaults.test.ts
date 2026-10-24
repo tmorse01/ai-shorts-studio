@@ -34,6 +34,7 @@ function projectWithShort(): Project {
     updatedAt: '2026-10-23T09:00:00.000Z',
     media: [],
     mediaTags: [],
+    moments: [],
     defaults: { ...DEFAULT_SHORT_DEFAULTS },
     shorts: [short],
     scripts: []
