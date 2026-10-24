@@ -112,12 +112,12 @@ export class AiService {
     try {
       const client = await this.client()
       const model = DEFAULT_VISION_MODEL
-      const usage = await client.sendMessage({
+      const reply = await client.sendMessage({
         model,
         maxTokens: 8,
         prompt: 'Reply with the word OK.'
       })
-      await this.recordUsage(model, usage)
+      await this.recordUsage(model, reply.usage)
       return { ok: true, message: 'Connected. The key works.' }
     } catch (error) {
       return {

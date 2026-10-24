@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ANTHROPIC_VERSION,
+  AnthropicRequestError,
   createAnthropicClient,
   MESSAGES_URL
 } from '../src/main/ai/anthropicClient'
@@ -28,9 +29,9 @@ describe('Anthropic client', () => {
     })
     const client = createAnthropicClient({ apiKey: 'sk-test', fetchImpl })
 
-    const usage = await client.sendMessage(request)
+    const reply = await client.sendMessage(request)
 
-    expect(usage).toEqual({ inputTokens: 14, outputTokens: 2 })
+    expect(reply.usage).toEqual({ inputTokens: 14, outputTokens: 2 })
     expect(calls).toHaveLength(1)
     expect(calls[0].url).toBe(MESSAGES_URL)
     const headers = calls[0].init.headers as Record<string, string>
@@ -41,6 +42,50 @@ describe('Anthropic client', () => {
       max_tokens: 8,
       messages: [{ role: 'user', content: 'Reply with OK.' }]
     })
+  })
+
+  it('sends still images as base64 JPEG blocks before the prompt, and returns the reply text', async () => {
+    const { calls, fetchImpl } = fakeFetch(200, {
+      content: [{ type: 'text', text: '[{"shot":0}]' }],
+      usage: { input_tokens: 5, output_tokens: 1 }
+    })
+    const client = createAnthropicClient({ apiKey: 'sk-test', fetchImpl })
+
+    const reply = await client.sendMessage({
+      ...request,
+      images: [{ label: 'Shot 0', data: 'AAAA' }]
+    })
+
+    expect(reply.text).toBe('[{"shot":0}]')
+    expect(JSON.parse(String(calls[0].init.body)).messages[0].content).toEqual([
+      { type: 'text', text: 'Shot 0' },
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } },
+      { type: 'text', text: 'Reply with OK.' }
+    ])
+  })
+
+  it('marks rate limits and server errors as retryable, and reads Retry-After in milliseconds', async () => {
+    const limited = new Response('{}', { status: 429, headers: { 'retry-after': '7' } })
+    const fetchLimited = (async () => limited) as unknown as typeof fetch
+    const rateError = await createAnthropicClient({ apiKey: 'k', fetchImpl: fetchLimited })
+      .sendMessage(request)
+      .catch((reason: unknown) => reason)
+    expect(rateError).toBeInstanceOf(AnthropicRequestError)
+    expect(rateError).toMatchObject({ retryable: true, retryAfterMs: 7000 })
+
+    const { fetchImpl } = fakeFetch(503)
+    const serverError = await createAnthropicClient({ apiKey: 'k', fetchImpl })
+      .sendMessage(request)
+      .catch((reason: unknown) => reason)
+    expect(serverError).toMatchObject({ retryable: true, retryAfterMs: undefined })
+  })
+
+  it('does not mark a refused key as retryable', async () => {
+    const { fetchImpl } = fakeFetch(401)
+    const error = await createAnthropicClient({ apiKey: 'k', fetchImpl })
+      .sendMessage(request)
+      .catch((reason: unknown) => reason)
+    expect(error).toMatchObject({ retryable: false })
   })
 
   it('says plainly when the key is refused', async () => {

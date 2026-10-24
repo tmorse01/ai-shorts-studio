@@ -6,7 +6,7 @@ import {
   type AiStatus
 } from '@shared/ai/aiSettings'
 import { AiService } from '../src/main/ai/aiService'
-import type { AnthropicClient, MessageRequest } from '../src/main/ai/anthropicClient'
+import type { AnthropicClient, MessageReply, MessageRequest } from '../src/main/ai/anthropicClient'
 import type { AiStateStorage } from '../src/main/ai/aiStateFile'
 import type { SecretStore } from '../src/main/ai/secretStore'
 import { UserFacingError } from '../src/main/errors'
@@ -32,9 +32,9 @@ function fakeSecrets(initial: string | null = null, available = true) {
 
 // A client that never leaves the test. It records each request and replies with fixed usage.
 function fakeClient(
-  reply: () => Promise<{ inputTokens: number; outputTokens: number }> = async () => ({
-    inputTokens: 12,
-    outputTokens: 3
+  reply: () => Promise<MessageReply> = async () => ({
+    text: 'OK',
+    usage: { inputTokens: 12, outputTokens: 3 }
   })
 ) {
   const requests: MessageRequest[] = []

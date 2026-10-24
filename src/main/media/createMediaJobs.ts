@@ -54,8 +54,8 @@ export function createMediaJobs(ai: AiService): JobQueue {
         signal
       })
     },
-    // Shots and transcripts run for real. Vision is gated by the key, the cap and the project's cost
-    // answer, and has no describer yet, so it is skipped.
+    // Shots, transcripts and vision run for real. Vision is gated by the key, the cap and the project's
+    // cost answer, and is skipped when any of them says no.
     analysis: analysisExecutor(
       liveStageRunners(
         realShotTools({

@@ -101,3 +101,14 @@ export function frameTimesFor(shot: ShotRange): number[] {
 export function shotFrameName(shotIndex: number, frameIndex: number): string {
   return `shot-${String(shotIndex).padStart(4, '0')}-${frameIndex}.jpg`
 }
+
+const SHOT_FRAME_NAME = /^shot-(\d{4})-(\d+)\.jpg$/
+
+/** The shot and frame numbers in a sampled frame's file name, or undefined for any other file. */
+export function parseShotFrameName(
+  name: string
+): { shotIndex: number; frameIndex: number } | undefined {
+  const match = SHOT_FRAME_NAME.exec(name)
+  if (!match) return undefined
+  return { shotIndex: Number(match[1]), frameIndex: Number(match[2]) }
+}
