@@ -24,17 +24,23 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
     (layer, context) => {
       const source = context.sourceOf(layer)
       if (source.state !== 'ready') return
+      const opacity = layer.fade?.opacity ?? 1
       const { render } = layer
       if (render.mode === 'blurFit') {
         // The blurred, dimmed copy first, then the whole source over it.
-        context.backend.drawVideo(source.element, render.background, {
-          blurPx: render.blurPx,
-          dim: render.dim
-        })
-        context.backend.drawVideo(source.element, render.foreground)
+        context.backend.drawVideo(
+          source.element,
+          render.background,
+          {
+            blurPx: render.blurPx,
+            dim: render.dim
+          },
+          opacity
+        )
+        context.backend.drawVideo(source.element, render.foreground, undefined, opacity)
         return
       }
-      context.backend.drawVideo(source.element, layer.placement)
+      context.backend.drawVideo(source.element, layer.placement, undefined, opacity)
     },
     { transformable: true }
   )

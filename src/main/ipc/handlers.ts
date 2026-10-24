@@ -27,6 +27,7 @@ import {
   type AnalysisChange
 } from '../analysis/analysisService'
 import { loadAnalysisFile, saveAnalysisFile } from '../analysis/analysisFile'
+import { readMediaTranscript } from '../analysis/transcriptRead'
 import { AiService } from '../ai/aiService'
 import { memoryAiStateStorage } from '../ai/aiStateFile'
 import { unavailableSecretStore } from '../ai/secretStore'
@@ -193,6 +194,8 @@ export function createIpcHandlers({
     'analysis:visionDecision': async ({ projectFolder, decision }) => ({
       file: await analysis.setVisionDecision(projectFolder, decision)
     }),
+    'analysis:transcript:read': ({ projectFolder, mediaId }) =>
+      readMediaTranscript(projectFolder, mediaId),
     'analysis:playback': ({ playing }) => {
       analysis.setPlaybackActive(playing)
       return { playing }

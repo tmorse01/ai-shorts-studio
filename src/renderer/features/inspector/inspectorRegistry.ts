@@ -2,10 +2,20 @@
 // shows for the selection types it lists, under the tab it names. Until a feature registers one, a
 // tab shows an empty state.
 import { ClipAudioSection } from '@renderer/features/audio/ClipAudioSection'
+import { ShortPropertiesSection } from '@renderer/features/shorts/ShortPropertiesSection'
+import { TranscriptSection } from '@renderer/features/transcript/TranscriptSection'
 import { PanSection } from '@renderer/features/framing/PanSection'
-import type { InspectorSectionDef } from './inspectorModel'
+import { SELECTION_TYPES, type InspectorSectionDef } from './inspectorModel'
 
 export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
+  {
+    id: 'short-properties',
+    title: 'Short properties',
+    tab: 'video',
+    order: 10,
+    selections: ['short'],
+    Component: ShortPropertiesSection
+  },
   {
     id: 'clip-audio',
     title: 'Clip audio',
@@ -13,6 +23,15 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     order: 10,
     selections: ['audio-clip', 'video-clip'],
     Component: ClipAudioSection
+  },
+  {
+    // Source view shows the open clip, whatever the timeline selection is, so every type lists it.
+    id: 'transcript',
+    title: 'Transcript',
+    tab: 'transcript',
+    order: 10,
+    selections: SELECTION_TYPES,
+    Component: TranscriptSection
   },
   {
     id: 'clip-pan',

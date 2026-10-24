@@ -1,5 +1,5 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type Placement } from '@shared/compositor/frame'
-import type { FrameBackend, VideoEffect } from './frameBackend'
+import type { FrameBackend, FrameBackground, VideoEffect } from './frameBackend'
 
 // Each video layer is a textured quad. The vertex shader places the unit quad at the layer's
 // placement (in canvas pixels), so the transform is applied on the GPU.
@@ -29,6 +29,7 @@ precision mediump float;
 uniform sampler2D uFrame;
 uniform vec2 uBlur;
 uniform float uDim;
+uniform float uOpacity;
 varying vec2 vUv;
 void main() {
   vec4 color;
@@ -44,7 +45,7 @@ void main() {
   } else {
     color = texture2D(uFrame, vUv);
   }
-  gl_FragColor = vec4(color.rgb * (1.0 - uDim), color.a);
+  gl_FragColor = vec4(color.rgb * (1.0 - uDim), color.a) * uOpacity;
 }
 `
 
@@ -95,6 +96,10 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
   const rotation = gl.getUniformLocation(program, 'uRotation')
   const blur = gl.getUniformLocation(program, 'uBlur')
   const dim = gl.getUniformLocation(program, 'uDim')
+  const opacityLocation = gl.getUniformLocation(program, 'uOpacity')
+  // Layers blend over each other with premultiplied alpha, so a faded layer shows what is under it.
+  gl.enable(gl.BLEND)
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
   gl.uniform2f(canvasSize, CANVAS_WIDTH, CANVAS_HEIGHT)
   gl.uniform1i(gl.getUniformLocation(program, 'uFrame'), 0)
 
@@ -116,11 +121,11 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
 
   return {
     kind: 'webgl',
-    clear() {
-      gl.clearColor(0, 0, 0, 0)
+    clear(background: FrameBackground = 'transparent') {
+      gl.clearColor(0, 0, 0, background === 'black' ? 1 : 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
     },
-    drawVideo(video: HTMLVideoElement, placement: Placement, effect?: VideoEffect) {
+    drawVideo(video: HTMLVideoElement, placement: Placement, effect?: VideoEffect, opacity = 1) {
       gl.bindTexture(gl.TEXTURE_2D, textureFor(video))
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video)
       const radians = (placement.rotationDeg * Math.PI) / 180
@@ -131,6 +136,7 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
       const blurPx = effect?.blurPx ?? 0
       gl.uniform2f(blur, blurPx / placement.width, blurPx / placement.height)
       gl.uniform1f(dim, effect?.dim ?? 0)
+      gl.uniform1f(opacityLocation, opacity)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     },
     dispose() {
