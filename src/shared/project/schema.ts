@@ -22,7 +22,8 @@ export const mediaRefSchema = z.object({
   pathKind: pathKindSchema,
   fileName: nonEmptyString,
   sizeBytes: z.number().int().nonnegative(),
-  durationMs: z.number().int().nonnegative().optional(),
+  // Not an integer: durations can be fractional (for example 61.25 seconds in ms).
+  durationMs: z.number().nonnegative().optional(),
   kind: mediaKindSchema
 })
 export type MediaRef = z.infer<typeof mediaRefSchema>
