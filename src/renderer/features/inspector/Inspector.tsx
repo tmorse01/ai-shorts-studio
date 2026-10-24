@@ -1,24 +1,30 @@
 import type { JSX } from 'react'
+import { useStore } from 'zustand'
 import { Tabs } from '@renderer/ui/Tabs'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
+import { sourceStore } from '@renderer/features/source/sourceStore'
 import { INSPECTOR_SECTIONS } from './inspectorRegistry'
 import {
   INSPECTOR_TAB_LABELS,
-  INSPECTOR_TABS,
   sectionsFor,
+  visibleInspectorTabs,
   type InspectorTab
 } from './inspectorModel'
 import { InspectorSection } from './InspectorSection'
 import { useInspectorStore } from './useInspectorStore'
 import styles from './Inspector.module.css'
 
-// The right pane (DESIGN.md section 12): top tabs for Video, Audio and AI. Each tab lists the
-// registered sections for the current selection, in order.
+// The right pane (DESIGN.md section 12): top tabs for Video, Audio and AI, plus Transcript while the
+// centre pane shows a source clip. Each tab lists the registered sections for the current selection, in
+// order. When the transcript tab hides, the Video tab is shown instead.
 export function Inspector(): JSX.Element {
   const tab = useInspectorStore((state) => state.tab)
   const setTab = useInspectorStore((state) => state.setTab)
+  const sourceView = useStore(sourceStore, (state) => state.mode === 'source')
 
-  const items = INSPECTOR_TABS.map((value) => ({
+  const visible = visibleInspectorTabs(sourceView)
+  const shownTab: InspectorTab = visible.includes(tab) ? tab : 'video'
+  const items = visible.map((value) => ({
     value,
     label: INSPECTOR_TAB_LABELS[value],
     content: <TabSections tab={value} />
@@ -29,7 +35,7 @@ export function Inspector(): JSX.Element {
       <Tabs
         aria-label="Inspector tabs"
         items={items}
-        value={tab}
+        value={shownTab}
         onValueChange={(value) => setTab(value as InspectorTab)}
       />
     </div>
