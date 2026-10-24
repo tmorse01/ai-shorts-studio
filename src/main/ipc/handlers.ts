@@ -1,5 +1,5 @@
 import { readLayoutFile, writeLayoutFile } from '../layoutFile'
-import { createProject, openProject } from '../project/projectStorage'
+import { createProject, openProject, saveProject } from '../project/projectStorage'
 import { relinkMediaFolder } from '../media/relinkMedia'
 import type { IpcHandlers } from './dispatch'
 import { logError } from '../errors/errorLog'
@@ -25,6 +25,10 @@ export function createIpcHandlers({ layoutFile }: IpcHandlerOptions): IpcHandler
     },
     'project:create': ({ folderPath, name }) => createProject(folderPath, name),
     'project:open': ({ folderPath }) => openProject(folderPath),
+    'project:save': async ({ folderPath, project }) => {
+      await saveProject(folderPath, project)
+      return { savedAt: new Date().toISOString() }
+    },
     'project:relinkFolder': ({ folderPath, searchFolder }) =>
       relinkMediaFolder(folderPath, searchFolder),
     'ui:layout:load': async () => ({ layout: await readLayoutFile(layoutFile) }),
