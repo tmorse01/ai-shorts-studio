@@ -8,6 +8,11 @@ export function getRendererApi(): RendererApi | undefined {
   return (globalThis as { api?: RendererApi }).api
 }
 
+// The window as an event target, for listeners. Typed through globalThis for the same reason.
+export function getWindowTarget(): EventTarget {
+  return globalThis as unknown as EventTarget
+}
+
 const MAX_STACK_LENGTH = 20000
 
 // Logs a renderer error to the console and to the main process log file. Never throws, and never

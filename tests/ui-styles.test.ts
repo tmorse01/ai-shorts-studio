@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 // bypass the theme, so this test fails if one appears. The tokens file itself is exempt.
 const dirs = [
   resolve(__dirname, '../src/renderer/ui'),
+  resolve(__dirname, '../src/renderer/routes'),
   resolve(__dirname, '../src/renderer'),
   resolve(__dirname, '../src/renderer/features/toasts'),
   resolve(__dirname, '../src/renderer/features/errors')

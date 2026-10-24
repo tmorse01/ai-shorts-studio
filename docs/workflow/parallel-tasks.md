@@ -4,13 +4,22 @@ How we pick up rebuild tasks, implement them in parallel, and get each one revie
 orchestrating session picks tasks and spawns one sub-agent per task. Each sub-agent works in its own
 git worktree and ends with a PR against `rebuild`.
 
-Two modes decide who merges the PR:
+Three modes decide who reviews and merges the PR:
 
 - **Mode A: human review.** The sub-agent opens the PR and stops. A human reviews and merges.
 - **Mode B: self-review and merge.** The sub-agent reviews its own diff, fixes what it finds, and
   merges once CI is green. No human step.
+- **Mode C: checks pass, orchestrator merges.** The sub-agent opens the PR and stops, as in mode A.
+  The orchestrator does **not** run a separate review. It checks that CI is green on the latest
+  commit and reads the sub-agent's report (which criteria are ticked, and what's unverified). If CI
+  is green, it merges the PR (`--merge`, no `--admin`), closes the issue, moves it to Done on the
+  board, and starts the next unblocked task. Any unticked criteria that belong to a later task are
+  added to that task's issue so nothing is lost.
 
-The orchestrator names the mode in each sub-agent's brief. Mode A is the default.
+**Mode C is the default** (the owner approved it on 2026-10-24, with no reviewer agent, to save
+tokens). The orchestrator still stops and asks the human, without merging, when CI is red after the
+sub-agent's three attempts, or when the sub-agent's report flags a product or design decision the
+issue doesn't settle. Mode A is for tasks the owner asks to see.
 
 ## Roles
 
@@ -18,7 +27,8 @@ The orchestrator names the mode in each sub-agent's brief. Mode A is the default
   their PRs and CI, and reports back. It does not write feature code itself.
 - **Sub-agent:** one per task. It implements exactly one GitHub issue, opens one PR, and then
   follows the mode's end steps.
-- **Reviewer:** a human in mode A. In mode B the sub-agent is the reviewer.
+- **Reviewer:** a human in mode A, and the sub-agent itself in mode B. In mode C, CI is the gate
+  and the orchestrator merges.
 
 ## Picking tasks
 
@@ -39,10 +49,12 @@ The orchestrator names the mode in each sub-agent's brief. Mode A is the default
    start a task early just to fill a slot. If none are unblocked, report which open PRs are holding
    things up and stop.
 6. Choose the mode per task:
-   - **Mode A** for anything that changes a shared contract: the IPC channel set, the store or undo
-     engine, the dependency list, routing, or the design tokens.
-   - **Mode B** for self-contained work inside one feature folder, such as a component set or a
-     test-only task, where the acceptance criteria can be checked from the diff and CI.
+   - **Mode C** by default, including tasks that change a shared contract the issue asks for.
+   - **Mode A** only when the owner asks to review a task themselves.
+   - **Mode B** for small, self-contained work inside one feature folder, such as a test-only task,
+     where the acceptance criteria can be checked from the diff and CI.
+   In every mode, the sub-agent's own steps stop after opening the PR, except in mode B. Mode C's
+   review and merge are the orchestrator's job.
 
 ## Sub-agent steps
 

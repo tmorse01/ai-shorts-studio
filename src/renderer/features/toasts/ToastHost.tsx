@@ -3,10 +3,11 @@ import { useStore } from 'zustand'
 import { Toast, ToastProvider } from '@renderer/ui/Toast'
 import { Button } from '@renderer/ui/Button'
 import { Dialog } from '@renderer/ui/Dialog'
-import { getRendererApi, reportRendererError } from '../errors/reportRendererError'
+import { getRendererApi, getWindowTarget, reportRendererError } from '../errors/reportRendererError'
 import { toast } from './toast'
 import { toastStore, type ToastItem } from './toastStore'
 import { installRendererErrorHandlers, toastInputForAppError } from './globalErrors'
+import { copyText } from './copyText'
 import styles from './ToastHost.module.css'
 
 let rendererErrorSequence = 0
@@ -20,7 +21,7 @@ export function ToastHost() {
   const [details, setDetails] = useState<ToastItem | null>(null)
 
   useEffect(() => {
-    const stopRendererErrors = installRendererErrorHandlers(window, {
+    const stopRendererErrors = installRendererErrorHandlers(getWindowTarget(), {
       notify: (input) => {
         toast.error(input)
       },
@@ -83,7 +84,7 @@ function CopyDetailsButton({ text }: { text: string }) {
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(text)
+      await copyText(text)
       setState('copied')
     } catch {
       setState('failed')
