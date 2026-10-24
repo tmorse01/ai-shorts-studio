@@ -46,7 +46,8 @@ export const clipSchema = z.object({
   // `?? false`.
   muted: z.boolean().optional(),
   // Sound fades in from the clip's start and out to its end, in ms. Optional so existing clips need
-  // no key. Read them as `?? 0`. The mix reads them with fadeGain in audioMix.ts.
+  // no key. Read them as `?? 0`. The mix reads them with fadeGain in audioMix.ts. Schema 11 added
+  // these keys.
   fadeInMs: z.number().int().nonnegative().optional(),
   fadeOutMs: z.number().int().nonnegative().optional(),
   text: z.string().optional(),

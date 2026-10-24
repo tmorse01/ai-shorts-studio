@@ -134,3 +134,50 @@ export function trimReadout(
   const sourceMs = edge === 'start' ? clip.sourceInMs : clip.sourceInMs + clip.durationMs
   return { durationMs: clip.durationMs, sourceMs }
 }
+
+// The fade ramp of an audio clip as SVG points, in the clip's own coordinates (Epic 08, #97). The line
+// starts at the bottom when the clip has a fade in, rises to the top at the end of that fade, holds,
+// and falls back to the bottom at the clip's end when it has a fade out. Without fades it is flat at
+// the top. The fades never cross, so the top section is never negative.
+export function fadeRampPoints(
+  clip: Pick<Clip, 'durationMs' | 'fadeInMs' | 'fadeOutMs'>,
+  pxPerMs: number,
+  heightPx: number
+): string {
+  const padPx = 6
+  const top = padPx
+  const bottom = heightPx - padPx
+  const widthPx = clip.durationMs * pxPerMs
+  const inPx = Math.min(clip.fadeInMs ?? 0, clip.durationMs) * pxPerMs
+  const outPx = Math.min(clip.fadeOutMs ?? 0, clip.durationMs) * pxPerMs
+  const outStartPx = Math.max(inPx, widthPx - outPx)
+  const points: [number, number][] = [
+    [0, (clip.fadeInMs ?? 0) > 0 ? bottom : top],
+    [inPx, top],
+    [outStartPx, top],
+    [widthPx, (clip.fadeOutMs ?? 0) > 0 ? bottom : top]
+  ]
+  return points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+}
+
+// The x position, in clip coordinates, of a fade handle: the top of a fade in's ramp, or of a fade out's.
+export function fadeHandleX(
+  clip: Pick<Clip, 'durationMs' | 'fadeInMs' | 'fadeOutMs'>,
+  edge: 'in' | 'out',
+  pxPerMs: number
+): number {
+  if (edge === 'in') return Math.min(clip.fadeInMs ?? 0, clip.durationMs) * pxPerMs
+  return (clip.durationMs - Math.min(clip.fadeOutMs ?? 0, clip.durationMs)) * pxPerMs
+}
+
+// The fade length a handle drag gives: the distance from the clip's start (fade in) or end (fade out)
+// to the pointer, in whole ms, kept within 0 and the clip's length.
+export function fadeMsFromPointer(
+  clip: Pick<Clip, 'startMs' | 'durationMs'>,
+  edge: 'in' | 'out',
+  pointerMs: number
+): number {
+  const end = clip.startMs + clip.durationMs
+  const raw = edge === 'in' ? pointerMs - clip.startMs : end - pointerMs
+  return Math.round(Math.min(Math.max(raw, 0), clip.durationMs))
+}
