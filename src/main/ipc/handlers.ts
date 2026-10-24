@@ -28,6 +28,7 @@ import {
 } from '../analysis/analysisService'
 import { loadAnalysisFile, saveAnalysisFile } from '../analysis/analysisFile'
 import { readMediaTranscript } from '../analysis/transcriptRead'
+import { transcribeMediaItems } from '../captions/transcribeMedia'
 import { readMediaVision } from '../analysis/visionRead'
 import { AiService } from '../ai/aiService'
 import { memoryAiStateStorage } from '../ai/aiStateFile'
@@ -203,6 +204,9 @@ export function createIpcHandlers({
     }),
     'analysis:transcript:read': ({ projectFolder, mediaId }) =>
       readMediaTranscript(projectFolder, mediaId),
+    'captions:transcribe': async ({ projectFolder, items }) => ({
+      transcripts: await transcribeMediaItems(projectFolder, items, jobs)
+    }),
     'analysis:vision:read': ({ projectFolder, mediaId }) => readMediaVision(projectFolder, mediaId),
     'analysis:playback': ({ playing }) => {
       analysis.setPlaybackActive(playing)
