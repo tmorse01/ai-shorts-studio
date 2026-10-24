@@ -43,7 +43,7 @@ import { mainGaps, type Gap } from '@shared/timeline/gaps'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
-import { soundClipFor } from '../audio/clipSound'
+import { audioTargetFor, soundClipFor } from '../audio/clipSound'
 import { videoSelectionFor } from '../clip/videoClipFields'
 import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
@@ -54,7 +54,13 @@ import { formatTimecode } from '../playback/playbackClock'
 import { toast } from '../toasts/toast'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
-import { clipsInRange, gainLinePoints, trimReadout, visibleLaneRange } from './clipView'
+import {
+  clipsInRange,
+  fadeMsFromPointer,
+  gainLinePoints,
+  trimReadout,
+  visibleLaneRange
+} from './clipView'
 import { CLIP_HEIGHT_PX, TimelineClip } from './TimelineClip'
 import {
   fitPxPerMs,
@@ -131,6 +137,13 @@ interface TrimPreview {
   sourceLengthMs?: number
 }
 
+// Where a fade handle drag would set one fade of an audio clip. Shown while dragging; committed on release.
+interface FadePreview {
+  clipId: string
+  edge: 'in' | 'out'
+  ms: number
+}
+
 // The live state of one pointer drag. It lives outside React state so the window listeners always
 // see the latest values, and only the preview is rendered.
 interface DragSession {
@@ -182,6 +195,7 @@ export function TimelinePane({
   // shows a placeholder instead of an insert point.
   const [footageHover, setFootageHover] = useState(false)
   const [trim, setTrim] = useState<TrimPreview | null>(null)
+  const [fadeDrag, setFadeDrag] = useState<FadePreview | null>(null)
   const newTrackId = newId ?? (() => crypto.randomUUID())
   // The latest props for the window listeners of a drag, which are attached once per press.
   const latest = useRef({ timeline, pxPerMs, snapping, onEdit, selection, newId: newTrackId })
@@ -199,7 +213,10 @@ export function TimelinePane({
   }, [selectedIds])
 
   // The timeline as it will look if the drag or trim drops now. It is committed only on release.
-  const shown = trim ? previewTrimmed(timeline, trim) : previewTimeline(timeline, drag)
+  const shown = previewFaded(
+    trim ? previewTrimmed(timeline, trim) : previewTimeline(timeline, drag),
+    fadeDrag
+  )
   const trimmedClip = trim ? findClip(shown, trim.clipId)?.clip : undefined
   const duckPoints = duckEnvelope(narrationRanges(shown), duckingFor(shown))
   const durationMs = timelineDurationMs(timeline)
@@ -366,13 +383,15 @@ export function TimelinePane({
 
   // The clip audio section edits the sound of the one selected clip. Publish that clip, or nothing.
   useEffect(() => {
-    const sound = soundClipFor(timeline, selectedIds)
+    const sound = audioTargetFor(timeline, selectedIds)
     inspectorStore.getState().setAudioTarget(
       sound
         ? {
             clipId: sound.id,
             muted: sound.muted ?? false,
             gain: sound.gain ?? 1,
+            fadeInMs: sound.fadeInMs ?? 0,
+            fadeOutMs: sound.fadeOutMs ?? 0,
             apply: (label, change, mergeKey) =>
               runEdit(label, (current) => setClipAudio(current, sound.id, change), mergeKey)
           }
@@ -644,6 +663,67 @@ export function TimelinePane({
     window.addEventListener('pointercancel', onEnd)
   }
 
+  // A press on a fade handle of an audio clip drags the length of that fade. The fade is set on release,
+  // as one edit.
+  function pressFade(
+    event: PointerEvent<HTMLDivElement>,
+    clip: Clip,
+    track: Track,
+    edge: 'in' | 'out'
+  ) {
+    if (event.button !== 0 || track.locked) return
+    event.stopPropagation()
+    selectClips(() => [clip.id])
+
+    const startX = event.clientX
+    const originMs =
+      edge === 'in'
+        ? clip.startMs + (clip.fadeInMs ?? 0)
+        : clip.startMs + clip.durationMs - (clip.fadeOutMs ?? 0)
+    let moved = false
+    let last: FadePreview | null = null
+
+    const onMove = (move: globalThis.PointerEvent) => {
+      const dx = move.clientX - startX
+      if (!moved && Math.abs(dx) < DRAG_THRESHOLD_PX) return
+      moved = true
+      const ms = fadeMsFromPointer(clip, edge, originMs + dx / latest.current.pxPerMs)
+      last = { clipId: clip.id, edge, ms }
+      setFadeDrag(last)
+    }
+
+    const release = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onEnd)
+      window.removeEventListener('pointercancel', onEnd)
+      releaseDrag.current = null
+      setFadeDrag(null)
+    }
+
+    const onEnd = () => {
+      const finished = last
+      const didMove = moved
+      release()
+      if (!finished || !didMove) return
+      const change = finished.edge === 'in' ? { fadeInMs: finished.ms } : { fadeOutMs: finished.ms }
+      try {
+        setClipAudio(latest.current.timeline, finished.clipId, change)
+      } catch {
+        // An invalid fade is not applied.
+        return
+      }
+      latest.current.onEdit(edge === 'in' ? 'Change fade in' : 'Change fade out', (current) =>
+        setClipAudio(current, finished.clipId, change)
+      )
+    }
+
+    releaseDrag.current?.()
+    releaseDrag.current = release
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onEnd)
+    window.addEventListener('pointercancel', onEnd)
+  }
+
   // The readout beside a trimmed edge: the clip's new length and the source timecode at that edge.
   function trimTooltip(clip: Clip, edge: 'start' | 'end') {
     const readout = trimReadout(clip, edge)
@@ -696,6 +776,11 @@ export function TimelinePane({
             onPointerDown={(event) => pressClip(event, clip, track)}
             onTrimPointerDown={
               track.locked ? undefined : (edge, event) => pressTrim(event, clip, track, edge)
+            }
+            onFadePointerDown={
+              track.kind === 'audio' && !track.locked
+                ? (edge, event) => pressFade(event, clip, track, edge)
+                : undefined
             }
             onSelect={() => selectClips(() => [clip.id])}
           />
@@ -1074,6 +1159,20 @@ function findClip(timeline: Timeline, clipId: string): { track: Track; clip: Cli
     if (clip) return { track, clip }
   }
   return undefined
+}
+
+// The timeline with a fade drag applied. A fade that would be invalid shows the timeline as it was.
+function previewFaded(timeline: Timeline, fade: FadePreview | null): Timeline {
+  if (!fade) return timeline
+  try {
+    return setClipAudio(
+      timeline,
+      fade.clipId,
+      fade.edge === 'in' ? { fadeInMs: fade.ms } : { fadeOutMs: fade.ms }
+    )
+  } catch {
+    return timeline
+  }
 }
 
 // The timeline with a drag applied. A drop that would be invalid shows the timeline as it was.

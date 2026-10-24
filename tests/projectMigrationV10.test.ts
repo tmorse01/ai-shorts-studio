@@ -12,8 +12,8 @@ describe('migrateV9ToV10', () => {
     expect(result.shorts).toEqual([{ id: 's1', timeline: { tracks: [] } }])
   })
 
-  it('is registered as the 9 to 10 step, and the current version is 10', () => {
+  it('is registered as the 9 to 10 step, and the current version is at least 10', () => {
     expect(projectMigrations).toContainEqual(expect.objectContaining({ from: 9, to: 10 }))
-    expect(CURRENT_SCHEMA_VERSION).toBe(10)
+    expect(CURRENT_SCHEMA_VERSION).toBeGreaterThanOrEqual(10)
   })
 })

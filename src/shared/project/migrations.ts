@@ -130,6 +130,12 @@ export function migrateV9ToV10(data: unknown): unknown {
   return { ...data, schemaVersion: 10 }
 }
 
+// v10 had no clip fades. Clips keep no fade keys until one is set, so only the version changes.
+export function migrateV10ToV11(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 11 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -150,7 +156,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 6, to: 7, up: migrateV6ToV7 },
   { from: 7, to: 8, up: migrateV7ToV8 },
   { from: 8, to: 9, up: migrateV8ToV9 },
-  { from: 9, to: 10, up: migrateV9ToV10 }
+  { from: 9, to: 10, up: migrateV9ToV10 },
+  { from: 10, to: 11, up: migrateV10ToV11 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

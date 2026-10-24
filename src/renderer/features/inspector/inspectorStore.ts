@@ -15,6 +15,8 @@ export interface AudioTarget {
   clipId: string
   muted: boolean
   gain: number
+  fadeInMs: number
+  fadeOutMs: number
   apply: (label: string, change: ClipAudioChange, mergeKey?: string) => void
 }
 

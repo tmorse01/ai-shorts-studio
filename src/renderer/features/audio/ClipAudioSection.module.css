@@ -7,20 +7,19 @@
 
 .empty {
   margin: 0;
-  color: var(--color-text);
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
 }
 
-.volume {
+.field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
 .label {
-  font-size: 0.875rem;
-}
-
-.slider {
-  width: 100%;
-  accent-color: var(--color-primary);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
 }

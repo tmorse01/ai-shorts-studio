@@ -22,3 +22,20 @@ export function soundClipFor(timeline: Timeline, clipIds: readonly string[]): Cl
   }
   return null
 }
+
+// The clip the Audio tab edits (Epic 08, #97): one selected audio clip that stands on its own. A clip
+// linked to a video clip (its detached sound) is edited in the Video clip section, so it gives null
+// here. So does any selection that is not one audio clip.
+export function audioTargetFor(timeline: Timeline, clipIds: readonly string[]): Clip | null {
+  if (clipIds.length !== 1) return null
+  const clipId = clipIds[0]
+  const linked = timeline.tracks.some((track) =>
+    track.clips.some((clip) => clip.linkedAudio === clipId)
+  )
+  if (linked) return null
+  for (const track of timeline.tracks) {
+    const clip = track.clips.find((item) => item.id === clipId)
+    if (clip) return track.kind === 'audio' ? clip : null
+  }
+  return null
+}

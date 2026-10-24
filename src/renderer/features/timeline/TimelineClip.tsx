@@ -2,7 +2,15 @@ import type { JSX, PointerEvent } from 'react'
 import { filmstripPlan, FILMSTRIP_FILE } from '@shared/media/thumbs'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, TrackKind } from '@shared/timeline/timeline'
-import { clipBox, clipLabel, filmstripTiles, sourceStrip, type LaneRange } from './clipView'
+import {
+  clipBox,
+  clipLabel,
+  fadeHandleX,
+  fadeRampPoints,
+  filmstripTiles,
+  sourceStrip,
+  type LaneRange
+} from './clipView'
 import { useThumb } from './useThumb'
 import styles from './TimelineClip.module.css'
 
@@ -37,6 +45,8 @@ export interface TimelineClipProps {
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
   // Pointer down on a trim handle. Absent on a locked track, which shows no handles.
   onTrimPointerDown?: (edge: 'start' | 'end', event: PointerEvent<HTMLDivElement>) => void
+  // Pointer down on a fade handle of an audio clip. Absent on a locked track, which shows no fades.
+  onFadePointerDown?: (edge: 'in' | 'out', event: PointerEvent<HTMLDivElement>) => void
   // Keyboard selection, for Enter and Space.
   onSelect: () => void
 }
@@ -58,6 +68,7 @@ export function TimelineClip({
   gainLine,
   onPointerDown,
   onTrimPointerDown,
+  onFadePointerDown,
   onSelect
 }: TimelineClipProps): JSX.Element {
   const box = clipBox(clip, pxPerMs)
@@ -167,6 +178,32 @@ export function TimelineClip({
             backgroundPosition: `${linkedStrip.offsetPx}px 0`
           }}
         />
+      ) : null}
+      {onFadePointerDown ? (
+        <>
+          <svg
+            className={styles.fadeLine}
+            viewBox={`0 0 ${box.widthPx} ${CLIP_HEIGHT_PX}`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polyline points={fadeRampPoints(clip, pxPerMs, CLIP_HEIGHT_PX)} />
+          </svg>
+          <div
+            className={styles.fadeHandle}
+            data-fade="in"
+            aria-hidden="true"
+            style={{ left: fadeHandleX(clip, 'in', pxPerMs) }}
+            onPointerDown={(event) => onFadePointerDown('in', event)}
+          />
+          <div
+            className={styles.fadeHandle}
+            data-fade="out"
+            aria-hidden="true"
+            style={{ left: fadeHandleX(clip, 'out', pxPerMs) }}
+            onPointerDown={(event) => onFadePointerDown('out', event)}
+          />
+        </>
       ) : null}
       {onTrimPointerDown ? (
         <>
