@@ -2,7 +2,7 @@
 // and returns the next version's shape. The runner in ./loadProject.ts applies them in order.
 // A migration may throw; the runner reports that as a readable error and changes nothing on disk.
 import { DEFAULT_SHORT_DEFAULTS } from './schema'
-import { timelineSchema, type Timeline } from '../timeline/timeline'
+import { timelineSchema, type Timeline, type TrackRole } from '../timeline/timeline'
 
 export type ProjectMigration = {
   from: number
@@ -68,12 +68,50 @@ export function migrateV3ToV4(data: unknown): unknown {
   return { ...data, schemaVersion: 4, shorts: upgradedShorts }
 }
 
+// v4 tracks had no role. Each gets one from its kind. The first video track is the main sequence;
+// any further video track is an overlay, so the main track never has two sequences. Timelines get
+// no transitions key until one is added.
+export function migrateV4ToV5(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  const shorts = data.shorts
+  if (shorts === undefined) return { ...data, schemaVersion: 5 }
+  if (!Array.isArray(shorts)) throw new Error('"shorts" is not a list')
+
+  const upgradedShorts = shorts.map((item, index) => {
+    if (!isRecord(item)) throw new Error(`short ${index + 1} is not an object`)
+    return { ...item, timeline: withTrackRoles(item.timeline) }
+  })
+  return { ...data, schemaVersion: 5, shorts: upgradedShorts }
+}
+
 // The ordered list the app ships with. Append new migrations here; never edit an old one.
 export const projectMigrations: readonly ProjectMigration[] = [
   { from: 1, to: 2, up: migrateV1ToV2 },
   { from: 2, to: 3, up: migrateV2ToV3 },
-  { from: 3, to: 4, up: migrateV3ToV4 }
+  { from: 3, to: 4, up: migrateV3ToV4 },
+  { from: 4, to: 5, up: migrateV4ToV5 }
 ]
+
+function withTrackRoles(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.tracks)) return value
+  let hasMain = false
+  const tracks = value.tracks.map((track) => {
+    if (!isRecord(track) || track.role !== undefined) return track
+    let role: TrackRole
+    if (track.kind === 'video' && !hasMain) {
+      role = 'main'
+      hasMain = true
+    } else if (track.kind === 'audio') {
+      role = 'music'
+    } else if (track.kind === 'text') {
+      role = 'text'
+    } else {
+      role = 'overlay'
+    }
+    return { ...track, role }
+  })
+  return { ...value, tracks }
+}
 
 function timelineOrEmpty(value: unknown): Timeline {
   const parsed = timelineSchema.safeParse(value)

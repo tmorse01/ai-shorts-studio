@@ -9,6 +9,7 @@ import {
 } from '../project/recentProjects'
 import { relinkMediaFolder } from '../media/relinkMedia'
 import { statMediaFiles } from '../media/statMedia'
+import { ensureMediaThumbs } from '../media/ensureThumbs'
 import type { IpcHandlers } from './dispatch'
 import { logError } from '../errors/errorLog'
 import { join } from 'node:path'
@@ -130,6 +131,7 @@ export function createIpcHandlers({
     'media:job:list': () => ({ jobs: jobs.list() }),
     'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) }),
     'media:pick': async () => ({ paths: await actions.pickMediaFiles() }),
-    'media:stat': ({ paths }) => statMediaFiles(paths)
+    'media:stat': ({ paths }) => statMediaFiles(paths),
+    'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs)
   }
 }
