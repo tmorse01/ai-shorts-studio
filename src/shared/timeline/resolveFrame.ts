@@ -11,6 +11,7 @@ import {
   type TransitionFade,
   type TransitionWindow
 } from './transitions'
+import type { TextItem } from '../text/textItem'
 import type { Clip, Timeline, TrackKind, Transform, TransitionKind } from './timeline'
 
 export type ClipAt = {
@@ -28,7 +29,11 @@ export type ResolvedLayer = {
   trackKind: TrackKind
   clipId: string
   mediaId?: string
-  text?: string
+  // A text clip's overlay, with how far into the clip this frame is and the clip's length. Set only
+  // on clips that have a textItem.
+  textItem?: TextItem
+  clipElapsedMs?: number
+  clipDurationMs?: number
   // The source time to show for this layer, in ms.
   sourceTimeMs: number
   transform: Transform
@@ -40,7 +45,7 @@ export type ResolvedLayer = {
   fade?: TransitionFade
 }
 
-interface TransitionRole {
+export interface TransitionRole {
   role: 'out' | 'in'
   kind: TransitionKind
   window: TransitionWindow
@@ -48,7 +53,7 @@ interface TransitionRole {
 
 // The transition windows that touch each clip, keyed by clip id. A transition only counts when its
 // two clips still meet at the cut on one track.
-function transitionRoles(timeline: Timeline): Map<string, TransitionRole[]> {
+export function transitionRoles(timeline: Timeline): Map<string, TransitionRole[]> {
   const roles = new Map<string, TransitionRole[]>()
   const clips = new Map<string, { trackId: string; clip: Clip }>()
   for (const track of timeline.tracks) {
@@ -72,7 +77,7 @@ function transitionRoles(timeline: Timeline): Map<string, TransitionRole[]> {
 }
 
 // The time span a clip is active over, widened by the windows of its transitions.
-function activeSpan(
+export function activeSpan(
   clip: Clip,
   roles: readonly TransitionRole[]
 ): { startMs: number; endMs: number } {
@@ -139,9 +144,13 @@ export function resolveFrame(timeline: Timeline, tMs: number): ResolvedLayer[] {
         trackKind: active.trackKind,
         clipId: clip.id,
         mediaId: clip.mediaId,
-        text: clip.text,
         sourceTimeMs: clip.sourceInMs + (tMs - clip.startMs),
         transform: clip.transform
+      }
+      if (clip.textItem) {
+        layer.textItem = clip.textItem
+        layer.clipElapsedMs = tMs - clip.startMs
+        layer.clipDurationMs = clip.durationMs
       }
       if (active.fade) layer.fade = active.fade
       if (clip.framing) {

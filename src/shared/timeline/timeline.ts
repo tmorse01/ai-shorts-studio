@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { clipFramingSchema } from './framing'
 import { duckingSchema } from './ducking'
+import { textItemSchema } from '../text/textItem'
 import { captionBlockSchema } from '../captions/captionBlock'
 import { clipAssemblySchema } from './clipAssembly'
 
@@ -53,6 +54,8 @@ export const clipSchema = z.object({
   fadeInMs: z.number().int().nonnegative().optional(),
   fadeOutMs: z.number().int().nonnegative().optional(),
   text: z.string().optional(),
+  // The overlay of a text clip on a text track (see ../text/textItem.ts). Schema 13 added this key.
+  textItem: textItemSchema.optional(),
   label: z.string().optional(),
   // The moment (Epic 14 script beat) this clip was dropped from, when it came from one.
   momentId: nonEmptyString.optional(),
@@ -62,10 +65,10 @@ export const clipSchema = z.object({
   // Schema 8 added this key.
   framing: clipFramingSchema.optional(),
   // A locked clip keeps its place when an assembly plan is applied again. Optional so existing clips
-  // need no key. Read it as `?? false`. Schema 13 added this key.
+  // need no key. Read it as `?? false`. Schema 14 added this key.
   locked: z.boolean().optional(),
   // The script line this clip was assembled for, and the takes it could swap to (see ./clipAssembly.ts).
-  // Unset for clips not placed by an assembly plan. Schema 13 added this key.
+  // Unset for clips not placed by an assembly plan. Schema 14 added this key.
   assembly: clipAssemblySchema.optional()
 })
 export type Clip = z.infer<typeof clipSchema>

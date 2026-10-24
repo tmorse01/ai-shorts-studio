@@ -3,6 +3,9 @@ import type { FrameBackend, FrameBackground, VideoEffect } from './frameBackend'
 
 // Each video layer is a textured quad. The vertex shader places the unit quad at the layer's
 // placement (in canvas pixels), so the transform is applied on the GPU.
+// The most textures kept at once: the video pool plus recent text bitmaps.
+const TEXTURE_LIMIT = 64
+
 const VERTEX_SHADER = `
 attribute vec2 aCorner;
 uniform vec2 uCanvas;
@@ -103,10 +106,11 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
   gl.uniform2f(canvasSize, CANVAS_WIDTH, CANVAS_HEIGHT)
   gl.uniform1i(gl.getUniformLocation(program, 'uFrame'), 0)
 
-  // One texture per pool element. The pool is bounded, so this map stays small.
-  const textures = new Map<HTMLVideoElement, WebGLTexture>()
-  const textureFor = (video: HTMLVideoElement): WebGLTexture => {
-    const existing = textures.get(video)
+  // One texture per source (a video element or a text bitmap). The count is capped, so the oldest is
+  // freed when the cap is reached.
+  const textures = new Map<object, WebGLTexture>()
+  const textureFor = (source: object): WebGLTexture => {
+    const existing = textures.get(source)
     if (existing) return existing
     const texture = gl.createTexture()
     if (!texture) throw new Error('Could not create a texture.')
@@ -115,8 +119,38 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-    textures.set(video, texture)
+    if (textures.size >= TEXTURE_LIMIT) {
+      const oldest = textures.entries().next()
+      if (!oldest.done) {
+        gl.deleteTexture(oldest.value[1])
+        textures.delete(oldest.value[0])
+      }
+    }
+    textures.set(source, texture)
     return texture
+  }
+  // Uploads the source and draws it as a quad. Bitmaps carry premultiplied alpha, like the shader output.
+  const drawSource = (
+    source: TexImageSource & object,
+    placement: Placement,
+    effect: VideoEffect | undefined,
+    opacity: number,
+    premultiplied: boolean
+  ): void => {
+    gl.bindTexture(gl.TEXTURE_2D, textureFor(source))
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, premultiplied)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+    const radians = (placement.rotationDeg * Math.PI) / 180
+    gl.uniform2f(center, placement.centerX, placement.centerY)
+    gl.uniform2f(size, placement.width, placement.height)
+    gl.uniform2f(rotation, Math.cos(radians), Math.sin(radians))
+    // The blur radius is in canvas pixels, so convert it to UV units across the quad.
+    const blurPx = effect?.blurPx ?? 0
+    gl.uniform2f(blur, blurPx / placement.width, blurPx / placement.height)
+    gl.uniform1f(dim, effect?.dim ?? 0)
+    gl.uniform1f(opacityLocation, opacity)
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
   }
 
   return {
@@ -126,18 +160,10 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
       gl.clear(gl.COLOR_BUFFER_BIT)
     },
     drawVideo(video: HTMLVideoElement, placement: Placement, effect?: VideoEffect, opacity = 1) {
-      gl.bindTexture(gl.TEXTURE_2D, textureFor(video))
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video)
-      const radians = (placement.rotationDeg * Math.PI) / 180
-      gl.uniform2f(center, placement.centerX, placement.centerY)
-      gl.uniform2f(size, placement.width, placement.height)
-      gl.uniform2f(rotation, Math.cos(radians), Math.sin(radians))
-      // The blur radius is in canvas pixels, so convert it to UV units across the quad.
-      const blurPx = effect?.blurPx ?? 0
-      gl.uniform2f(blur, blurPx / placement.width, blurPx / placement.height)
-      gl.uniform1f(dim, effect?.dim ?? 0)
-      gl.uniform1f(opacityLocation, opacity)
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+      drawSource(video, placement, effect, opacity, false)
+    },
+    drawBitmap(bitmap: HTMLCanvasElement, placement: Placement, opacity = 1) {
+      drawSource(bitmap, placement, undefined, opacity, true)
     },
     dispose() {
       textures.forEach((texture) => gl.deleteTexture(texture))

@@ -4,6 +4,7 @@
 import { LayerRegistry } from '@shared/compositor/layerRegistry'
 import type { FrameLayer } from '@shared/compositor/frame'
 import type { FrameBackend } from './frameBackend'
+import { textBitmap } from './textBitmap'
 
 // A video layer's source. "pending" means the element has not decoded its frame yet, so the
 // compositor holds the last frame instead of drawing a partial one.
@@ -44,6 +45,24 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
     },
     { transformable: true }
   )
+  // A text overlay is drawn as a bitmap at the position its description gives. It is not transformable:
+  // its position lives on the text item, not on the clip's transform.
+  registry.register('text', (layer, context) => {
+    const text = layer.text
+    if (!text) return
+    const bitmap = textBitmap(text)
+    context.backend.drawBitmap(
+      bitmap,
+      {
+        centerX: text.centerX,
+        centerY: text.centerY,
+        width: bitmap.width,
+        height: bitmap.height,
+        rotationDeg: 0
+      },
+      text.alpha
+    )
+  })
   return registry
 }
 

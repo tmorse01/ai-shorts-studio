@@ -37,7 +37,7 @@ function sampleV2Project() {
 
 describe('short model: schema', () => {
   it('bumps the schema version and registers each migration in order', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(13)
+    expect(CURRENT_SCHEMA_VERSION).toBe(14)
     expect(projectMigrations.map((m) => [m.from, m.to])).toEqual([
       [1, 2],
       [2, 3],
@@ -50,7 +50,8 @@ describe('short model: schema', () => {
       [9, 10],
       [10, 11],
       [11, 12],
-      [12, 13]
+      [12, 13],
+      [13, 14]
     ])
   })
 
