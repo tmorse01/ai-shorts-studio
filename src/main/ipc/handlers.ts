@@ -9,16 +9,23 @@ import {
 import { relinkMediaFolder } from '../media/relinkMedia'
 import type { IpcHandlers } from './dispatch'
 import { logError } from '../errors/errorLog'
+import { JobQueue, unavailableExecutors } from '../jobs/jobQueue'
 
 export interface IpcHandlerOptions {
   /** Where the editor layout is saved. The app passes a file in user data; tests pass a temp file. */
   layoutFile: string
   /** Where the recent projects registry is saved. Same rule as layoutFile. */
   recentFile: string
+  /** The media job queue. Defaults to one with no tools, so tests need not provide FFmpeg. */
+  jobs?: JobQueue
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
-export function createIpcHandlers({ layoutFile, recentFile }: IpcHandlerOptions): IpcHandlers {
+export function createIpcHandlers({
+  layoutFile,
+  recentFile,
+  jobs = new JobQueue(unavailableExecutors())
+}: IpcHandlerOptions): IpcHandlers {
   return {
     'app:echo': ({ text }) => ({ text, length: text.length }),
     'app:report-error': ({ message, details, context, stack }) => {
@@ -60,6 +67,9 @@ export function createIpcHandlers({ layoutFile, recentFile }: IpcHandlerOptions)
     'ui:layout:save': async ({ layout }) => {
       await writeLayoutFile(layoutFile, layout)
       return { saved: true }
-    }
+    },
+    'media:probe': ({ path }) => jobs.enqueue('probe', path).done,
+    'media:job:list': () => ({ jobs: jobs.list() }),
+    'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) })
   }
 }
