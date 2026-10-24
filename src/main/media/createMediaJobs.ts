@@ -5,6 +5,7 @@ import { JobQueue, unavailableExecutors, type JobExecutors } from '../jobs/jobQu
 import { resolveBinary, type BinaryLocation } from './binaries'
 import { probeMedia } from './probeMedia'
 import { makeFilmstrip, makeThumb } from './thumbnails'
+import { makeProxy } from './proxies'
 import { UserFacingError } from '../errors'
 
 export function createMediaJobs(): JobQueue {
@@ -24,6 +25,16 @@ export function createMediaJobs(): JobQueue {
       return makeThumb(mediaKind, path, outDir, {
         ffmpeg: resolveBinary('ffmpeg', location),
         signal
+      })
+    },
+    proxy: ({ path, outPath, durationSec }, { signal, reportProgress }) => {
+      if (!outPath || durationSec === undefined) {
+        throw new UserFacingError('The proxy job lost its details.')
+      }
+      return makeProxy(path, outPath, durationSec, {
+        ffmpeg: resolveBinary('ffmpeg', location),
+        signal,
+        onProgress: reportProgress
       })
     },
     filmstrip: ({ path, outDir, durationSec }, { signal }) => {
