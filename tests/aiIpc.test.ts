@@ -44,7 +44,7 @@ function setup() {
     secrets: memorySecrets(),
     state: memoryAiStateStorage(),
     createClient: () => ({
-      sendMessage: async () => ({ inputTokens: 9, outputTokens: 2 })
+      sendMessage: async () => ({ text: 'OK', usage: { inputTokens: 9, outputTokens: 2 } })
     })
   })
   const handlers = createIpcHandlers({

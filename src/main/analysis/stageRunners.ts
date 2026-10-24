@@ -6,8 +6,14 @@ import type { JobContext, JobExecutors } from '../jobs/jobQueue'
 import { UserFacingError } from '../errors'
 import { shotStageRunner, type ShotTools } from './shotDetection'
 
-// outDir is the folder the job may write its output into. Only the shots stage uses it.
-export type StageRunner = (path: string, ctx: JobContext, outDir?: string) => Promise<StageResult>
+// outDir is the cache folder the job may write its frames into (shots and vision read them). resultFile is
+// where a stage keeps results outside cache/, so Clear cache leaves them. Only the vision stage uses it.
+export type StageRunner = (
+  path: string,
+  ctx: JobContext,
+  outDir?: string,
+  resultFile?: string
+) => Promise<StageResult>
 export type StageRunners = Record<AnalysisStage, StageRunner>
 
 export const skippedStageRunners = (): StageRunners => {
@@ -32,8 +38,8 @@ export function liveStageRunners(
 
 // Turns an analysis job into a call to the runner for its stage.
 export function analysisExecutor(runners: StageRunners): JobExecutors['analysis'] {
-  return async ({ path, stage, outDir }, ctx) => {
+  return async ({ path, stage, outDir, resultFile }, ctx) => {
     if (!stage) throw new UserFacingError('The analysis job lost its stage.')
-    return runners[stage](path, ctx, outDir)
+    return runners[stage](path, ctx, outDir, resultFile)
   }
 }

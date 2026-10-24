@@ -22,6 +22,8 @@ export interface JobInput {
   sourceTimeSec?: number
   /** Which analysis stage an analysis job runs. */
   stage?: AnalysisStage
+  /** The file an analysis stage keeps its results in, outside cache/. Set for the vision stage. */
+  resultFile?: string
 }
 
 export interface JobContext {
