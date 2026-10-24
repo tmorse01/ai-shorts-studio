@@ -4,8 +4,11 @@ import { hasClips } from '@shared/compositor/frame'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { Timeline } from '@shared/timeline/timeline'
 import { useAudioPreview } from '../audio/useAudioPreview'
+import { CanvasGizmo } from '../compositor/CanvasGizmo'
+import { useCanvasGizmo } from '../compositor/useCanvasGizmo'
 import { ScrubBar } from '../playback/ScrubBar'
 import { playbackStore } from '../playback/playbackStore'
+import { usePlaybackStore } from '../playback/usePlaybackStore'
 import { EMPTY_TIMELINE } from '../preview/previewFrame'
 import { useMediaSourceSync } from '../preview/useMediaSourceSync'
 import { useVideoPreview } from '../preview/useVideoPreview'
@@ -17,20 +20,33 @@ import styles from './PreviewCanvas.module.css'
 
 export interface PreviewCanvasProps {
   timeline?: Timeline
+  // The open short. The canvas gizmo edits its layers; with no short open, the frame is view only.
+  shortId?: string
 }
 
 // The centre of the editor: a near-black canvas holding a 9:16 frame, with the scrub bar along the
 // bottom edge. In Short view the frame is drawn by the compositor from the short's timeline; a short
 // with no clips shows an empty state, and offline footage shows a placeholder. In Source view the
-// clip being viewed replaces the frame, and the timeline stays silent and idle.
-export function PreviewCanvas({ timeline = EMPTY_TIMELINE }: PreviewCanvasProps): JSX.Element {
+// clip being viewed replaces the frame, and the timeline stays silent and idle. A layer is selected
+// and moved on the frame when the short is paused.
+export function PreviewCanvas({
+  timeline = EMPTY_TIMELINE,
+  shortId
+}: PreviewCanvasProps): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
   const mode = useStore(sourceStore, (state) => state.mode)
   const inShort = mode === 'short'
   const shortTimeline = inShort ? timeline : EMPTY_TIMELINE
   useMediaSourceSync()
   const { offline, droppedFrames } = useVideoPreview(canvasRef, shortTimeline)
   useAudioPreview(shortTimeline, inShort)
+  const playing = usePlaybackStore((state) => state.playing)
+  const { guides, handlers } = useCanvasGizmo({
+    shortId: inShort ? shortId : undefined,
+    timeline: shortTimeline,
+    frameRef
+  })
 
   // The playback length follows the short's timeline in Short view only; a source clip sets its own.
   useEffect(() => {
@@ -42,12 +58,21 @@ export function PreviewCanvas({ timeline = EMPTY_TIMELINE }: PreviewCanvasProps)
       <div className={styles.toggle}>
         <ViewModeToggle />
       </div>
-      <div className={styles.frame} role="img" aria-label="9:16 preview frame" hidden={!inShort}>
+      <div
+        ref={frameRef}
+        className={styles.frame}
+        role="img"
+        aria-label="9:16 preview frame"
+        tabIndex={0}
+        hidden={!inShort}
+        {...handlers}
+      >
         <span className={styles.mark} aria-hidden="true" />
         <span className={styles.ratio} aria-hidden="true">
           9:16
         </span>
         <canvas ref={canvasRef} className={styles.video} aria-hidden="true" />
+        {inShort && !playing ? <CanvasGizmo guides={guides} /> : null}
         {inShort && !hasClips(timeline) ? (
           <div className={styles.overlay}>
             <EmptyState

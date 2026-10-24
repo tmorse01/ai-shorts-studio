@@ -17,9 +17,18 @@ export interface LayerContext {
 
 export function createLayerRegistry(): LayerRegistry<LayerContext> {
   const registry = new LayerRegistry<LayerContext>()
-  registry.register('video', (layer, context) => {
-    const source = context.sourceOf(layer)
-    if (source.state === 'ready') context.backend.drawVideo(source.element, layer.placement)
-  })
+  // Video opts in to the canvas gizmo: it can be selected, moved and scaled (the crop is its pan and
+  // zoom inside the 9:16 frame).
+  registry.register(
+    'video',
+    (layer, context) => {
+      const source = context.sourceOf(layer)
+      if (source.state === 'ready') context.backend.drawVideo(source.element, layer.placement)
+    },
+    { transformable: true }
+  )
   return registry
 }
+
+// The registry the preview uses. It also answers which layer kinds the canvas gizmo may transform.
+export const layerRegistry = createLayerRegistry()

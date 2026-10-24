@@ -1,0 +1,61 @@
+/* Covers the preview frame. It draws only; the frame takes the pointer. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* The selection box. It rotates with the layer, so the handles move with it. */
+.box {
+  position: absolute;
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-spectral-lavender);
+}
+
+.handle {
+  position: absolute;
+  width: var(--space-2);
+  height: var(--space-2);
+  border: var(--border-width) solid var(--color-spectral-lavender);
+  background: var(--color-galactic-white);
+  transform: translate(-50%, -50%);
+}
+
+.nw {
+  top: 0;
+  left: 0;
+}
+
+.ne {
+  top: 0;
+  left: 100%;
+}
+
+.se {
+  top: 100%;
+  left: 100%;
+}
+
+.sw {
+  top: 100%;
+  left: 0;
+}
+
+/* Snap lines, shown only while a drag is snapped. */
+.guideX,
+.guideY {
+  position: absolute;
+  background: var(--color-undead-sage);
+}
+
+.guideX {
+  top: 0;
+  bottom: 0;
+  width: var(--border-width);
+}
+
+.guideY {
+  left: 0;
+  right: 0;
+  height: var(--border-width);
+}

@@ -2,27 +2,45 @@
 // each one to the renderer registered for its track kind. Layers with no renderer are skipped, so a
 // track kind can exist before its renderer does. Epics 11 and 13 register caption and overlay
 // renderers here. Generic over the context a renderer draws into, so this module stays free of DOM.
+// A kind opts in to the canvas transform gizmo (move, scale, nudge) by registering as transformable.
 import type { TrackKind } from '../timeline/timeline'
 import type { FrameDescription, FrameLayer } from './frame'
 
 export type LayerRenderer<Context> = (layer: FrameLayer, context: Context) => void
 
+export interface LayerOptions {
+  // The layer can be selected and moved on the preview canvas.
+  transformable?: boolean
+}
+
 export class LayerRegistry<Context> {
   private readonly renderers = new Map<TrackKind, LayerRenderer<Context>>()
+  private readonly transformable = new Set<TrackKind>()
 
   // Returns a function that removes this registration again.
-  register(kind: TrackKind, renderer: LayerRenderer<Context>): () => void {
+  register(
+    kind: TrackKind,
+    renderer: LayerRenderer<Context>,
+    options: LayerOptions = {}
+  ): () => void {
     if (this.renderers.has(kind)) {
       throw new Error(`A layer renderer is already registered for ${kind} tracks.`)
     }
     this.renderers.set(kind, renderer)
+    if (options.transformable) this.transformable.add(kind)
     return () => {
       if (this.renderers.get(kind) === renderer) this.renderers.delete(kind)
+      this.transformable.delete(kind)
     }
   }
 
   has(kind: TrackKind): boolean {
     return this.renderers.has(kind)
+  }
+
+  // True when a layer of this kind can be selected and transformed on the canvas.
+  supportsTransform(kind: TrackKind): boolean {
+    return this.renderers.has(kind) && this.transformable.has(kind)
   }
 
   renderFrame(frame: FrameDescription, context: Context): void {

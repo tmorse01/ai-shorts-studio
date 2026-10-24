@@ -114,7 +114,8 @@ export function SourceViewer(): JSX.Element {
           const durationMs = Number.isFinite(duration) ? Math.round(duration * 1000) : 0
           playbackStore.getState().pause()
           playbackStore.getState().setDurationMs(durationMs)
-          playbackStore.getState().seek(0)
+          // Opens at In when a saved moment was opened, otherwise at the start.
+          playbackStore.getState().seek(sourceStore.getState().inMs ?? 0)
         }}
         onEnded={() => playbackStore.getState().pause()}
         onError={() =>

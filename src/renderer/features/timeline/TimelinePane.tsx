@@ -10,6 +10,9 @@ import { mainGaps, type Gap } from '@shared/timeline/gaps'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
+import { layerSelectionStore } from '../compositor/layerSelectionStore'
+import { inspectorStore } from '../inspector/inspectorStore'
+import { selectionTypeFor } from '../inspector/inspectorModel'
 import { formatTimecode } from '../playback/playbackClock'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
@@ -25,6 +28,7 @@ import {
   xToTime
 } from './timelineView'
 import { timelineViewStore } from './timelineViewStore'
+import { SetPosterButton } from '../shorts/SetPosterButton'
 import { closeGapEdit, timelineShortcuts, type TimelineShortcutContext } from './timelineShortcuts'
 import { shortcutRegistry } from '../shortcuts/shortcutRegistry'
 import styles from './TimelinePane.module.css'
@@ -143,6 +147,15 @@ export function TimelinePane({
   latest.current = { timeline, pxPerMs, snapping, onEdit, selection, newId: newTrackId }
   const releaseDrag = useRef<(() => void) | null>(null)
   useEffect(() => () => releaseDrag.current?.(), [])
+  // The canvas gizmo shares this selection. A layer picked on the canvas selects its clip here, and a
+  // single clip selected here shows on the canvas.
+  const canvasSelection = useStore(layerSelectionStore, (state) => state.selectedClipId)
+  useEffect(() => {
+    if (canvasSelection !== null) setSelection({ clipIds: [canvasSelection], gap: null })
+  }, [canvasSelection])
+  useEffect(() => {
+    if (selectedIds.length === 1) layerSelectionStore.getState().select(selectedIds[0])
+  }, [selectedIds])
 
   // The timeline as it will look if the drag or trim drops now. It is committed only on release.
   const shown = trim ? previewTrimmed(timeline, trim) : previewTimeline(timeline, drag)
@@ -251,6 +264,15 @@ export function TimelinePane({
     latest.current.onEdit(label, edit)
     return true
   }
+
+  // The inspector edits what this pane selects. Publish the selection type; the short itself when nothing
+  // is selected. Reset on unmount so a closed timeline does not leave a stale selection behind.
+  useEffect(() => {
+    inspectorStore
+      .getState()
+      .setSelectionType(selectionTypeFor(timeline, selectedIds, selection.gap))
+  }, [timeline, selectedIds, selection.gap])
+  useEffect(() => () => inspectorStore.getState().setSelectionType('short'), [])
 
   // The shortcuts read the pane through this, so they always see the latest timeline and selection.
   const readShortcutContext = (): TimelineShortcutContext => ({
@@ -618,6 +640,7 @@ export function TimelinePane({
               })
           }))}
         />
+        <SetPosterButton />
         <Button
           variant="ghost"
           aria-pressed={snapping}

@@ -11,6 +11,8 @@ export interface ShortCardProps {
   short: Short
   // Effective settings: the project defaults with this short's overrides applied.
   target: ShortDefaults
+  // The short's poster frame as a data URL. Undefined shows the placeholder ornament.
+  posterSrc?: string
   renaming: boolean
   onOpen: () => void
   onStartRename: () => void
@@ -36,6 +38,7 @@ const STATUS_LABEL: Record<ShortStatus, string> = {
 export function ShortCard({
   short,
   target,
+  posterSrc,
   renaming,
   onOpen,
   onStartRename,
@@ -114,7 +117,12 @@ export function ShortCard({
         onDoubleClick={onOpen}
         onKeyDown={onPosterKeyDown}
       >
-        <span className={styles.ornament} aria-hidden="true" />
+        {posterSrc ? (
+          // The name sits under the card, so the poster is decorative for screen readers.
+          <img className={styles.image} src={posterSrc} alt="" draggable={false} />
+        ) : (
+          <span className={styles.ornament} aria-hidden="true" />
+        )}
         {short.editedSinceExport && (
           <span className={styles.dot} role="img" aria-label="Edited since export" />
         )}
