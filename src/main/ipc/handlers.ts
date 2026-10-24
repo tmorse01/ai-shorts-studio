@@ -8,6 +8,7 @@ import {
   renameRecentProject
 } from '../project/recentProjects'
 import { relinkMediaFolder } from '../media/relinkMedia'
+import { statMediaFiles } from '../media/statMedia'
 import type { IpcHandlers } from './dispatch'
 import { logError } from '../errors/errorLog'
 import { join } from 'node:path'
@@ -26,6 +27,8 @@ export interface SystemActions {
   trashFolder: (folderPath: string) => Promise<void>
   /** The user's Documents folder. */
   documentsDir: () => string
+  /** Shows the native multi-select picker for media files. Resolves an empty list on cancel. */
+  pickMediaFiles: () => Promise<string[]>
 }
 
 const unavailable = (): never => {
@@ -54,7 +57,8 @@ export function createIpcHandlers({
     pickFolder: system.pickFolder ?? unavailable,
     revealFolder: system.revealFolder ?? unavailable,
     trashFolder: system.trashFolder ?? unavailable,
-    documentsDir: system.documentsDir ?? unavailable
+    documentsDir: system.documentsDir ?? unavailable,
+    pickMediaFiles: system.pickMediaFiles ?? unavailable
   }
 
   return {
@@ -124,6 +128,8 @@ export function createIpcHandlers({
     },
     'media:probe': ({ path }) => jobs.enqueue('probe', path).done,
     'media:job:list': () => ({ jobs: jobs.list() }),
-    'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) })
+    'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) }),
+    'media:pick': async () => ({ paths: await actions.pickMediaFiles() }),
+    'media:stat': ({ paths }) => statMediaFiles(paths)
   }
 }
