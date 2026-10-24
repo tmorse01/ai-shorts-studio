@@ -10,6 +10,7 @@ import {
 } from '../timeline/framing'
 import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
 import type { Timeline, Transform } from '../timeline/timeline'
+import { describeText, type TextRender } from '../text/textRender'
 
 export const CANVAS_WIDTH = 1080
 export const CANVAS_HEIGHT = 1920
@@ -56,6 +57,8 @@ export interface FrameLayer extends ResolvedLayer {
   // The pixel size of the layer's source, when it is known. The canvas gizmo needs it to turn a drag
   // into a framing change.
   source?: SourceSize
+  // The text overlay to draw, for a text layer with a textItem. Opacity includes any transition fade.
+  text?: TextRender
 }
 
 // Places a fill-mode framed video: the crop of the source (see framingCropRect) is scaled to cover the
@@ -182,6 +185,17 @@ export function describeLayerRender(
   }
 }
 
+// The text overlay of a resolved layer, with the transition fade folded into its opacity. Null for a
+// layer with no textItem.
+function describeLayerText(layer: ResolvedLayer, canvas: SourceSize): TextRender | null {
+  if (!layer.textItem || layer.clipElapsedMs === undefined || layer.clipDurationMs === undefined) {
+    return null
+  }
+  const text = describeText(layer.textItem, layer.clipElapsedMs, layer.clipDurationMs, canvas)
+  if (!text) return null
+  return { ...text, alpha: text.alpha * (layer.fade?.opacity ?? 1) }
+}
+
 // What is on the canvas at tMs. `sizeOf` gives the pixel size of a media item once it is known, so
 // video fits at its own aspect ratio. Until then the layer fills the canvas.
 export function describeFrame(
@@ -196,12 +210,15 @@ export function describeFrame(
       framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
         ? placeFramed(layer.transform, framing, source)
         : placeTransform(layer.transform, source)
-    return {
+    const description: FrameLayer = {
       ...layer,
       placement,
       render: describeLayerRender(placement, framing, source),
       ...(source && source.width > 0 && source.height > 0 ? { source } : {})
     }
+    const text = describeLayerText(layer, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
+    if (text) description.text = text
+    return description
   })
   return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, tMs, layers }
 }

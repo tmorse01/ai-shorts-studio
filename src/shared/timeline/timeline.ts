@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { clipFramingSchema } from './framing'
 import { duckingSchema } from './ducking'
+import { textItemSchema } from '../text/textItem'
 import { captionBlockSchema } from '../captions/captionBlock'
 
 const nonEmptyString = z.string().trim().min(1)
@@ -52,6 +53,8 @@ export const clipSchema = z.object({
   fadeInMs: z.number().int().nonnegative().optional(),
   fadeOutMs: z.number().int().nonnegative().optional(),
   text: z.string().optional(),
+  // The overlay of a text clip on a text track (see ../text/textItem.ts). Schema 13 added this key.
+  textItem: textItemSchema.optional(),
   label: z.string().optional(),
   // The moment (Epic 14 script beat) this clip was dropped from, when it came from one.
   momentId: nonEmptyString.optional(),

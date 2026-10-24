@@ -143,6 +143,32 @@ export function migrateV11ToV12(data: unknown): unknown {
   return { ...data, schemaVersion: 12 }
 }
 
+// v12 kept a text clip's words in a plain `text` key, which only labels the clip. v13 gives each text
+// clip with words a textItem in the caption style, centred low in the frame, so it draws as an overlay.
+// The `text` key stays as the clip label. Clips on other tracks are left alone.
+export function migrateV12ToV13(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  const shorts = data.shorts
+  if (shorts === undefined) return { ...data, schemaVersion: 13 }
+  if (!Array.isArray(shorts)) throw new Error('"shorts" is not a list')
+  const upgradedShorts = shorts.map((item) => {
+    if (!isRecord(item) || !isRecord(item.timeline) || !Array.isArray(item.timeline.tracks)) {
+      return item
+    }
+    const tracks = item.timeline.tracks.map((track: unknown) => {
+      if (!isRecord(track) || track.kind !== 'text' || !Array.isArray(track.clips)) return track
+      return { ...track, clips: track.clips.map(upgradeTextClip) }
+    })
+    return { ...item, timeline: { ...item.timeline, tracks } }
+  })
+  return { ...data, schemaVersion: 13, shorts: upgradedShorts }
+}
+
+function upgradeTextClip(clip: unknown): unknown {
+  if (!isRecord(clip) || typeof clip.text !== 'string' || clip.text.trim() === '') return clip
+  return { ...clip, textItem: { text: clip.text, styleId: 'caption', x: 0.5, y: 0.85, scale: 1 } }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -165,7 +191,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 8, to: 9, up: migrateV8ToV9 },
   { from: 9, to: 10, up: migrateV9ToV10 },
   { from: 10, to: 11, up: migrateV10ToV11 },
-  { from: 11, to: 12, up: migrateV11ToV12 }
+  { from: 11, to: 12, up: migrateV11ToV12 },
+  { from: 12, to: 13, up: migrateV12ToV13 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

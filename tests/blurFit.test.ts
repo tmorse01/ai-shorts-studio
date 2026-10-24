@@ -85,6 +85,7 @@ describe('blurFit render description', () => {
     const backend: FrameBackend = {
       kind: '2d',
       clear: () => undefined,
+      drawBitmap: () => undefined,
       drawVideo: (element, _placement, effect) =>
         drawn.push({ name: (element as unknown as { name: string }).name, effect }),
       dispose: () => undefined
