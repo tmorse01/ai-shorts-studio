@@ -17,8 +17,12 @@ const probed: ProbeResult = {
 // A queue whose probe job is replaced by the test, so the channel round trip needs no FFmpeg.
 function setup(probe: JobExecutors['probe'] = async () => probed) {
   const jobs = new JobQueue({ ...unavailableExecutors(), probe })
-  const layoutFile = join(mkdtempSync(join(tmpdir(), 'media-ipc-')), 'ui-layout.json')
-  const handlers = createIpcHandlers({ layoutFile, jobs })
+  const folder = mkdtempSync(join(tmpdir(), 'media-ipc-'))
+  const handlers = createIpcHandlers({
+    layoutFile: join(folder, 'ui-layout.json'),
+    recentFile: join(folder, 'recent-projects.json'),
+    jobs
+  })
   const api = createBridge((channel, input) => routeIpc(handlers, channel, input))
   return { api, jobs }
 }
