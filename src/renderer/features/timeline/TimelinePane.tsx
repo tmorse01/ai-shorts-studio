@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type JSX, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type JSX, type PointerEvent } from 'react'
 import { useStore } from 'zustand'
 import { Lock, LockOpen, Maximize2, Volume2, VolumeX, ZoomIn, ZoomOut } from 'lucide-react'
-import { addTrack, placeClips, setTrackFlag, trimClip } from '@shared/timeline/edits'
+import { addTrack, insertClip, placeClips, setTrackFlag, trimClip } from '@shared/timeline/edits'
+import { audioClipForDrop } from '@shared/timeline/audioDrop'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/timeline'
@@ -246,6 +247,37 @@ export function TimelinePane({
 
   function addLaneTrack(track: Track) {
     onEdit('Add track', (current) => addTrack(current, track))
+  }
+
+  // The Music lane takes audio footage dropped from the media panel. Other drops fall through to the
+  // pane, which holds footage until it can be placed.
+  function onMusicDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!carriesFootage(event.dataTransfer.types)) return
+    event.stopPropagation()
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setFootageHover(false)
+  }
+
+  function onMusicDrop(event: DragEvent<HTMLDivElement>, track: Track) {
+    if (!carriesFootage(event.dataTransfer.types)) return
+    event.stopPropagation()
+    event.preventDefault()
+    setFootageHover(false)
+    const payload = decodeDragPayload(event.dataTransfer.getData(DRAG_MIME))
+    if (payload === null) return
+    if (track.locked) {
+      toast.info({ title: 'Music lane is locked', description: 'Unlock it to add a clip.' })
+      return
+    }
+    const x = event.clientX - event.currentTarget.getBoundingClientRect().left
+    const result = audioClipForDrop(payload, media?.items ?? [], newTrackId(), xToTime(x, pxPerMs))
+    if (!result.ok) {
+      toast.info({ title: 'Cannot add to Music', description: result.reason })
+      return
+    }
+    const clip = result.clip
+    onEdit('Add music clip', (current) => insertClip(current, track.id, clip, clip.startMs))
   }
 
   function selectClips(update: (ids: string[]) => string[]) {
@@ -617,6 +649,8 @@ export function TimelinePane({
           style={{ width: widthPx }}
           data-role={role}
           data-track-id={track?.id}
+          onDragOver={role === 'music' && track ? onMusicDragOver : undefined}
+          onDrop={role === 'music' && track ? (event) => onMusicDrop(event, track) : undefined}
         >
           {track ? laneClips(track) : null}
           {track?.role === 'main' ? gapElements(track.id) : null}
