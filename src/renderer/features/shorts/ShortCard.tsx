@@ -19,6 +19,11 @@ export interface ShortCardProps {
   onDuplicate: () => void
   onSetStatus: (status: ManualShortStatus) => void
   onDelete: () => void
+  // Dragging and Alt+Arrow reordering are on in Manual sort only.
+  draggable: boolean
+  onMove: (delta: number) => void
+  onDragStart: () => void
+  onDropHere: () => void
 }
 
 const STATUS_LABEL: Record<ShortStatus, string> = {
@@ -38,7 +43,11 @@ export function ShortCard({
   onCancelRename,
   onDuplicate,
   onSetStatus,
-  onDelete
+  onDelete,
+  draggable,
+  onMove,
+  onDragStart,
+  onDropHere
 }: ShortCardProps): JSX.Element {
   // Set once a rename has ended by Enter or Escape, so the blur that follows does not commit again.
   const settledRef = useRef(false)
@@ -65,6 +74,8 @@ export function ShortCard({
     if (event.key === 'Enter') onOpen()
     if (event.key === 'F2') startRename()
     if (event.key === 'Delete') onDelete()
+    if (draggable && event.altKey && event.key === 'ArrowLeft') onMove(-1)
+    if (draggable && event.altKey && event.key === 'ArrowRight') onMove(1)
   }
 
   function onRenameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -79,7 +90,22 @@ export function ShortCard({
   }
 
   return (
-    <article className={styles.card} data-short-card>
+    <article
+      className={styles.card}
+      data-short-card
+      draggable={draggable}
+      onDragStart={(event) => {
+        event.dataTransfer.setData('text/plain', short.id)
+        onDragStart()
+      }}
+      onDragOver={(event) => {
+        if (draggable) event.preventDefault()
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        onDropHere()
+      }}
+    >
       <button
         type="button"
         data-short-open
