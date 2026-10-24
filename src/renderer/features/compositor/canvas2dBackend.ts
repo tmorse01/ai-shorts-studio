@@ -8,11 +8,13 @@ export function createCanvas2DBackend(canvas: HTMLCanvasElement): FrameBackend {
     clear() {
       context?.clearRect(0, 0, canvas.width, canvas.height)
     },
-    drawVideo(video, placement) {
+    drawVideo(video, placement, effect) {
       if (!context) return
       context.save()
       context.translate(placement.centerX, placement.centerY)
       context.rotate((placement.rotationDeg * Math.PI) / 180)
+      // The blur filter is missing on some engines. There the frame is still dimmed, just not blurred.
+      if (effect && effect.blurPx > 0) context.filter = `blur(${effect.blurPx}px)`
       context.drawImage(
         video,
         -placement.width / 2,
@@ -20,6 +22,18 @@ export function createCanvas2DBackend(canvas: HTMLCanvasElement): FrameBackend {
         placement.width,
         placement.height
       )
+      context.filter = 'none'
+      if (effect && effect.dim > 0) {
+        context.globalAlpha = effect.dim
+        context.fillStyle = 'black'
+        context.fillRect(
+          -placement.width / 2,
+          -placement.height / 2,
+          placement.width,
+          placement.height
+        )
+        context.globalAlpha = 1
+      }
       context.restore()
     },
     dispose() {}

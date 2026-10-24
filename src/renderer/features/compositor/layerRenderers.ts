@@ -23,7 +23,18 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
     'video',
     (layer, context) => {
       const source = context.sourceOf(layer)
-      if (source.state === 'ready') context.backend.drawVideo(source.element, layer.placement)
+      if (source.state !== 'ready') return
+      const { render } = layer
+      if (render.mode === 'blurFit') {
+        // The blurred, dimmed copy first, then the whole source over it.
+        context.backend.drawVideo(source.element, render.background, {
+          blurPx: render.blurPx,
+          dim: render.dim
+        })
+        context.backend.drawVideo(source.element, render.foreground)
+        return
+      }
+      context.backend.drawVideo(source.element, layer.placement)
     },
     { transformable: true }
   )
