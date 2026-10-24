@@ -1,7 +1,7 @@
 // Pure timeline queries: what is on screen at a time, how long the timeline is, and where the next
 // clip boundary falls (used to preload decoders). Clips are active from startMs up to, not
 // including, startMs + durationMs.
-import { resolveFramingAt, type FramingMode, type FramingPose } from './framing'
+import { resolveFramingAt, type ClipFraming, type FramingMode, type FramingPose } from './framing'
 import type { Clip, Timeline, TrackKind, Transform } from './timeline'
 
 export type ClipAt = {
@@ -23,6 +23,8 @@ export type ResolvedLayer = {
   transform: Transform
   // The framing pose at this time, when the clip has framing (see ./framing.ts).
   framing?: { mode: FramingMode } & FramingPose
+  // The clip's stored framing, start and end poses included, for the canvas outlines.
+  clipFraming?: ClipFraming
 }
 
 // Every clip active at tMs, on every track, in draw order (track order, then clip order).
@@ -61,6 +63,7 @@ export function resolveFrame(timeline: Timeline, tMs: number): ResolvedLayer[] {
       }
       if (clip.framing) {
         layer.framing = resolveFramingAt(clip.framing, clip.startMs, clip.durationMs, tMs)
+        layer.clipFraming = clip.framing
       }
       return layer
     })

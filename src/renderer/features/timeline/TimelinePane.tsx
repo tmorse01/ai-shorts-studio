@@ -18,8 +18,10 @@ import {
   placeClips,
   setClipAudio,
   setTrackFlag,
-  trimClip
+  trimClip,
+  updateClipFraming
 } from '@shared/timeline/edits'
+import { CENTRED_FILL } from '@shared/timeline/framing'
 import { audioClipForDrop } from '@shared/timeline/audioDrop'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { MediaRef } from '@shared/project/schema'
@@ -32,6 +34,7 @@ import { IconButton } from '@renderer/ui/IconButton'
 import { soundClipFor } from '../audio/clipSound'
 import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
+import { framedClipFor } from '../compositor/panTarget'
 import { inspectorStore } from '../inspector/inspectorStore'
 import { selectionTypeFor } from '../inspector/inspectorModel'
 import { formatTimecode } from '../playback/playbackClock'
@@ -363,6 +366,23 @@ export function TimelinePane({
     )
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setAudioTarget(null), [])
+
+  // The pan section edits the framing of the one selected fill-framed video clip. Publish that clip, or
+  // nothing.
+  useEffect(() => {
+    const framed = framedClipFor(timeline, selectedIds)
+    inspectorStore.getState().setFramingTarget(
+      framed
+        ? {
+            clipId: framed.id,
+            framing: framed.framing ?? { ...CENTRED_FILL },
+            apply: (label, edit) =>
+              runEdit(label, (current) => updateClipFraming(current, framed.id, edit))
+          }
+        : null
+    )
+  }, [timeline, selectedIds, runEdit])
+  useEffect(() => () => inspectorStore.getState().setFramingTarget(null), [])
 
   // The shortcuts read the pane through this, so they always see the latest timeline and selection.
   const readShortcutContext = (): TimelineShortcutContext => ({
