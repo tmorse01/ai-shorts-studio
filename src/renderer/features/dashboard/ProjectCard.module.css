@@ -38,7 +38,7 @@
   justify-content: center;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius);
-  background: var(--color-void-black);
+  background: var(--art-panel);
 }
 
 .ornament {
@@ -54,7 +54,6 @@
   line-height: var(--type-heading-line);
   color: var(--color-editorial);
 }
-
 .meta {
   font-size: var(--type-small-size);
   line-height: var(--type-small-line);

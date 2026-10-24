@@ -17,11 +17,16 @@ import {
 import { useRecentProjects } from './useRecentProjects'
 import styles from './DashboardGallery.module.css'
 
-// The dashboard: a spacious gallery of recent projects, with the main ways in (create, open a folder).
+// The number of cards in the recent row before "View all" opens the full gallery.
+const RECENT_LIMIT = 4
+
+// The dashboard: a hero band with the main ways in (create, open a folder), then a row of recent
+// projects. "View all" shows every project in the same grid.
 export function DashboardGallery(): JSX.Element {
   const router = useRouter()
   const { projects, refresh } = useRecentProjects()
   const [creating, setCreating] = useState(false)
+  const [showAll, setShowAll] = useState(false)
   const [renaming, setRenaming] = useState<RecentProject | null>(null)
   const [deleting, setDeleting] = useState<RecentProject | null>(null)
 
@@ -67,22 +72,24 @@ export function DashboardGallery(): JSX.Element {
     )
   }
 
+  const visible = projects !== null && !showAll ? projects.slice(0, RECENT_LIMIT) : (projects ?? [])
+
   return (
     <main className={styles.page}>
-      <header className={styles.header}>
-        <div className={styles.intro}>
-          <h1 className={styles.heading}>Projects</h1>
-          <p className={styles.lede}>Pick up a project where you left it, or start a new one.</p>
-        </div>
+      <section className={styles.hero} aria-labelledby="dashboard-heading">
+        <p className={styles.tagline}>Footage in · Shorts out · Kept on your machine</p>
+        <h1 id="dashboard-heading" className={styles.heading}>
+          Projects
+        </h1>
         <div className={styles.actions}>
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            Create project
+          </Button>
           <Button variant="secondary" onClick={() => void openFolder()}>
             Open folder…
           </Button>
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            Create Project
-          </Button>
         </div>
-      </header>
+      </section>
 
       {projects !== null && projects.length === 0 && (
         <div className={styles.empty}>
@@ -90,14 +97,28 @@ export function DashboardGallery(): JSX.Element {
             title="Start your first short"
             description="A project keeps your footage references, shorts and exports together in one folder."
           />
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            Create Project
-          </Button>
         </div>
       )}
 
       {projects !== null && projects.length > 0 && (
-        <ul className={styles.grid}>{projects.map(renderCard)}</ul>
+        <section className={styles.recent} aria-labelledby="recent-heading">
+          <div className={styles.sectionHead}>
+            <h2 id="recent-heading" className={styles.sectionLabel}>
+              Recent projects
+            </h2>
+            {projects.length > RECENT_LIMIT && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={showAll}
+                onClick={() => setShowAll((open) => !open)}
+              >
+                {showAll ? 'Show fewer' : 'View all'}
+              </Button>
+            )}
+          </div>
+          <ul className={styles.grid}>{visible.map(renderCard)}</ul>
+        </section>
       )}
 
       <CreateProjectDialog

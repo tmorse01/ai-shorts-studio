@@ -4,6 +4,7 @@ import type { RecentProject } from '@shared/project/recentProjects'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
+import { formatRelativeTime } from './relativeTime'
 import styles from './ProjectCard.module.css'
 
 export interface ProjectCardProps {
@@ -27,7 +28,8 @@ export function ProjectCard({
   onDelete,
   onLocate
 }: ProjectCardProps): JSX.Element {
-  const meta = `${project.shortCount} ${project.shortCount === 1 ? 'short' : 'shorts'} · ${formatDate(project.lastOpened)}`
+  const shorts = `${project.shortCount} ${project.shortCount === 1 ? 'short' : 'shorts'}`
+  const meta = `${shorts} · opened ${formatRelativeTime(project.lastOpened, new Date())}`
 
   return (
     <article className={styles.card}>
@@ -63,12 +65,4 @@ export function ProjectCard({
       )}
     </article>
   )
-}
-
-function formatDate(iso: string): string {
-  return `Last opened ${new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })}`
 }
