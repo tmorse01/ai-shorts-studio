@@ -13,6 +13,7 @@ import { logError } from '../errors/errorLog'
 import { join } from 'node:path'
 import { UserFacingError } from '../errors'
 import { DEFAULT_PROJECTS_DIR, safeFolderName } from '@shared/project/folderName'
+import { JobQueue, unavailableExecutors } from '../jobs/jobQueue'
 
 // Operating-system features the handlers need. The app passes Electron versions; tests pass fakes,
 // so this module never imports Electron.
@@ -36,6 +37,8 @@ export interface IpcHandlerOptions {
   layoutFile: string
   /** Where the recent projects registry is saved. Same rule as layoutFile. */
   recentFile: string
+  /** The media job queue. Defaults to one with no tools, so tests need not provide FFmpeg. */
+  jobs?: JobQueue
   /** Native actions. Defaults refuse, so a caller that forgets them fails loudly. */
   system?: Partial<SystemActions>
 }
@@ -44,6 +47,7 @@ export interface IpcHandlerOptions {
 export function createIpcHandlers({
   layoutFile,
   recentFile,
+  jobs = new JobQueue(unavailableExecutors()),
   system = {}
 }: IpcHandlerOptions): IpcHandlers {
   const actions: SystemActions = {
@@ -117,6 +121,9 @@ export function createIpcHandlers({
     'ui:layout:save': async ({ layout }) => {
       await writeLayoutFile(layoutFile, layout)
       return { saved: true }
-    }
+    },
+    'media:probe': ({ path }) => jobs.enqueue('probe', path).done,
+    'media:job:list': () => ({ jobs: jobs.list() }),
+    'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) })
   }
 }

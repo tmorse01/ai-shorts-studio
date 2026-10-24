@@ -6,6 +6,8 @@ import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
 import { projectSchema } from './project/schema'
 import { recentProjectSchema } from './project/recentProjects'
+import { probeResultSchema } from './media/probe'
+import { jobSnapshotSchema } from './media/jobs'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -151,6 +153,20 @@ export const ipcChannels = {
   'ui:layout:save': {
     input: z.object({ layout: uiLayoutSchema }),
     output: z.object({ saved: z.literal(true) })
+  },
+  // Reads a media file's streams with ffprobe. Runs as a probe job, ahead of other media jobs.
+  'media:probe': {
+    input: z.object({ path: z.string().trim().min(1) }),
+    output: probeResultSchema
+  },
+  // Every job the queue still holds: queued, running, and recently finished.
+  'media:job:list': {
+    input: z.object({}),
+    output: z.object({ jobs: z.array(jobSnapshotSchema) })
+  },
+  'media:job:cancel': {
+    input: z.object({ jobId: z.string().min(1) }),
+    output: z.object({ cancelled: z.boolean() })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 
@@ -167,7 +183,9 @@ export type IpcOutput<C extends IpcChannelName> = z.output<(typeof ipcChannels)[
 // Events main pushes to the renderer. One entry per event, with the payload schema. The preload
 // bridge checks each payload before the renderer sees it.
 export const ipcEvents = {
-  'app:error': { payload: appErrorSchema }
+  'app:error': { payload: appErrorSchema },
+  // Sent whenever a media job changes status or progress.
+  'media:job:changed': { payload: jobSnapshotSchema }
 } satisfies Record<string, { payload: z.ZodType }>
 
 export type IpcEventName = keyof typeof ipcEvents

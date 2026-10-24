@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AUTOSAVE_DELAY_MS, SaveError } from '../src/renderer/features/project/autosave'
 import { createProjectStore, type OpenProject } from '../src/renderer/features/project/projectStore'
-import type { Project } from '@shared/project/schema'
+import {
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_SHORT_DEFAULTS,
+  type Project
+} from '@shared/project/schema'
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -13,12 +17,13 @@ afterEach(() => {
 
 function projectNamed(id: string, name: string): Project {
   return {
-    schemaVersion: 2,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     id,
     name,
     createdAt: '2026-10-23T09:00:00.000Z',
     updatedAt: '2026-10-23T09:00:00.000Z',
     media: [],
+    defaults: DEFAULT_SHORT_DEFAULTS,
     shorts: [],
     scripts: []
   }
