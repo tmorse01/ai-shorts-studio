@@ -27,7 +27,9 @@ export class Compositor {
     }
     if (pending && this.hasFrame) return false
 
-    this.backend.clear()
+    // A dip to black needs black under the faded layers, so the frame starts from black then.
+    const dipping = frame.layers.some((layer) => layer.fade?.overBlack)
+    this.backend.clear(dipping ? 'black' : 'transparent')
     this.registry.renderFrame(frame, {
       backend: this.backend,
       sourceOf: (layer) => sources.get(layer.clipId) ?? { state: 'none' }
