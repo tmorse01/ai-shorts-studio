@@ -81,8 +81,8 @@ issue doesn't settle. Mode A is for tasks the owner asks to see.
    - **Mode A** only when the owner asks to review a task themselves.
    - **Mode B** for small, self-contained work inside one feature folder, such as a test-only task,
      where the acceptance criteria can be checked from the diff and CI.
-   In every mode, the sub-agent's own steps stop after opening the PR, except in mode B. Mode C's
-   review and merge are the orchestrator's job.
+     In every mode, the sub-agent's own steps stop after opening the PR, except in mode B. Mode C's
+     review and merge are the orchestrator's job.
 
 ## Sub-agent steps
 
@@ -94,7 +94,7 @@ modes. Steps 8 and 9 differ.
    any UI. Then check that every **Depends on** issue is merged into `origin/rebuild`. If one isn't,
    including one another sub-agent is still working on, don't start and don't stub the missing
    piece. Report "blocked on #X" and the orchestrator gives you the next unblocked task under
-   *Picking tasks* rule 4. The same applies if you find a hidden dependency partway through: stop,
+   _Picking tasks_ rule 4. The same applies if you find a hidden dependency partway through: stop,
    push nothing, and report.
 2. **Branch from `rebuild`.** Fetch, then create a branch named `claude/<NNNN>-<slug>-haiku-<hash>`
    from `origin/rebuild`. Work only in its own worktree.
@@ -110,8 +110,8 @@ modes. Steps 8 and 9 differ.
 7. **Wait for CI.** Watch the run until it finishes. If it fails, fix it on the same branch and
    push again. Stop after three failed attempts and report the failure.
 8. **Mode-specific end (see below).**
-9. **Report back and stop.** The first line is the summary line from *How a task session is
-   started*. After it, briefly: decisions made, and anything not done or not verified (especially
+9. **Report back and stop.** The first line is the summary line from _How a task session is
+   started_. After it, briefly: decisions made, and anything not done or not verified (especially
    unticked criteria that a later task should carry). Then end the session's work. Don't start
    another task.
 
@@ -142,7 +142,7 @@ modes. Steps 8 and 9 differ.
 
 ## Conventions every sub-agent follows
 
-- Model: task sessions run on `claude-haiku-5-5`, one fresh session per task (see *How a task session is started*).
+- Model: task sessions run on `claude-haiku-5-5`, one fresh session per task (see _How a task session is started_).
 - Branch names: `claude/<NNNN>-<slug>-haiku-<hash>`, with a PR against `rebuild`.
 - Never push to `rebuild` or `main`. Merge only in mode B, and only the sub-agent's own PR.
 - Never edit files outside the task's scope to make CI pass. If CI fails for a reason outside the

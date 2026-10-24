@@ -50,7 +50,38 @@ void app.whenReady().then(() => {
         },
         revealFolder: (folderPath) => shell.showItemInFolder(folderPath),
         trashFolder: (folderPath) => shell.trashItem(folderPath),
-        documentsDir: () => app.getPath('documents')
+        documentsDir: () => app.getPath('documents'),
+        pickMediaFiles: async () => {
+          const result = await dialog.showOpenDialog({
+            properties: ['openFile', 'multiSelections'],
+            filters: [
+              {
+                name: 'Video, audio and images',
+                extensions: [
+                  'mp4',
+                  'mov',
+                  'mkv',
+                  'webm',
+                  'm4v',
+                  'avi',
+                  'mp3',
+                  'wav',
+                  'm4a',
+                  'aac',
+                  'flac',
+                  'ogg',
+                  'jpg',
+                  'jpeg',
+                  'png',
+                  'webp',
+                  'bmp',
+                  'gif'
+                ]
+              }
+            ]
+          })
+          return result.canceled ? [] : result.filePaths
+        }
       }
     })
   )

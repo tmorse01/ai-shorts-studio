@@ -8,6 +8,7 @@ import { projectSchema } from './project/schema'
 import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
+import { importCandidateSchema } from './media/importFiles'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -167,6 +168,19 @@ export const ipcChannels = {
   'media:job:cancel': {
     input: z.object({ jobId: z.string().min(1) }),
     output: z.object({ cancelled: z.boolean() })
+  },
+  // Native multi-select file dialog for importing media. Empty when the user cancels.
+  'media:pick': {
+    input: z.object({}),
+    output: z.object({ paths: z.array(z.string().min(1)) })
+  },
+  // Reads the name and size of each path. Paths that are not files come back in missing.
+  'media:stat': {
+    input: z.object({ paths: z.array(z.string().trim().min(1)).min(1).max(500) }),
+    output: z.object({
+      files: z.array(importCandidateSchema),
+      missing: z.array(z.string())
+    })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 

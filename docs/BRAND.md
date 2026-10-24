@@ -21,49 +21,49 @@ A quiet, black-and-white editing room. The interface is neutral so the footage i
 
 ### Neutrals
 
-| Role | Token | Hex | Used for |
-|---|---|---|---|
-| Background | `--ink-0` | `#0A0A0A` | App background, video letterbox |
-| Surface 0 | `--surface-0` | `#111111` | Side panes, title bar, status bar |
-| Surface 1 | `--surface-1` | `#171717` | Cards, inputs, timeline lanes |
-| Surface 2 | `--surface-2` | `#202020` | Hover, voice and music blocks |
-| Border | `--border` | `#262626` | Dividers, control edges |
-| Border strong | `--border-strong` | `#3A3A3A` | Hover borders, dashed music block, menus |
-| Text | `--text` | `#F5F5F5` | Titles, values |
-| Text secondary | `--text-2` | `#A3A3A3` | Labels, metadata, neutral blocks |
-| Text tertiary | `--text-3` | `#636363` | Disabled and ruler ticks only |
+| Role           | Token             | Hex       | Used for                                 |
+| -------------- | ----------------- | --------- | ---------------------------------------- |
+| Background     | `--ink-0`         | `#0A0A0A` | App background, video letterbox          |
+| Surface 0      | `--surface-0`     | `#111111` | Side panes, title bar, status bar        |
+| Surface 1      | `--surface-1`     | `#171717` | Cards, inputs, timeline lanes            |
+| Surface 2      | `--surface-2`     | `#202020` | Hover, voice and music blocks            |
+| Border         | `--border`        | `#262626` | Dividers, control edges                  |
+| Border strong  | `--border-strong` | `#3A3A3A` | Hover borders, dashed music block, menus |
+| Text           | `--text`          | `#F5F5F5` | Titles, values                           |
+| Text secondary | `--text-2`        | `#A3A3A3` | Labels, metadata, neutral blocks         |
+| Text tertiary  | `--text-3`        | `#636363` | Disabled and ruler ticks only            |
 
 ### Highlight (live state only)
 
-| Role | Token | Hex | Used for |
-|---|---|---|---|
-| Highlight fill | `--primary` | `#FF6A2B` (Signal Orange) | Primary button, playhead progress fill, focus ring |
-| Highlight hover | `--primary-hover` | `#FF7F4D` | Hover on primary |
-| Highlight pressed | `--primary-press` | `#E85A1C` | Pressed on primary |
-| Highlight tint | `--primary-soft` | `rgba(255, 106, 43, 0.16)` | Selected card, AI badge |
-| Highlight text | `--primary-ink` | `#FF6A2B` | Highlight as text or icon on dark |
-| Text on highlight | `--primary-on` | `#0A0A0A` | Label on the orange fill |
+| Role              | Token             | Hex                        | Used for                                           |
+| ----------------- | ----------------- | -------------------------- | -------------------------------------------------- |
+| Highlight fill    | `--primary`       | `#FF6A2B` (Signal Orange)  | Primary button, playhead progress fill, focus ring |
+| Highlight hover   | `--primary-hover` | `#FF7F4D`                  | Hover on primary                                   |
+| Highlight pressed | `--primary-press` | `#E85A1C`                  | Pressed on primary                                 |
+| Highlight tint    | `--primary-soft`  | `rgba(255, 106, 43, 0.16)` | Selected card, AI badge                            |
+| Highlight text    | `--primary-ink`   | `#FF6A2B`                  | Highlight as text or icon on dark                  |
+| Text on highlight | `--primary-on`    | `#0A0A0A`                  | Label on the orange fill                           |
 
 ### Timeline
 
-| Role | Token | Hex | Used for |
-|---|---|---|---|
-| Cut 1 | `--cut-1` | `#F5F5F5` | Odd cuts, and the first cut in the source strip |
-| Cut 2 | `--cut-2` | `#B3B3B3` | Second cut |
-| Cut 3 | `--cut-3` | `#8C8C8C` | Third cut, then the cycle repeats |
-| Caption | `--caption` | `#F5F5F5` outline | Caption blocks, drawn as an outline with no fill |
-| Voice and music fill | `--voice` / `--music` | `#2E2E2E` | Source audio and music bed, with secondary text |
-| Playhead | `--playhead` | `#FFFFFF` | Playhead line in the timeline, source strip, and player |
+| Role                 | Token                 | Hex               | Used for                                                |
+| -------------------- | --------------------- | ----------------- | ------------------------------------------------------- |
+| Cut 1                | `--cut-1`             | `#F5F5F5`         | Odd cuts, and the first cut in the source strip         |
+| Cut 2                | `--cut-2`             | `#B3B3B3`         | Second cut                                              |
+| Cut 3                | `--cut-3`             | `#8C8C8C`         | Third cut, then the cycle repeats                       |
+| Caption              | `--caption`           | `#F5F5F5` outline | Caption blocks, drawn as an outline with no fill        |
+| Voice and music fill | `--voice` / `--music` | `#2E2E2E`         | Source audio and music bed, with secondary text         |
+| Playhead             | `--playhead`          | `#FFFFFF`         | Playhead line in the timeline, source strip, and player |
 
 Cuts are told apart by lightness, not hue. The timeline reads as black and white.
 
 ### Status (status only, never decoration)
 
-| Role | Token | Hex |
-|---|---|---|
+| Role    | Token       | Hex       |
+| ------- | ----------- | --------- |
 | Success | `--success` | `#4ADE80` |
 | Warning | `--warning` | `#FACC15` |
-| Danger | `--danger` | `#F87171` |
+| Danger  | `--danger`  | `#F87171` |
 
 ### Adjustments from the draft
 
@@ -96,18 +96,18 @@ Three values changed from the first draft so text passes contrast checks (`tests
 
 ## 7. Components
 
-| Element | Look |
-|---|---|
-| Primary button | Orange fill, black label. One per view. |
-| Secondary button | Surface-1 fill with a border. Hover lifts the border. |
-| Ghost button | No fill or border. Secondary text. Hover fills surface-2. |
-| Danger | Red text, border on hover only. Never filled. |
-| Inputs | 32px, darkest surface, border, orange focus border. |
-| Tabs | Secondary text. Active tab is primary text with a 2px orange underline. |
-| Selected card | Orange border with a faint orange tint. |
-| Badges | AI-selected: orange tint and orange text. Manual and heuristic: neutral outline pill with a dot (white for manual, amber for heuristic). |
-| Notices | 3px left edge in the status colour, a faint tint, plain text. |
-| Empty states | Dashed border, one sentence, one primary action. |
+| Element          | Look                                                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary button   | Orange fill, black label. One per view.                                                                                                  |
+| Secondary button | Surface-1 fill with a border. Hover lifts the border.                                                                                    |
+| Ghost button     | No fill or border. Secondary text. Hover fills surface-2.                                                                                |
+| Danger           | Red text, border on hover only. Never filled.                                                                                            |
+| Inputs           | 32px, darkest surface, border, orange focus border.                                                                                      |
+| Tabs             | Secondary text. Active tab is primary text with a 2px orange underline.                                                                  |
+| Selected card    | Orange border with a faint orange tint.                                                                                                  |
+| Badges           | AI-selected: orange tint and orange text. Manual and heuristic: neutral outline pill with a dot (white for manual, amber for heuristic). |
+| Notices          | 3px left edge in the status colour, a faint tint, plain text.                                                                            |
+| Empty states     | Dashed border, one sentence, one primary action.                                                                                         |
 
 ### Video player
 
