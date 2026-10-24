@@ -2,6 +2,7 @@ import { useEffect, useRef, type JSX } from 'react'
 import { hasClips } from '@shared/compositor/frame'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import type { Timeline } from '@shared/timeline/timeline'
+import { useAudioPreview } from '../audio/useAudioPreview'
 import { ScrubBar } from '../playback/ScrubBar'
 import { playbackStore } from '../playback/playbackStore'
 import { EMPTY_TIMELINE } from '../preview/previewFrame'
@@ -21,6 +22,7 @@ export function PreviewCanvas({ timeline = EMPTY_TIMELINE }: PreviewCanvasProps)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   useMediaSourceSync()
   const { offline, droppedFrames } = useVideoPreview(canvasRef, timeline)
+  useAudioPreview(timeline)
 
   useEffect(() => {
     playbackStore.getState().setDurationMs(timelineDurationMs(timeline))
