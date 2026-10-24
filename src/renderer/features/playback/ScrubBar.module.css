@@ -1,0 +1,22 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--color-primary);
+}
+
+.timecode {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  letter-spacing: var(--type-mono-tracking);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}

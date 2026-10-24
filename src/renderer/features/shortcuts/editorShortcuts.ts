@@ -1,5 +1,6 @@
 import { editorHistory } from '@renderer/features/history/editorHistory'
 import { uiStore } from '@renderer/features/layout/useUiStore'
+import { playbackStore } from '@renderer/features/playback/playbackStore'
 import type { PaneId } from '@shared/layout'
 import { shortcutHelpStore } from './shortcutHelpStore'
 import type { ShortcutDefinition, ShortcutRegistry } from './shortcutRegistry'
@@ -30,6 +31,27 @@ export function editorShortcuts(): ShortcutDefinition[] {
       label: 'Redo',
       group: 'Edit',
       run: () => editorHistory.active()?.getState().redo()
+    },
+    {
+      id: 'playback.toggle',
+      keys: [' '],
+      label: 'Play or pause',
+      group: 'Playback',
+      run: () => playbackStore.getState().toggle()
+    },
+    {
+      id: 'playback.stepBack',
+      keys: ['arrowleft'],
+      label: 'Step back one frame',
+      group: 'Playback',
+      run: () => playbackStore.getState().step(-1)
+    },
+    {
+      id: 'playback.stepForward',
+      keys: ['arrowright'],
+      label: 'Step forward one frame',
+      group: 'Playback',
+      run: () => playbackStore.getState().step(1)
     },
     togglePane('left', 'Toggle left panel', '1'),
     togglePane('right', 'Toggle right panel', '2'),

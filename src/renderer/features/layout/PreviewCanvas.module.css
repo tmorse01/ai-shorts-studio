@@ -1,6 +1,7 @@
 /* The canvas is a size container, so the frame can fit its height and width. */
 .canvas {
   container-type: size;
+  position: relative;
   display: flex;
   flex: 1;
   align-items: center;
@@ -42,4 +43,12 @@
   line-height: var(--type-small-line);
   color: var(--color-text-2);
   font-feature-settings: var(--font-mono-features);
+}
+
+/* The scrub bar sits in the margin below the frame, so the frame keeps its size. */
+.scrub {
+  position: absolute;
+  right: var(--space-6);
+  bottom: var(--space-2);
+  left: var(--space-6);
 }
