@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import type { JSX, PointerEvent } from 'react'
 import { filmstripPlan, FILMSTRIP_FILE } from '@shared/media/thumbs'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, TrackKind } from '@shared/timeline/timeline'
@@ -31,6 +31,9 @@ export interface TimelineClipProps {
   // The project folder the cache lives in. Without it, clips show no thumbnails.
   projectFolder?: string
   linked?: LinkedAudio
+  // Pointer down starts a press: select, or start a drag. The pane handles the rest.
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
+  // Keyboard selection, for Enter and Space.
   onSelect: () => void
 }
 
@@ -48,6 +51,7 @@ export function TimelineClip({
   offline,
   projectFolder,
   linked,
+  onPointerDown,
   onSelect
 }: TimelineClipProps): JSX.Element {
   const box = clipBox(clip, pxPerMs)
@@ -118,7 +122,7 @@ export function TimelineClip({
       className={classes}
       data-kind={kind}
       style={{ left: box.leftPx, width: box.widthPx, height: CLIP_HEIGHT_PX }}
-      onPointerDown={onSelect}
+      onPointerDown={onPointerDown}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()

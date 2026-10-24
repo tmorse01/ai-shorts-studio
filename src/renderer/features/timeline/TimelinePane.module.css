@@ -132,3 +132,13 @@
   width: var(--border-width);
   background: var(--color-primary);
 }
+
+/* The insert indicator a drag shows where the clips would land. Clicks pass through. */
+.dropLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--border-width);
+  background: var(--color-primary);
+  pointer-events: none;
+}

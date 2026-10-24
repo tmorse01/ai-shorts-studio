@@ -3,6 +3,7 @@ import { redoProjectEdit, undoProjectEdit } from '@renderer/features/shorts/shor
 import { uiStore } from '@renderer/features/layout/useUiStore'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
 import { sourceStore } from '@renderer/features/source/sourceStore'
+import { timelineViewStore } from '@renderer/features/timeline/timelineViewStore'
 import type { PaneId } from '@shared/layout'
 import { shortcutHelpStore } from './shortcutHelpStore'
 import type { ShortcutDefinition, ShortcutRegistry } from './shortcutRegistry'
@@ -105,6 +106,13 @@ export function editorShortcuts(): ShortcutDefinition[] {
       label: 'Clear In and Out marks',
       group: 'Source',
       run: () => sourceStore.getState().clearMarks()
+    },
+    {
+      id: 'timeline.toggleSnapping',
+      keys: ['n'],
+      label: 'Toggle snapping in the timeline',
+      group: 'Timeline',
+      run: () => timelineViewStore.getState().toggleSnapping()
     },
     togglePane('left', 'Toggle left panel', '1'),
     togglePane('right', 'Toggle right panel', '2'),
