@@ -2,7 +2,9 @@
 // name prompt. Enter saves, Escape cancels. The save is one undoable project command.
 import { useState, type FormEvent, type JSX, type KeyboardEvent } from 'react'
 import { useStore } from 'zustand'
+import { GripVertical } from 'lucide-react'
 import { markedRange } from '@shared/media/sourceMarks'
+import { DRAG_MIME, encodeDragPayload, rangePayload } from '@shared/timeline/dragPayload'
 import { Button } from '@renderer/ui/Button'
 import { Input } from '@renderer/ui/Input'
 import { applyProjectCommand } from '../shorts/shortActions'
@@ -56,15 +58,35 @@ export function SaveMomentControl(): JSX.Element | null {
 
   if (!naming) {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={!range}
-        title="Save the In and Out range as a moment (M)"
-        onClick={() => sourceStore.getState().startNamingMoment()}
-      >
-        Save moment
-      </Button>
+      <span className={styles.group}>
+        <button
+          type="button"
+          className={styles.grip}
+          draggable={range !== null}
+          disabled={!range}
+          aria-label="Drag the marked range to the timeline"
+          title="Drag the marked range to the timeline"
+          onDragStart={(event) => {
+            if (!range) return
+            event.dataTransfer.setData(
+              DRAG_MIME,
+              encodeDragPayload(rangePayload(sourceId, range.startMs, range.endMs))
+            )
+            event.dataTransfer.effectAllowed = 'copy'
+          }}
+        >
+          <GripVertical size={14} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!range}
+          title="Save the In and Out range as a moment (M)"
+          onClick={() => sourceStore.getState().startNamingMoment()}
+        >
+          Save moment
+        </Button>
+      </span>
     )
   }
 

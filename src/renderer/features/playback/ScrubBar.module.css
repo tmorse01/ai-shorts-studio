@@ -31,6 +31,20 @@
   opacity: 0.6;
 }
 
+/* A thin row under the marks where footage already used in a short is shaded. */
+.usedRow {
+  position: relative;
+  height: 3px;
+  margin-top: 2px;
+}
+
+.used {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-muted-moss);
+}
+
 .marks {
   flex: none;
   font-family: var(--font-mono);

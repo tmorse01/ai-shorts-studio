@@ -10,10 +10,12 @@ import { mainGaps, type Gap } from '@shared/timeline/gaps'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
+import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
 import { inspectorStore } from '../inspector/inspectorStore'
 import { selectionTypeFor } from '../inspector/inspectorModel'
 import { formatTimecode } from '../playback/playbackClock'
+import { toast } from '../toasts/toast'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
 import { clipsInRange, trimReadout, visibleLaneRange } from './clipView'
@@ -140,6 +142,9 @@ export function TimelinePane({
   const [selection, setSelection] = useState<Selection>(NO_SELECTION)
   const selectedIds = selection.clipIds
   const [drag, setDrag] = useState<DragPreview | null>(null)
+  // True while footage is dragged over the pane. Placing footage is not available yet, so the pane
+  // shows a placeholder instead of an insert point.
+  const [footageHover, setFootageHover] = useState(false)
   const [trim, setTrim] = useState<TrimPreview | null>(null)
   const newTrackId = newId ?? (() => crypto.randomUUID())
   // The latest props for the window listeners of a drag, which are attached once per press.
@@ -624,7 +629,36 @@ export function TimelinePane({
   }
 
   return (
-    <div className={styles.pane}>
+    <div
+      className={styles.pane}
+      onDragOver={(event) => {
+        if (!carriesFootage(event.dataTransfer.types)) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'copy'
+        setFootageHover(true)
+      }}
+      onDragLeave={(event) => {
+        const next = event.relatedTarget
+        if (next instanceof Node && event.currentTarget.contains(next)) return
+        setFootageHover(false)
+      }}
+      onDrop={(event) => {
+        if (!carriesFootage(event.dataTransfer.types)) return
+        event.preventDefault()
+        setFootageHover(false)
+        if (decodeDragPayload(event.dataTransfer.getData(DRAG_MIME)) !== null) {
+          toast.info({
+            title: 'Footage cannot be placed on the timeline yet',
+            description: 'Dropping footage here will add it to the short in a later update.'
+          })
+        }
+      }}
+    >
+      {footageHover ? (
+        <div className={styles.footageHint} role="status">
+          Drop to add footage. Placing clips on the timeline is not available yet.
+        </div>
+      ) : null}
       <div className={styles.toolbar}>
         <DropdownMenu
           trigger={<Button variant="secondary">Add track</Button>}
