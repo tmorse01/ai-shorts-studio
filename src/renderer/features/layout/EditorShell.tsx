@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { registerEditorShortcuts } from '@renderer/features/shortcuts/editorShortcuts'
 import { ShortcutsDialog } from '@renderer/features/shortcuts/ShortcutsDialog'
 import { shortcutRegistry } from '@renderer/features/shortcuts/shortcutRegistry'
+import { MediaPanel } from '@renderer/features/media/MediaPanel'
 import { useMediaDrop } from '@renderer/features/media/useMediaDrop'
 import { LEFT_TOOL_DEFINITIONS } from './leftTools'
 import { EditorToolbar } from './EditorToolbar'
@@ -30,11 +31,15 @@ export function EditorShell() {
         <div className={styles.row}>
           <ToolRail />
           <PaneFrame pane="left" title={toolDef.label} accent={toolDef.ai ? 'ai' : 'default'}>
-            <EmptyState
-              title={toolDef.label}
-              description={toolDef.emptyDescription}
-              accent={toolDef.ai ? 'ai' : 'default'}
-            />
+            {leftTool === 'media' ? (
+              <MediaPanel />
+            ) : (
+              <EmptyState
+                title={toolDef.label}
+                description={toolDef.emptyDescription}
+                accent={toolDef.ai ? 'ai' : 'default'}
+              />
+            )}
           </PaneFrame>
           <PreviewCanvas />
           <PaneFrame pane="right" title="Inspector">
