@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
 import { registerIpcHandlers } from './ipc/register'
-import { ipcHandlers } from './ipc/handlers'
+import { createIpcHandlers } from './ipc/handlers'
 import { setupErrorReporting } from './errors/setupErrorReporting'
 
 function createWindow(): void {
@@ -31,7 +31,9 @@ function createWindow(): void {
 
 void app.whenReady().then(() => {
   setupErrorReporting()
-  registerIpcHandlers(ipcHandlers)
+  registerIpcHandlers(
+    createIpcHandlers({ layoutFile: join(app.getPath('userData'), 'ui-layout.json') })
+  )
   createWindow()
 
   app.on('activate', () => {

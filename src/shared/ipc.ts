@@ -3,6 +3,8 @@
 // schemas; the preload bridge checks responses too, so a drifted main process fails loudly.
 import { z } from 'zod'
 import { appErrorSchema } from './errors'
+import { uiLayoutSchema } from './layout'
+import { projectSchema } from './project/schema'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -42,6 +44,13 @@ export function ipcFailure(
 }
 
 // One entry per channel. Add new channels here, then add a handler in src/main/ipc/handlers.ts.
+const projectOpenedSchema = z.object({
+  folderPath: z.string().min(1),
+  project: projectSchema,
+  // Plain-language warning for a toast, for example when the project was recovered from its backup.
+  warning: z.string().optional()
+})
+
 export const ipcChannels = {
   'app:echo': {
     input: z.object({ text: z.string().trim().min(1).max(200) }),
@@ -56,6 +65,26 @@ export const ipcChannels = {
       stack: z.string().max(20000).optional()
     }),
     output: z.object({ logged: z.literal(true) })
+  },
+  'project:create': {
+    input: z.object({
+      folderPath: z.string().trim().min(1),
+      name: z.string().trim().min(1).max(120)
+    }),
+    output: projectOpenedSchema
+  },
+  'project:open': {
+    input: z.object({ folderPath: z.string().trim().min(1) }),
+    output: projectOpenedSchema
+  },
+  // Editor pane layout, saved between launches. Stored by main as a JSON file in user data.
+  'ui:layout:load': {
+    input: z.object({}),
+    output: z.object({ layout: uiLayoutSchema.nullable() })
+  },
+  'ui:layout:save': {
+    input: z.object({ layout: uiLayoutSchema }),
+    output: z.object({ saved: z.literal(true) })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 

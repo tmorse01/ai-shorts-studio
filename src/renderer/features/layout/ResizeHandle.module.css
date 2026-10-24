@@ -1,0 +1,62 @@
+/* A wider hit area than the 1px line it draws, so the edge is easy to grab. */
+.handle {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+}
+
+.handle::after {
+  content: '';
+  position: absolute;
+  background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.handle:hover::after,
+.handle:focus-visible::after {
+  background: var(--color-focus);
+}
+
+.handle:focus-visible {
+  outline: none;
+}
+
+.x {
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+}
+
+.x::after {
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+}
+
+.y {
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: row-resize;
+}
+
+.y::after {
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 1px;
+}
+
+.left {
+  right: -3px;
+}
+
+.right {
+  left: -3px;
+}
+
+.top {
+  top: -3px;
+}

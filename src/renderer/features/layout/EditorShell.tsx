@@ -1,0 +1,48 @@
+import { LEFT_TOOL_DEFINITIONS } from './leftTools'
+import { EditorToolbar } from './EditorToolbar'
+import { EmptyState } from './EmptyState'
+import { PaneFrame } from './PaneFrame'
+import { PreviewCanvas } from './PreviewCanvas'
+import { ToolRail } from './ToolRail'
+import { useEditorLayoutPersistence } from './useEditorLayoutPersistence'
+import { useUiStore } from './useUiStore'
+import styles from './EditorShell.module.css'
+
+// The five-area editor (DESIGN.md section 4): toolbar on top, tool rail and left panel, centre
+// preview, right inspector, and a full-width timeline along the bottom.
+export function EditorShell() {
+  const leftTool = useUiStore((s) => s.leftTool)
+  const toolDef = LEFT_TOOL_DEFINITIONS[leftTool]
+  useEditorLayoutPersistence()
+
+  return (
+    <div className={styles.shell}>
+      <EditorToolbar />
+      <div className={styles.main}>
+        <div className={styles.row}>
+          <ToolRail />
+          <PaneFrame pane="left" title={toolDef.label} accent={toolDef.ai ? 'ai' : 'default'}>
+            <EmptyState
+              title={toolDef.label}
+              description={toolDef.emptyDescription}
+              accent={toolDef.ai ? 'ai' : 'default'}
+            />
+          </PaneFrame>
+          <PreviewCanvas />
+          <PaneFrame pane="right" title="Inspector">
+            <EmptyState
+              title="Nothing selected"
+              description="Select a clip to edit its position, timing and audio."
+            />
+          </PaneFrame>
+        </div>
+        <PaneFrame pane="bottom" title="Timeline">
+          <EmptyState
+            title="No timeline yet"
+            description="Clips, captions and music will sit on tracks here once a short has footage."
+          />
+        </PaneFrame>
+      </div>
+    </div>
+  )
+}

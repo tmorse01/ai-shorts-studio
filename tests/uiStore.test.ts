@@ -29,6 +29,15 @@ describe('uiStore', () => {
     expect(store.getState().panes.right.collapsed).toBe(false)
   })
 
+  it('sets a pane collapsed state directly, so repeat calls do not flip it back', () => {
+    const store = createUiStore()
+    store.getState().setPaneCollapsed('left', true)
+    store.getState().setPaneCollapsed('left', true)
+    expect(store.getState().panes.left.collapsed).toBe(true)
+    store.getState().setPaneCollapsed('left', false)
+    expect(store.getState().panes.left.collapsed).toBe(false)
+  })
+
   it('sets a pane size without changing the others', () => {
     const store = createUiStore()
     store.getState().setPaneSize('bottom', 360)
