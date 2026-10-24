@@ -180,7 +180,10 @@ describe('saveProject', () => {
 
 describe('project IPC channels', () => {
   function makeBridge() {
-    const ipcHandlers = createIpcHandlers({ layoutFile: join(folder, 'ui-layout.json') })
+    const ipcHandlers = createIpcHandlers({
+      layoutFile: join(folder, 'ui-layout.json'),
+      recentFile: join(root, 'recent-projects.json')
+    })
     return createBridge((channel, input) => routeIpc(ipcHandlers, channel, input))
   }
 
