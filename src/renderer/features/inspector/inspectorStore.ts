@@ -3,6 +3,7 @@
 // its state whenever its selection type is shown again.
 import { createStore } from 'zustand'
 import type { ClipAudioChange } from '@shared/timeline/edits'
+import type { Clip, Timeline } from '@shared/timeline/timeline'
 import { defaultTabFor, type InspectorTab, type SelectionType } from './inspectorModel'
 
 // The sound of the one selected clip, for the clip audio section (Epic 07, #91). The timeline pane
@@ -15,11 +16,21 @@ export interface AudioTarget {
   apply: (label: string, change: ClipAudioChange, mergeKey?: string) => void
 }
 
+// The one selected video clip, for the video clip section (Epic 08, #96). The timeline pane publishes
+// it. apply runs an edit as one history entry; calls with the same mergeKey fold into one entry. The
+// linked audio is the clip's sound when it has one, or null when the sound is detached.
+export interface VideoClipTarget {
+  clip: Clip
+  linkedAudio: Clip | null
+  apply: (label: string, edit: (timeline: Timeline) => Timeline, mergeKey?: string) => void
+}
+
 export interface InspectorState {
   selectionType: SelectionType
   tab: InspectorTab
   collapsed: Record<string, boolean>
   audioTarget: AudioTarget | null
+  videoTarget: VideoClipTarget | null
 }
 
 export interface InspectorActions {
@@ -28,6 +39,7 @@ export interface InspectorActions {
   setTab: (tab: InspectorTab) => void
   toggleSection: (sectionId: string) => void
   setAudioTarget: (target: AudioTarget | null) => void
+  setVideoTarget: (target: VideoClipTarget | null) => void
 }
 
 export type InspectorStore = InspectorState & InspectorActions
@@ -38,7 +50,9 @@ export function createInspectorStore() {
     tab: defaultTabFor('short'),
     collapsed: {},
     audioTarget: null,
+    videoTarget: null,
     setAudioTarget: (audioTarget) => set({ audioTarget }),
+    setVideoTarget: (videoTarget) => set({ videoTarget }),
     setSelectionType: (selectionType) => {
       if (selectionType === get().selectionType) return
       set({ selectionType, tab: defaultTabFor(selectionType) })

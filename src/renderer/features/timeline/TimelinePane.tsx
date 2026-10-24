@@ -40,6 +40,7 @@ import { Button } from '@renderer/ui/Button'
 import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { soundClipFor } from '../audio/clipSound'
+import { videoSelectionFor } from '../clip/videoClipFields'
 import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
 import { inspectorStore } from '../inspector/inspectorStore'
@@ -373,6 +374,23 @@ export function TimelinePane({
     )
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setAudioTarget(null), [])
+
+  // The video clip section edits the one selected video clip and its linked audio. Publish it, or nothing.
+  useEffect(() => {
+    const selected = videoSelectionFor(timeline, selectedIds)
+    inspectorStore.getState().setVideoTarget(
+      selected
+        ? {
+            clip: selected.clip,
+            linkedAudio: selected.linkedAudio,
+            apply: (label, edit, mergeKey) => {
+              runEdit(label, edit, mergeKey)
+            }
+          }
+        : null
+    )
+  }, [timeline, selectedIds, runEdit])
+  useEffect(() => () => inspectorStore.getState().setVideoTarget(null), [])
 
   // The shortcuts read the pane through this, so they always see the latest timeline and selection.
   const readShortcutContext = (): TimelineShortcutContext => ({

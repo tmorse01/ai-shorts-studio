@@ -44,6 +44,10 @@ export const clipSchema = z.object({
   // Silences the clip's sound in the preview mix. Optional so existing clips need no key. Read it as
   // `?? false`.
   muted: z.boolean().optional(),
+  // Sound fades in from the clip's start and out to its end, in ms. Optional so existing clips need
+  // no key. Read them as `?? 0`. The mix reads them with fadeGain in audioMix.ts.
+  fadeInMs: z.number().int().nonnegative().optional(),
+  fadeOutMs: z.number().int().nonnegative().optional(),
   text: z.string().optional(),
   label: z.string().optional(),
   // The moment (Epic 14 script beat) this clip was dropped from, when it came from one.

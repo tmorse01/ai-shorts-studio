@@ -2,6 +2,7 @@
 // shows for the selection types it lists, under the tab it names. Until a feature registers one, a
 // tab shows an empty state.
 import { ClipAudioSection } from '@renderer/features/audio/ClipAudioSection'
+import { VideoClipSection } from '@renderer/features/clip/VideoClipSection'
 import { ShortPropertiesSection } from '@renderer/features/shorts/ShortPropertiesSection'
 import type { InspectorSectionDef } from './inspectorModel'
 
@@ -13,6 +14,14 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     order: 10,
     selections: ['short'],
     Component: ShortPropertiesSection
+  },
+  {
+    id: 'video-clip',
+    title: 'Video clip',
+    tab: 'video',
+    order: 10,
+    selections: ['video-clip'],
+    Component: VideoClipSection
   },
   {
     id: 'clip-audio',
