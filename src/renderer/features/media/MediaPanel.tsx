@@ -3,7 +3,17 @@
 // live in projectStore. Tag edits run as project commands, so they can be undone.
 import { useState, type JSX, type MouseEvent } from 'react'
 import { useStore } from 'zustand'
-import { Film, Image as ImageIcon, LayoutGrid, List, Music, Settings2, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Film,
+  Image as ImageIcon,
+  LayoutGrid,
+  List,
+  Music,
+  Settings2,
+  Trash2
+} from 'lucide-react'
 import type { MediaRef } from '@shared/project/schema'
 import { Button } from '@renderer/ui/Button'
 import { Dialog } from '@renderer/ui/Dialog'
@@ -19,6 +29,8 @@ import { MediaFilterBar } from './MediaFilterBar'
 import { MediaTagsDialog } from './MediaTagsDialog'
 import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
 import { sourceStore } from '../source/sourceStore'
+import { MomentRows } from '../moments/MomentRows'
+import { momentsOfMedia } from '../moments/momentView'
 import { allMediaTags, setMediaTagCommand, tagCoverage, tagsOfMedia } from './mediaTags'
 import {
   EMPTY_MEDIA_FILTER,
@@ -45,6 +57,8 @@ export function MediaPanel(): JSX.Element {
   const selection = useStore(mediaPanelStore, (state) => state.selection)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
+  // Clips whose saved moments are shown under them. Moments start collapsed.
+  const [openMomentIds, setOpenMomentIds] = useState<string[]>([])
   const analysisFile = useStore(analysisStore, (state) =>
     current ? state.filesByFolder[current.folderPath] : undefined
   )
@@ -119,33 +133,56 @@ export function MediaPanel(): JSX.Element {
     const isSelected = selectedIds.includes(ref.id)
     const record = analysisFile?.records[ref.id]
     const errorText = record ? analysisErrorText(record) : undefined
+    const moments = momentsOfMedia(current.project.moments, ref.id)
+    const showMoments = moments.length > 0 && openMomentIds.includes(ref.id)
+    const toggleMoments = () =>
+      setOpenMomentIds((ids) =>
+        ids.includes(ref.id) ? ids.filter((id) => id !== ref.id) : [...ids, ref.id]
+      )
     return (
-      <button
-        type="button"
-        key={ref.id}
-        aria-pressed={isSelected}
-        className={`${styles.item} ${isSelected ? styles.selected : ''}`}
-        onClick={(event) => onItemClick(ref.id, event)}
-      >
-        <span className={styles.kind}>
-          <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
-        </span>
-        <span className={styles.name}>{ref.fileName}</span>
-        {renderTags(ref)}
-        <span className={styles.meta}>{formatDuration(ref.durationMs)}</span>
-        {activeView === 'list' ? (
-          <span className={styles.meta}>{formatBytes(ref.sizeBytes)}</span>
-        ) : null}
-        {ref.useProxy ? <span className={styles.badge}>Proxy</span> : null}
-        {record ? (
-          <span className={styles.analysisStatus}>{analysisStatusLabel(record)}</span>
-        ) : null}
-        {errorText ? (
-          <span className={styles.analysisError} title={errorText}>
-            {errorText}
+      <div key={ref.id} className={styles.cell} data-expanded={showMoments ? 'true' : undefined}>
+        <button
+          type="button"
+          aria-pressed={isSelected}
+          className={`${styles.item} ${isSelected ? styles.selected : ''}`}
+          onClick={(event) => onItemClick(ref.id, event)}
+        >
+          <span className={styles.kind}>
+            <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
           </span>
+          <span className={styles.name}>{ref.fileName}</span>
+          {renderTags(ref)}
+          <span className={styles.meta}>{formatDuration(ref.durationMs)}</span>
+          {activeView === 'list' ? (
+            <span className={styles.meta}>{formatBytes(ref.sizeBytes)}</span>
+          ) : null}
+          {ref.useProxy ? <span className={styles.badge}>Proxy</span> : null}
+          {record ? (
+            <span className={styles.analysisStatus}>{analysisStatusLabel(record)}</span>
+          ) : null}
+          {errorText ? (
+            <span className={styles.analysisError} title={errorText}>
+              {errorText}
+            </span>
+          ) : null}
+        </button>
+        {moments.length > 0 ? (
+          <button
+            type="button"
+            className={styles.momentToggle}
+            aria-expanded={showMoments}
+            onClick={toggleMoments}
+          >
+            {showMoments ? (
+              <ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" />
+            ) : (
+              <ChevronRight size={12} strokeWidth={1.75} aria-hidden="true" />
+            )}
+            {moments.length === 1 ? '1 moment' : `${moments.length} moments`}
+          </button>
         ) : null}
-      </button>
+        {showMoments ? <MomentRows moments={moments} project={current.project} /> : null}
+      </div>
     )
   }
 

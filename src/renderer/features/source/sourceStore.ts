@@ -2,7 +2,7 @@
 // and the In and Out marks on the source. Marks are view state, not project content, so they are
 // not in the undo history and are cleared when a new clip opens.
 import { createStore } from 'zustand/vanilla'
-import { markIn, markOut, NO_MARKS, type SourceMarks } from '@shared/media/sourceMarks'
+import { markedRange, markIn, markOut, NO_MARKS, type SourceMarks } from '@shared/media/sourceMarks'
 import { playbackStore } from '../playback/playbackStore'
 
 export type ViewMode = 'source' | 'short'
@@ -11,15 +11,22 @@ export interface SourceState extends SourceMarks {
   mode: ViewMode
   // The media item shown in Source view, or null when none is open.
   sourceId: string | null
+  // True while the inline name prompt for a new moment is open.
+  naming: boolean
 }
 
 export interface SourceActions {
   setMode: (mode: ViewMode) => void
   // Opens a clip in Source view and clears the marks left from the previous clip.
   openSource: (id: string) => void
+  // Opens a clip with its In and Out marked, for a saved moment. The playhead moves to In.
+  openRange: (id: string, inMs: number, outMs: number) => void
   markInAtPlayhead: () => void
   markOutAtPlayhead: () => void
   clearMarks: () => void
+  // Opens the name prompt for the marked range. Does nothing unless both marks are set.
+  startNamingMoment: () => void
+  cancelNamingMoment: () => void
 }
 
 export type SourceStore = SourceState & SourceActions
@@ -32,17 +39,27 @@ export const sourceStore = createStore<SourceStore>()((set, get) => {
   return {
     mode: 'short',
     sourceId: null,
+    naming: false,
     ...NO_MARKS,
-    setMode: (mode) => set({ mode }),
-    openSource: (id) => set({ mode: 'source', sourceId: id, ...NO_MARKS }),
+    setMode: (mode) => set({ mode, naming: false }),
+    openSource: (id) => set({ mode: 'source', sourceId: id, naming: false, ...NO_MARKS }),
+    openRange: (id, inMs, outMs) => {
+      set({ mode: 'source', sourceId: id, naming: false, inMs, outMs })
+      playbackStore.getState().seek(inMs)
+    },
     markInAtPlayhead: () => {
       if (!canMark()) return
-      set(markIn(get(), playhead().playheadMs, playhead().durationMs))
+      set({ naming: false, ...markIn(get(), playhead().playheadMs, playhead().durationMs) })
     },
     markOutAtPlayhead: () => {
       if (!canMark()) return
-      set(markOut(get(), playhead().playheadMs, playhead().durationMs))
+      set({ naming: false, ...markOut(get(), playhead().playheadMs, playhead().durationMs) })
     },
-    clearMarks: () => set(NO_MARKS)
+    clearMarks: () => set({ naming: false, ...NO_MARKS }),
+    startNamingMoment: () => {
+      if (!canMark() || markedRange(get()) === null) return
+      set({ naming: true })
+    },
+    cancelNamingMoment: () => set({ naming: false })
   }
 })

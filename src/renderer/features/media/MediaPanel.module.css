@@ -145,6 +145,36 @@
   white-space: nowrap;
 }
 
+/* A clip cell in the grid or list. Open moments span the whole grid row. */
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cell[data-expanded='true'] {
+  grid-column: 1 / -1;
+}
+
+.momentToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: 0 var(--space-1);
+  background: none;
+  border: none;
+  color: var(--color-text-2);
+  font: inherit;
+  font-size: var(--type-small-size);
+  cursor: pointer;
+}
+
+.momentToggle:hover {
+  color: var(--color-text);
+}
+
 .analysisError {
   color: var(--color-destructive);
   font-size: var(--type-small-size);
