@@ -1,5 +1,6 @@
 import { useStore } from 'zustand'
 import { markedRange, rangePercent } from '@shared/media/sourceMarks'
+import { MasterVolume } from '../audio/MasterVolume'
 import { sourceStore } from '../source/sourceStore'
 import { usePlaybackClock } from './usePlaybackClock'
 import { formatTimecode } from './playbackClock'
@@ -48,6 +49,7 @@ export function ScrubBar() {
           {outMs === null ? '--:--:--' : formatTimecode(outMs)}
         </span>
       ) : null}
+      <MasterVolume />
       <span className={styles.timecode}>
         {formatTimecode(playheadMs)} / {formatTimecode(durationMs)}
       </span>

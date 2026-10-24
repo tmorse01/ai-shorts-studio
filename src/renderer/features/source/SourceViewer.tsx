@@ -1,26 +1,42 @@
 // Plays the source clip in the centre pane. The video element follows the playback store: play,
 // pause and seeks from the scrub bar, the frame keys and the J/K/L shuttle all reach it through that
-// store. While the video plays, its clock drives the playhead.
+// store. While the video plays, its clock drives the playhead. Footage is read through the same
+// aism-media URLs the preview uses, so main serves only files it has registered by media id.
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { useStore } from 'zustand'
+import { mediaUrl, chooseVariant } from '@shared/media/previewSource'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { projectStore } from '@renderer/features/project/projectStore'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
 import { setAudioClock } from '@renderer/features/playback/usePlaybackClock'
+import { mediaSourceStore } from '@renderer/features/preview/mediaSourceStore'
+import { usePreviewSettings } from '@renderer/features/preview/previewSettingsStore'
 import { sourceStore } from './sourceStore'
 import styles from './SourceViewer.module.css'
 
 // A playhead further than this from the video's time is a seek, so the video is moved to it.
 const SEEK_TOLERANCE_MS = 50
+const OFFLINE_MESSAGE = 'This file is offline. Relink it to play it.'
 
 export function SourceViewer(): JSX.Element {
   const current = useStore(projectStore, (state) => state.current)
   const sourceId = useStore(sourceStore, (state) => state.sourceId)
+  const sources = useStore(mediaSourceStore, (state) => state.byId)
+  const useOriginals = usePreviewSettings((state) => state.useOriginals)
   const clip = current?.project.media.find((ref) => ref.id === sourceId)
-  const folderPath = current?.folderPath
-  const [url, setUrl] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const info = clip ? sources[clip.id] : undefined
+  const [playError, setPlayError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  // The proxy plays when the clip has one, unless the user asked for originals. Main answers for
+  // each media id, so the renderer never handles a path.
+  const variant = chooseVariant({
+    useOriginals,
+    playing: true,
+    proxyReady: info?.hasProxy ?? false
+  })
+  const url = clip && info?.online ? mediaUrl(clip.id, variant) : null
+  const error = playError ?? (info?.online === false ? OFFLINE_MESSAGE : null)
 
   // With nothing open the playback length is zero, so the scrub bar is empty.
   useEffect(() => {
@@ -29,24 +45,10 @@ export function SourceViewer(): JSX.Element {
     playbackStore.getState().setDurationMs(0)
   }, [sourceId])
 
-  // Resolves the file to play: the proxy when the clip uses one and it is ready. Runs again when the
-  // clip's path or proxy setting changes.
+  // A new clip or a new file clears an earlier playback error.
   useEffect(() => {
-    setUrl(null)
-    setError(null)
-    if (!folderPath || !clip) return undefined
-    let cancelled = false
-    void window.api
-      .invoke('media:source', { projectFolder: folderPath, media: clip })
-      .then((result) => {
-        if (cancelled) return
-        if (result.ok) setUrl(result.data.url)
-        else setError(result.error.message)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [folderPath, clip])
+    setPlayError(null)
+  }, [url])
 
   // Connects the video to the playback store for as long as this file is loaded.
   useEffect(() => {
@@ -115,7 +117,9 @@ export function SourceViewer(): JSX.Element {
           playbackStore.getState().seek(0)
         }}
         onEnded={() => playbackStore.getState().pause()}
-        onError={() => setError('This file could not be played. Check that it is still on disk.')}
+        onError={() =>
+          setPlayError('This file could not be played. Check that it is still on disk.')
+        }
       />
     </div>
   )

@@ -89,7 +89,7 @@ Five main areas.
 
 ### Left sidebar — media & tools
 
-A compact vertical workspace: media library, uploaded footage, AI Clip Finder, captions, audio,
+A compact vertical workspace: media library, uploaded footage, Clip Finder, captions, audio,
 transitions, effects, export settings. Monochromatic Lucide icons with subtle green active states.
 Narrow and visually restrained.
 
@@ -200,3 +200,43 @@ recognizable.*
 
 Roughly **80% professional editing software, 15% Deadlock-inspired identity, 5% atmospheric
 decoration.** Beautiful, but never at the expense of editing usability.
+
+## 12. Reference mockup
+
+![UI mockup](reference/ui-mockup-01.webp)
+
+`reference/ui-mockup-01.webp` is a generated inspiration image. It is not a pixel spec. Take these
+from it:
+
+- **Dashboard:** a hero band with a Cormorant display headline, a short letter-spaced tagline, and
+  a sage **Create project** button over dark atmospheric art. Below it, a **Recent projects** row
+  of 16:9 thumbnail cards with a duration badge and `duration · ratio · opened N ago`, plus
+  "View all". The left nav is a slim column with the brand mark at the top and Settings and the
+  user at the bottom.
+- **Editor:**
+  - **Top bar:** brand mark, project name, undo/redo, and a sage **Export** button on the far
+    right.
+  - **Left side:** an **icon rail** (Media, Clip Finder, Text, Audio, Transitions, Captions)
+    switches the panel beside it. The media panel has tabs, a search box and a dense thumbnail
+    grid with duration badges.
+  - **Centre:** a 9:16 canvas with a ratio badge, a thin scrub bar, `current / total` timecode,
+    transport, ratio and zoom pickers, and fullscreen.
+  - **Right side:** the inspector has **top tabs (Video / Audio / AI)**, each holding collapsible
+    sections with small uppercase headers.
+  - **Bottom:** a tool strip (split, delete, snapping, zoom slider, fit) above the timeline. Track
+    headers have icon + name (Video 1, Video 2, Audio 1, Captions). Clips show a filmstrip, audio
+    shows a green-tinted waveform, and captions are text chips. The selected clip has a lavender
+    outline and the playhead is sage.
+- **Clip Finder:** one list for every clip candidate, whether you marked it or the AI suggested it. AI suggestions carry an "AI suggested" label and stay in a Draft state until you accept, edit or dismiss them. Source header (thumb, name, duration, resolution, size, Reanalyze). The tabs
+  are Suggested / Highlights / Topics / Emotional. Each row shows a thumbnail with its duration,
+  a title, a one-line summary, tag chips, a source range, a score out of 100, star, preview, and a
+  lavender **Add to timeline** button.
+- **Export:** a large preview with "Edit thumbnail", a settings card (format, resolution, frame
+  rate, quality), toggles (include captions), a filename field with an extension suffix, the
+  estimated size and time, and a full-width sage **Export video** button.
+- **Craft:** hairline borders, 4px radii, small uppercase labels, generous dark space, and
+  ornament (starburst, fine arcs, art panels) only on the dashboard and export screens, never
+  inside the editor.
+
+Out of scope even though it's in the mockup: Share, Templates, Stock and Cloud, watermark, and
+the Color and Speed inspector sections.

@@ -1,20 +1,21 @@
-import { app, BrowserWindow, dialog, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, protocol, shell } from 'electron'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
+import { MEDIA_SCHEME } from '@shared/media/previewSource'
 import { registerIpcHandlers } from './ipc/register'
 import { createIpcHandlers } from './ipc/handlers'
 import { emitIpcEvent } from './ipc/events'
 import { createMediaJobs } from './media/createMediaJobs'
+import { MediaSourceRegistry } from './media/mediaSources'
+import { serveMediaRequest } from './media/mediaProtocol'
 import { setupErrorReporting } from './errors/setupErrorReporting'
-import { SOURCE_SCHEME } from '@shared/media/sourceUrl'
-import { allowedSourceFile } from './media/sourceProtocol'
 
-// Footage plays from studio-media URLs. The scheme must be registered before the app is ready.
+// Footage reaches the preview through this scheme, never through file://. It must be declared as
+// privileged before the app is ready. `stream` lets the video element seek with byte ranges.
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: SOURCE_SCHEME,
+    scheme: MEDIA_SCHEME,
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
   }
 ])
@@ -44,19 +45,17 @@ function createWindow(): void {
 
 void app.whenReady().then(() => {
   setupErrorReporting()
-  protocol.handle(SOURCE_SCHEME, (request) => {
-    const file = allowedSourceFile(request.url)
-    if (file === null) return new Response('Not found', { status: 404 })
-    return net.fetch(pathToFileURL(file).toString(), { headers: request.headers })
-  })
   // The job queue lives here in main, so jobs keep running when the renderer reloads.
   const jobs = createMediaJobs()
   jobs.subscribe((job) => emitIpcEvent('media:job:changed', job))
+  const mediaSources = new MediaSourceRegistry()
+  protocol.handle(MEDIA_SCHEME, (request) => serveMediaRequest(request, mediaSources))
   registerIpcHandlers(
     createIpcHandlers({
       layoutFile: join(app.getPath('userData'), 'ui-layout.json'),
       recentFile: join(app.getPath('userData'), 'recent-projects.json'),
       jobs,
+      mediaSources,
       system: {
         pickFolder: async () => {
           const result = await dialog.showOpenDialog({
