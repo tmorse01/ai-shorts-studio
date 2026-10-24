@@ -33,6 +33,7 @@ import { memoryAiStateStorage } from '../ai/aiStateFile'
 import { unavailableSecretStore } from '../ai/secretStore'
 import { createAnthropicClient } from '../ai/anthropicClient'
 import { estimateScriptRun, generateScripts } from '../ai/scriptGenerator'
+import { rewriteScriptLine } from '../ai/lineRewriter'
 import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage'
 
 // Operating-system features the handlers need. The app passes Electron versions; tests pass fakes,
@@ -215,6 +216,7 @@ export function createIpcHandlers({
     'ai:scripts:generate': async (input) => ({
       scripts: await generateScripts(ai, scriptFootage, input)
     }),
+    'ai:scripts:rewriteLine': (input) => rewriteScriptLine(ai, input),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })
