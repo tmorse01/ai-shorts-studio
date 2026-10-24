@@ -86,6 +86,20 @@ export async function removeRecentProject(file: string, folderPath: string): Pro
   if (kept.length !== entries.length) await writeRegistry(file, kept)
 }
 
+// Keeps the listed name of a project current after a rename. Last-opened time is left alone.
+export async function renameRecentProject(
+  file: string,
+  folderPath: string,
+  name: string
+): Promise<void> {
+  const entries = await readRegistry(file)
+  if (!entries.some((item) => item.folderPath === folderPath)) return
+  await writeRegistry(
+    file,
+    entries.map((item) => (item.folderPath === folderPath ? { ...item, name } : item))
+  )
+}
+
 // Points an entry at the folder where its project now lives: the old entry is replaced, and the
 // project is recorded at the new path as if it had just been opened.
 export async function locateRecentProject(

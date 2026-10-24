@@ -102,6 +102,32 @@ export const ipcChannels = {
     }),
     output: relinkResultSchema
   },
+  'project:rename': {
+    input: z.object({
+      folderPath: z.string().trim().min(1),
+      name: z.string().trim().min(1).max(120)
+    }),
+    output: z.object({ name: z.string().min(1) })
+  },
+  // Default folder for a new project, from the project name and the user's Documents folder.
+  'project:defaultFolder': {
+    input: z.object({ name: z.string().trim().min(1).max(120) }),
+    output: z.object({ folderPath: z.string().min(1) })
+  },
+  // Moves a project folder to the Recycle Bin, then drops its registry entry.
+  'project:deleteFolder': {
+    input: z.object({ folderPath: z.string().trim().min(1) }),
+    output: z.object({ deleted: z.literal(true) })
+  },
+  // Native folder picker. Null when the user cancels.
+  'folder:pick': {
+    input: z.object({}),
+    output: z.object({ folderPath: z.string().min(1).nullable() })
+  },
+  'folder:reveal': {
+    input: z.object({ folderPath: z.string().trim().min(1) }),
+    output: z.object({ revealed: z.literal(true) })
+  },
   // Recent projects registry. Remove only drops the entry; the project folder is left alone.
   // Locate points a missing entry at a folder that holds the same project, after opening it.
   'recent:list': {

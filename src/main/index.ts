@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'node:path'
 import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
@@ -40,7 +40,18 @@ void app.whenReady().then(() => {
     createIpcHandlers({
       layoutFile: join(app.getPath('userData'), 'ui-layout.json'),
       recentFile: join(app.getPath('userData'), 'recent-projects.json'),
-      jobs
+      jobs,
+      system: {
+        pickFolder: async () => {
+          const result = await dialog.showOpenDialog({
+            properties: ['openDirectory', 'createDirectory']
+          })
+          return result.canceled ? null : (result.filePaths[0] ?? null)
+        },
+        revealFolder: (folderPath) => shell.showItemInFolder(folderPath),
+        trashFolder: (folderPath) => shell.trashItem(folderPath),
+        documentsDir: () => app.getPath('documents')
+      }
     })
   )
   createWindow()
