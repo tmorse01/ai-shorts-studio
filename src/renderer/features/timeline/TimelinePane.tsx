@@ -148,7 +148,7 @@ export function TimelinePane({
   // single clip selected here shows on the canvas.
   const canvasSelection = useStore(layerSelectionStore, (state) => state.selectedClipId)
   useEffect(() => {
-    if (canvasSelection !== null) setSelectedIds([canvasSelection])
+    if (canvasSelection !== null) setSelection({ clipIds: [canvasSelection], gap: null })
   }, [canvasSelection])
   useEffect(() => {
     if (selectedIds.length === 1) layerSelectionStore.getState().select(selectedIds[0])
