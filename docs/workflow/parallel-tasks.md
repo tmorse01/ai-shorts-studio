@@ -9,19 +9,17 @@ Three modes decide who reviews and merges the PR:
 - **Mode A: human review.** The sub-agent opens the PR and stops. A human reviews and merges.
 - **Mode B: self-review and merge.** The sub-agent reviews its own diff, fixes what it finds, and
   merges once CI is green. No human step.
-- **Mode C: agent review, orchestrator merges.** The sub-agent opens the PR and stops, as in mode A.
-  The orchestrator then starts a separate **reviewer agent**, which checks the diff against the
-  issue's acceptance criteria, `CLAUDE.md` and `docs/rebuild/DESIGN.md`, and reports findings. The
-  orchestrator has the implementing sub-agent (or a new one) fix the verified findings on the same
-  branch. Once CI is green on the latest commit and no verified findings are open, the orchestrator
-  merges the PR (`--merge`, no `--admin`), closes the issue, moves it to Done on the board, and
-  starts the next unblocked task.
+- **Mode C: checks pass, orchestrator merges.** The sub-agent opens the PR and stops, as in mode A.
+  The orchestrator does **not** run a separate review. It checks that CI is green on the latest
+  commit and reads the sub-agent's report (which criteria are ticked, and what's unverified). If CI
+  is green, it merges the PR (`--merge`, no `--admin`), closes the issue, moves it to Done on the
+  board, and starts the next unblocked task. Any unticked criteria that belong to a later task are
+  added to that task's issue so nothing is lost.
 
-**Mode C is the default** (the owner approved it on 2026-10-24). The orchestrator still stops and
-asks the human, without merging, when a review finding needs a product or design decision the issue
-doesn't settle, when a fix would change a shared contract (the IPC channel set, the store or undo
-engine API, the dependency list, routing, design tokens) in a way the issue didn't ask for, or when
-the reviewer and implementer disagree. Mode A is for tasks the owner asks to see.
+**Mode C is the default** (the owner approved it on 2026-10-24, with no reviewer agent, to save
+tokens). The orchestrator still stops and asks the human, without merging, when CI is red after the
+sub-agent's three attempts, or when the sub-agent's report flags a product or design decision the
+issue doesn't settle. Mode A is for tasks the owner asks to see.
 
 ## Roles
 
@@ -29,9 +27,8 @@ the reviewer and implementer disagree. Mode A is for tasks the owner asks to see
   their PRs and CI, and reports back. It does not write feature code itself.
 - **Sub-agent:** one per task. It implements exactly one GitHub issue, opens one PR, and then
   follows the mode's end steps.
-- **Reviewer:** a human in mode A, the sub-agent itself in mode B, and a separate reviewer agent
-  in mode C. The reviewer agent is never the agent that wrote the code, and it only reports. It
-  doesn't push or merge.
+- **Reviewer:** a human in mode A, and the sub-agent itself in mode B. In mode C, CI is the gate
+  and the orchestrator merges.
 
 ## Picking tasks
 
@@ -52,8 +49,7 @@ the reviewer and implementer disagree. Mode A is for tasks the owner asks to see
    start a task early just to fill a slot. If none are unblocked, report which open PRs are holding
    things up and stop.
 6. Choose the mode per task:
-   - **Mode C** by default, including tasks that change a shared contract the issue asks for: the
-     reviewer agent checks those changes with extra care.
+   - **Mode C** by default, including tasks that change a shared contract the issue asks for.
    - **Mode A** only when the owner asks to review a task themselves.
    - **Mode B** for small, self-contained work inside one feature folder, such as a test-only task,
      where the acceptance criteria can be checked from the diff and CI.
