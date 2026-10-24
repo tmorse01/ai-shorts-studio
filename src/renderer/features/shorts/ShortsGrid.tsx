@@ -5,7 +5,8 @@ import { effectiveShortSettings } from '@shared/shorts/shortSettings'
 import { Button } from '@renderer/ui/Button'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { useProjectStore } from '../project/useProjectStore'
-import { applyProjectCommand } from './shortActions'
+import { toast } from '../toasts/toast'
+import { applyProjectCommand, undoProjectEdit } from './shortActions'
 import {
   createShortCommand,
   deleteShortCommand,
@@ -56,8 +57,12 @@ export function ShortsGrid(): JSX.Element | null {
     applyProjectCommand(setShortStatusCommand(shortId, status, new Date().toISOString()))
   }
 
-  function remove(shortId: string) {
-    applyProjectCommand(deleteShortCommand(shortId))
+  function remove(short: Short) {
+    applyProjectCommand(deleteShortCommand(short.id))
+    toast.info({
+      title: `Deleted ${short.name}`,
+      action: { label: 'Undo', run: () => undoProjectEdit() }
+    })
   }
 
   function commitRename(short: Short, name: string) {
@@ -117,7 +122,7 @@ export function ShortsGrid(): JSX.Element | null {
             onCancelRename={() => setRenamingId(null)}
             onDuplicate={() => duplicate(short.id)}
             onSetStatus={(status) => setStatus(short.id, status)}
-            onDelete={() => remove(short.id)}
+            onDelete={() => remove(short)}
           />
         ))}
       </div>
