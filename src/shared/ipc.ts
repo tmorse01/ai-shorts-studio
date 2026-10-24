@@ -4,7 +4,8 @@
 import { z } from 'zod'
 import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
-import { mediaKindSchema, projectSchema } from './project/schema'
+import { mediaKindSchema, pathKindSchema, projectSchema } from './project/schema'
+import { posterFrameRefSchema } from './shorts/poster'
 import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
@@ -211,6 +212,34 @@ export const ipcChannels = {
       projectFolder: z.string().trim().min(1),
       mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/),
       file: z.enum(THUMB_READ_FILES)
+    }),
+    output: z.object({ dataUrl: z.string().nullable() })
+  },
+  // Queues the poster frame of each short that has no cached frame yet. Each item names the frame and
+  // the footage file it comes from, so main can render it without reading the project.
+  'media:posters': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      items: z
+        .array(
+          posterFrameRefSchema.extend({
+            path: z.string().trim().min(1),
+            pathKind: pathKindSchema
+          })
+        )
+        .max(200)
+    }),
+    output: z.object({
+      queued: z.number().int().nonnegative(),
+      cached: z.number().int().nonnegative()
+    })
+  },
+  // Reads one short's cached poster frame as a data URL. dataUrl is null while the frame is not
+  // rendered yet.
+  'media:poster:read': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      frame: posterFrameRefSchema
     }),
     output: z.object({ dataUrl: z.string().nullable() })
   },

@@ -18,6 +18,8 @@ export interface JobInput {
   mediaKind?: MediaKind
   /** Length of the file in seconds. Filmstrip jobs need it to space their frames. */
   durationSec?: number
+  /** The moment in the file, in seconds, that a poster job grabs its frame from. */
+  sourceTimeSec?: number
   /** Which analysis stage an analysis job runs. */
   stage?: AnalysisStage
 }
@@ -35,6 +37,7 @@ export interface JobResults {
   thumbs: void
   filmstrip: void
   proxy: void
+  poster: void
   analysis: StageResult
 }
 
@@ -49,6 +52,7 @@ export const JOB_PRIORITY: Record<JobKind, number> = {
   thumbs: 1,
   filmstrip: 2,
   proxy: 3,
+  poster: 1,
   analysis: 4
 }
 
@@ -57,6 +61,7 @@ const JOB_TITLES: Record<JobKind, string> = {
   thumbs: 'Making thumbnails',
   filmstrip: 'Making the filmstrip',
   proxy: 'Making a proxy file',
+  poster: 'Making a poster frame',
   analysis: 'Analyzing the footage'
 }
 
@@ -276,6 +281,7 @@ export function unavailableExecutors(): JobExecutors {
     thumbs: unavailable('thumbs'),
     filmstrip: unavailable('filmstrip'),
     proxy: unavailable('proxy'),
+    poster: unavailable('poster'),
     analysis: unavailable('analysis')
   }
 }
