@@ -10,7 +10,8 @@ import { DropdownMenu } from './ui/DropdownMenu'
 import { Tooltip } from './ui/Tooltip'
 import { Tabs } from './ui/Tabs'
 import { Switch } from './ui/Switch'
-import { Toast, ToastProvider } from './ui/Toast'
+import { toast } from './features/toasts/toast'
+import { ErrorDemo } from './features/errors/ErrorDemo'
 import styles from './App.module.css'
 
 const aspectOptions = [
@@ -20,16 +21,14 @@ const aspectOptions = [
 ]
 
 // Temporary placeholder: shows every UI primitive and its states. The /dev/ui route replaces it
-// with routing (task #22).
+// with routing (task #22). ToastHost is mounted next to it in main.tsx.
 export function App() {
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [toastOpen, setToastOpen] = useState(false)
-  const [toastTone, setToastTone] = useState<'default' | 'error'>('default')
   const [aspect, setAspect] = useState('9:16')
   const [captions, setCaptions] = useState(true)
 
   return (
-    <ToastProvider>
+    <>
       <main className={styles.page}>
         <header>
           <h1 className={styles.display}>{APP_NAME}</h1>
@@ -112,24 +111,6 @@ export function App() {
             <Tooltip content="Notifications">
               <IconButton icon={Bell} label="Notifications" />
             </Tooltip>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setToastTone('default')
-                setToastOpen(true)
-              }}
-            >
-              Show toast
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setToastTone('error')
-                setToastOpen(true)
-              }}
-            >
-              Show error toast
-            </Button>
           </div>
           <Dialog
             open={dialogOpen}
@@ -147,17 +128,53 @@ export function App() {
               </>
             }
           />
-          <Toast
-            open={toastOpen}
-            onOpenChange={setToastOpen}
-            tone={toastTone}
-            title={toastTone === 'error' ? 'Export failed' : 'Saved'}
-            description={
-              toastTone === 'error'
-                ? 'The disk is full. Free some space and try again.'
-                : 'Your short was saved.'
-            }
-          />
+        </section>
+
+        <section className={styles.section} aria-labelledby="toasts-heading">
+          <h2 id="toasts-heading" className={styles.heading}>
+            Toasts and errors
+          </h2>
+          <div className={styles.row}>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                toast.info({ title: 'Export queued', description: 'It starts shortly.' })
+              }
+            >
+              Info toast
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                toast.success({ title: 'Saved', description: 'Your short was saved.' })
+              }
+            >
+              Success toast
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                toast.ai({ title: 'Found 4 clips', description: 'Suggested from your footage.' })
+              }
+            >
+              AI toast
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                toast.error({
+                  title: 'Export failed',
+                  description: 'The disk is full. Free some space and try again.',
+                  details: 'ENOSPC: no space left on device, write C:\\Shorts\\out.mp4'
+                })
+              }
+            >
+              Error toast
+            </Button>
+          </div>
+          <div className={styles.row}>
+            <ErrorDemo />
+          </div>
         </section>
 
         <section className={styles.section} aria-labelledby="tabs-heading">
@@ -174,6 +191,6 @@ export function App() {
           />
         </section>
       </main>
-    </ToastProvider>
+    </>
   )
 }
