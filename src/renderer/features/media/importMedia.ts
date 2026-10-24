@@ -11,16 +11,41 @@ function absolutePathOf(ref: MediaRef, folderPath: string): string {
   return ref.pathKind === 'absolute' ? ref.path : `${folderPath}/${ref.path}`
 }
 
-// Probes an imported file and records its duration. A failed probe already shows a toast from the job
-// watcher, so a failure here only leaves the ref pending.
-async function probeImported(mediaId: string, path: string): Promise<void> {
+interface ThumbInput {
+  id: string
+  path: string
+  kind: MediaRef['kind']
+  durationSec?: number
+}
+
+// Queues thumbnails and filmstrips for media items. Cached items are skipped in main.
+async function requestThumbs(folderPath: string, items: ThumbInput[]): Promise<void> {
+  const result = await window.api.invoke('media:thumbs', { projectFolder: folderPath, items })
+  if (!result.ok) {
+    toast.error({
+      title: 'Could not make thumbnails',
+      description: result.error.message,
+      details: result.error.details
+    })
+  }
+}
+
+// Probes an imported file, records its duration, then queues its thumbnails. A failed probe already
+// shows a toast from the job watcher, so a failure here only leaves the ref pending.
+async function probeImported(
+  mediaId: string,
+  path: string,
+  kind: MediaRef['kind'],
+  folderPath: string
+): Promise<void> {
   const result = await window.api.invoke('media:probe', { path })
   if (!result.ok) return
-  const durationMs = Math.round(result.data.durationSec * 1000)
+  const durationSec = result.data.durationSec
   projectStore.getState().edit((draft) => {
     const ref = draft.media.find((media) => media.id === mediaId)
-    if (ref) ref.durationMs = durationMs
+    if (ref) ref.durationMs = Math.round(durationSec * 1000)
   })
+  await requestThumbs(folderPath, [{ id: mediaId, path, kind, durationSec }])
 }
 
 export async function importMediaPaths(paths: readonly string[]): Promise<void> {
@@ -81,7 +106,11 @@ export async function importMediaPaths(paths: readonly string[]): Promise<void> 
   projectStore.getState().edit((draft) => command.produce(draft))
 
   for (const ref of refs) {
-    if (ref.kind !== 'image') void probeImported(ref.id, ref.path)
+    if (ref.kind === 'image') {
+      void requestThumbs(opened.folderPath, [{ id: ref.id, path: ref.path, kind: ref.kind }])
+    } else {
+      void probeImported(ref.id, ref.path, ref.kind, opened.folderPath)
+    }
   }
 }
 

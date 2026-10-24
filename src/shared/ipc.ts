@@ -4,7 +4,7 @@
 import { z } from 'zod'
 import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
-import { projectSchema } from './project/schema'
+import { mediaKindSchema, projectSchema } from './project/schema'
 import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
@@ -173,6 +173,28 @@ export const ipcChannels = {
   'media:pick': {
     input: z.object({}),
     output: z.object({ paths: z.array(z.string().min(1)) })
+  },
+  // Queues any missing thumbnails and filmstrip for media items. Items with a cache already on disk
+  // are left alone, so calling this again after the cache is cleared rebuilds it.
+  'media:thumbs': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      items: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            path: z.string().min(1),
+            kind: mediaKindSchema,
+            durationSec: z.number().positive().optional()
+          })
+        )
+        .max(500)
+    }),
+    output: z.object({
+      queued: z.number().int().nonnegative(),
+      cached: z.number().int().nonnegative(),
+      waiting: z.number().int().nonnegative()
+    })
   },
   // Reads the name and size of each path. Paths that are not files come back in missing.
   'media:stat': {

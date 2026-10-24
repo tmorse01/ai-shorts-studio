@@ -1,10 +1,15 @@
 import { produce } from 'immer'
 import { describe, expect, it } from 'vitest'
-import { projectSchema, type MediaRef, type Project } from '@shared/project/schema'
+import {
+  CURRENT_SCHEMA_VERSION,
+  projectSchema,
+  type MediaRef,
+  type Project
+} from '@shared/project/schema'
 import { importMediaCommand } from '@renderer/features/media/mediaCommands'
 
 const project: Project = projectSchema.parse({
-  schemaVersion: 3,
+  schemaVersion: CURRENT_SCHEMA_VERSION,
   id: 'p1',
   name: 'Test',
   createdAt: '2026-01-01T00:00:00.000Z',
