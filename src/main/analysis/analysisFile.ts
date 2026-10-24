@@ -8,6 +8,12 @@ import { analysisFileSchema, emptyAnalysisFile, type AnalysisFile } from '@share
 
 export const ANALYSIS_DIR = 'analysis'
 export const ANALYSIS_FILE = 'analysis.json'
+export const VISION_DIR = 'vision'
+
+/** Where a media item's vision descriptions are kept: analysis/vision/<mediaId>.json, outside cache/. */
+export function visionResultPath(projectFolder: string, mediaId: string): string {
+  return join(projectFolder, ANALYSIS_DIR, VISION_DIR, `${mediaId}.json`)
+}
 
 export async function loadAnalysisFile(projectFolder: string): Promise<AnalysisFile> {
   let text: string

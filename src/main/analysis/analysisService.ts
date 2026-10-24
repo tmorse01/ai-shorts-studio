@@ -20,6 +20,7 @@ import { JobCancelledError } from '../jobs/jobQueue'
 import { UserFacingError } from '../errors'
 import { logError } from '../errors/errorLog'
 import { analysisFramesDir } from './frameCache'
+import { visionResultPath } from './analysisFile'
 
 export interface MediaTarget {
   id: string
@@ -31,7 +32,7 @@ export interface AnalysisQueue {
   enqueue: (
     kind: 'analysis',
     path: string,
-    extra: { stage: AnalysisStage; outDir?: string }
+    extra: { stage: AnalysisStage; outDir?: string; resultFile?: string }
   ) => { id: string; done: Promise<StageResult> }
   cancel: (id: string) => boolean
   setHeld: (kind: 'analysis', held: boolean) => void
@@ -230,7 +231,8 @@ export class AnalysisService {
     }
 
     const outDir = analysisFramesDir(projectFolder, item.id)
-    const job = this.options.queue.enqueue('analysis', item.path, { stage, outDir })
+    const resultFile = stage === 'vision' ? visionResultPath(projectFolder, item.id) : undefined
+    const job = this.options.queue.enqueue('analysis', item.path, { stage, outDir, resultFile })
     this.inflight.set(key, { jobId: job.id, stage, version: record.version })
     this.setRecord(projectFolder, withStageStatus(record, stage, 'running'))
     job.done.then(

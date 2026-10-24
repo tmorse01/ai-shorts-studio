@@ -37,7 +37,7 @@ export function registerAudioSourceProvider(provider: AudioSourceProvider): () =
 }
 
 // Clip sources at tMs: one per active clip that has footage and sits on an audio or video track.
-// Muted tracks are silent. A video clip with detached audio is silent, because its sound now plays
+// Muted tracks and muted clips are silent. A video clip with detached audio is silent, because its sound now plays
 // from the audio clip it links to. `hasAudio` says whether a media id has a sound track at all.
 export function clipAudioSources(
   timeline: Timeline,
@@ -47,7 +47,7 @@ export function clipAudioSources(
   const sources: AudioSource[] = []
   for (const active of clipsAt(timeline, tMs)) {
     const { clip, trackKind, trackMuted } = active
-    if (trackMuted || !clip.mediaId || !hasAudio(clip.mediaId)) continue
+    if (trackMuted || clip.muted || !clip.mediaId || !hasAudio(clip.mediaId)) continue
     if (trackKind !== 'audio' && trackKind !== 'video') continue
     if (trackKind === 'video' && clip.linkedAudio) continue
     sources.push({

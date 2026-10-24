@@ -4,11 +4,18 @@ import { CANVAS_HEIGHT, CANVAS_WIDTH, type Placement } from '@shared/compositor/
 import { createCanvas2DBackend } from './canvas2dBackend'
 import { createWebGLBackend } from './webglBackend'
 
+export interface VideoEffect {
+  // Blur radius in canvas pixels, and darkening from 0 (none) to 1 (black).
+  blurPx: number
+  dim: number
+}
+
 export interface FrameBackend {
   readonly kind: 'webgl' | '2d'
   clear(): void
-  // Draws a video frame at its placement. The element must already hold a decoded frame.
-  drawVideo(video: HTMLVideoElement, placement: Placement): void
+  // Draws a video frame at its placement. The element must already hold a decoded frame. `effect`
+  // blurs and darkens the frame (the blurFit background); without it the frame is drawn as is.
+  drawVideo(video: HTMLVideoElement, placement: Placement, effect?: VideoEffect): void
   dispose(): void
 }
 

@@ -1,11 +1,22 @@
-import { useEffect, useRef, useState, type DragEvent, type JSX, type PointerEvent } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type JSX,
+  type PointerEvent
+} from 'react'
 import { useStore } from 'zustand'
 import { Lock, LockOpen, Maximize2, Volume2, VolumeX, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   addTrack,
+  detachAudio,
   insertClip,
   loopFillClip,
   placeClips,
+  setClipAudio,
   setTrackFlag,
   trimClip
 } from '@shared/timeline/edits'
@@ -16,8 +27,9 @@ import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeli
 import { snapEdge, snapPoints, snapStart } from '@shared/timeline/snap'
 import { mainGaps, type Gap } from '@shared/timeline/gaps'
 import { Button } from '@renderer/ui/Button'
-import { DropdownMenu } from '@renderer/ui/DropdownMenu'
+import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
+import { soundClipFor } from '../audio/clipSound'
 import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
 import { inspectorStore } from '../inspector/inspectorStore'
@@ -312,7 +324,8 @@ export function TimelinePane({
   }
 
   // Runs an edit as one history entry, unless it changes nothing or is refused. Returns whether it ran.
-  function runEdit(label: string, edit: TimelineEdit): boolean {
+  // It is stable (it reads only the ref), so effects can list it as a dependency.
+  const runEdit = useCallback((label: string, edit: TimelineEdit, mergeKey?: string): boolean => {
     const current = latest.current.timeline
     let next: Timeline
     try {
@@ -321,9 +334,9 @@ export function TimelinePane({
       return false
     }
     if (next === current) return false
-    latest.current.onEdit(label, edit)
+    latest.current.onEdit(label, edit, mergeKey)
     return true
-  }
+  }, [])
 
   // The inspector edits what this pane selects. Publish the selection type; the short itself when nothing
   // is selected. Reset on unmount so a closed timeline does not leave a stale selection behind.
@@ -333,6 +346,23 @@ export function TimelinePane({
       .setSelectionType(selectionTypeFor(timeline, selectedIds, selection.gap))
   }, [timeline, selectedIds, selection.gap])
   useEffect(() => () => inspectorStore.getState().setSelectionType('short'), [])
+
+  // The clip audio section edits the sound of the one selected clip. Publish that clip, or nothing.
+  useEffect(() => {
+    const sound = soundClipFor(timeline, selectedIds)
+    inspectorStore.getState().setAudioTarget(
+      sound
+        ? {
+            clipId: sound.id,
+            muted: sound.muted ?? false,
+            gain: sound.gain ?? 1,
+            apply: (label, change, mergeKey) =>
+              runEdit(label, (current) => setClipAudio(current, sound.id, change), mergeKey)
+          }
+        : null
+    )
+  }, [timeline, selectedIds, runEdit])
+  useEffect(() => () => inspectorStore.getState().setAudioTarget(null), [])
 
   // The shortcuts read the pane through this, so they always see the latest timeline and selection.
   const readShortcutContext = (): TimelineShortcutContext => ({
@@ -554,34 +584,73 @@ export function TimelinePane({
         ? media?.items.find((ref) => ref.id === clip.mediaId)
         : undefined
       return (
-        <TimelineClip
-          key={clip.id}
-          clip={clip}
-          kind={track.kind}
-          locked={track.locked ?? false}
-          selected={selectedIds.includes(clip.id)}
-          pxPerMs={pxPerMs}
-          range={laneRange}
-          media={mediaRef}
-          offline={clip.mediaId !== undefined && offlineIds.has(clip.mediaId)}
-          projectFolder={media?.projectFolder}
-          linked={
-            linkedClip
-              ? {
-                  clip: linkedClip,
-                  media: linkedMedia,
-                  offline: linkedClip.mediaId !== undefined && offlineIds.has(linkedClip.mediaId)
-                }
-              : undefined
-          }
-          onPointerDown={(event) => pressClip(event, clip, track)}
-          onTrimPointerDown={
-            track.locked ? undefined : (edge, event) => pressTrim(event, clip, track, edge)
-          }
-          onSelect={() => selectClips(() => [clip.id])}
-        />
+        <Fragment key={clip.id}>
+          <TimelineClip
+            clip={clip}
+            kind={track.kind}
+            locked={track.locked ?? false}
+            selected={selectedIds.includes(clip.id)}
+            pxPerMs={pxPerMs}
+            range={laneRange}
+            media={mediaRef}
+            offline={clip.mediaId !== undefined && offlineIds.has(clip.mediaId)}
+            projectFolder={media?.projectFolder}
+            linked={
+              linkedClip
+                ? {
+                    clip: linkedClip,
+                    media: linkedMedia,
+                    offline: linkedClip.mediaId !== undefined && offlineIds.has(linkedClip.mediaId)
+                  }
+                : undefined
+            }
+            onPointerDown={(event) => pressClip(event, clip, track)}
+            onTrimPointerDown={
+              track.locked ? undefined : (edge, event) => pressTrim(event, clip, track, edge)
+            }
+            onSelect={() => selectClips(() => [clip.id])}
+          />
+          {clipMenu(clip, track)}
+        </Fragment>
       )
     })
+  }
+
+  // The clip menu for the one selected clip on an unlocked track: Detach audio for a video clip whose
+  // sound is still on the clip, and Mute or Unmute for the clip's sound.
+  function clipMenu(clip: Clip, track: Track): JSX.Element | null {
+    if (track.locked || selectedIds.length !== 1 || selectedIds[0] !== clip.id) return null
+    const items: DropdownMenuItem[] = []
+    const audioTrack =
+      timeline.tracks.find(
+        (item) => item.kind === 'audio' && item.role === 'music' && !item.locked
+      ) ?? timeline.tracks.find((item) => item.kind === 'audio' && !item.locked)
+    if (track.kind === 'video' && clip.mediaId && !clip.linkedAudio && audioTrack) {
+      const target = audioTrack
+      items.push({
+        label: 'Detach audio',
+        onSelect: () => {
+          runEdit('Detach audio', (current) =>
+            detachAudio(current, clip.id, target.id, latest.current.newId())
+          )
+        }
+      })
+    }
+    const sound = soundClipFor(timeline, selectedIds)
+    if (sound) {
+      const label = sound.muted ? 'Unmute clip' : 'Mute clip'
+      items.push({
+        label,
+        onSelect: () =>
+          runEdit(label, (current) => setClipAudio(current, sound.id, { muted: !sound.muted }))
+      })
+    }
+    if (items.length === 0) return null
+    return (
+      <div className={styles.clipMenu} style={{ left: timeToX(clip.startMs, pxPerMs) }}>
+        <DropdownMenu trigger={<Button variant="ghost">Clip</Button>} items={items} />
+      </div>
+    )
   }
 
   // The gaps on one main track. A gap is selected by a press; a selected gap offers Close gap.
