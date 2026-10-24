@@ -7,6 +7,6 @@ import './theme/base.css'
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <App />
+    <App devRoutes={import.meta.env.DEV} />
   </StrictMode>
 )
