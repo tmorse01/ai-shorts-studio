@@ -42,7 +42,14 @@ function sampleProject() {
         timeline: { tracks: [] }
       }
     ],
-    scripts: [{ id: 'script_1', name: 'Hook options', lines: ['Opening line', { text: 'x' }] }]
+    scripts: [
+      {
+        id: 'script_1',
+        title: 'Hook options',
+        topic: 'Harbour',
+        lines: [{ id: 'line_1', text: 'Opening line', beat: 'hook', footageHints: ['wide shot'] }]
+      }
+    ]
   }
 }
 
@@ -57,12 +64,20 @@ describe('project schema: valid load', () => {
     expect(result.value.project).toEqual(sampleProject())
   })
 
-  it('keeps unknown keys in the script lines placeholder', () => {
+  it('keeps a script with its lines and planning notes', () => {
     const result = loadProject(sampleProject())
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.value.project.shorts[0].timeline).toEqual({ tracks: [] })
-    expect(result.value.project.scripts[0].lines).toEqual(['Opening line', { text: 'x' }])
+    expect(result.value.project.scripts[0].lines).toEqual([
+      { id: 'line_1', text: 'Opening line', beat: 'hook', footageHints: ['wide shot'] }
+    ])
+  })
+
+  it('rejects a script line that has no id or text', () => {
+    const project = sampleProject()
+    project.scripts[0].lines = [{ text: 'no id' }] as never
+    expect(loadProject(project).ok).toBe(false)
   })
 
   it('rejects a short whose timeline does not match the schema', () => {

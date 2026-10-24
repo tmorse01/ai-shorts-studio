@@ -96,6 +96,38 @@ export function migrateV6ToV7(data: unknown): unknown {
   return { ...data, schemaVersion: 7, moments: [] }
 }
 
+// v7 stored scripts as placeholders: a `name` and untyped `lines`. Each script becomes a titled
+// script with an empty topic. A line keeps its text when it is a string or an object with text, and
+// gets a generated id. Any other line shape is dropped, since no version ever wrote one.
+export function migrateV7ToV8(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  const scripts = data.scripts
+  if (scripts === undefined) return { ...data, schemaVersion: 8 }
+  if (!Array.isArray(scripts)) throw new Error('"scripts" is not a list')
+
+  const upgradedScripts = scripts.map((item, index) => {
+    if (!isRecord(item) || typeof item.id !== 'string') {
+      throw new Error(`script ${index + 1} has no "id"`)
+    }
+    const scriptId: string = item.id
+    const title = typeof item.name === 'string' && item.name.trim() !== '' ? item.name : 'Untitled'
+    const rawLines = Array.isArray(item.lines) ? item.lines : []
+    const lines = rawLines.flatMap((line, lineIndex) => scriptLineOrNone(scriptId, line, lineIndex))
+    return { id: scriptId, title, topic: '', lines }
+  })
+  return { ...data, schemaVersion: 8, scripts: upgradedScripts }
+}
+
+function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
+  const generatedId = `${scriptId}_line_${index + 1}`
+  if (typeof value === 'string') return [{ id: generatedId, text: value }]
+  if (isRecord(value) && typeof value.text === 'string') {
+    const id = typeof value.id === 'string' && value.id.trim() !== '' ? value.id : generatedId
+    return [{ id, text: value.text }]
+  }
+  return []
+}
+
 // The ordered list the app ships with. Append new migrations here; never edit an old one.
 export const projectMigrations: readonly ProjectMigration[] = [
   { from: 1, to: 2, up: migrateV1ToV2 },
@@ -103,7 +135,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 3, to: 4, up: migrateV3ToV4 },
   { from: 4, to: 5, up: migrateV4ToV5 },
   { from: 5, to: 6, up: migrateV5ToV6 },
-  { from: 6, to: 7, up: migrateV6ToV7 }
+  { from: 6, to: 7, up: migrateV6ToV7 },
+  { from: 7, to: 8, up: migrateV7ToV8 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
