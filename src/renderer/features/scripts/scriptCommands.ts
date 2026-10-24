@@ -4,7 +4,7 @@
 import type { Draft } from 'immer'
 import type { Project, Script, ScriptLine } from '@shared/project/schema'
 import type { Command } from '../history/historyStore'
-import { markEdited } from '../shorts/shortCommands'
+import { createShortCommand, markEdited } from '../shorts/shortCommands'
 
 type ProjectDraft = Draft<Project>
 
@@ -128,6 +128,23 @@ export function attachScriptCommand(
         short.scriptId = scriptId
       }
       markEdited(short, now)
+    }
+  }
+}
+
+// Creates a short and attaches the script to it as one command, so a single undo removes both.
+export function createShortFromScriptCommand(
+  shortId: string,
+  scriptId: string,
+  now: string
+): Command<Project> {
+  const create = createShortCommand(shortId, now)
+  const attach = attachScriptCommand(shortId, scriptId, now)
+  return {
+    label: 'Create short from script',
+    produce: (draft) => {
+      create.produce(draft)
+      attach.produce(draft)
     }
   }
 }
