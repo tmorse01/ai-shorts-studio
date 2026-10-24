@@ -18,6 +18,7 @@ import {
   type Placement,
   type SourceSize
 } from '../compositor/frame'
+import { clampFramingScale, clampUnit, coverCropSize, DEFAULT_PAN_EASE } from '../timeline/framing'
 import { isSoundingClip } from '../timeline/audioRules'
 import { duckEnvelope, duckingFor, narrationRanges, type EnvelopePoint } from '../timeline/ducking'
 import {
@@ -27,7 +28,7 @@ import {
   type TransitionRole
 } from '../timeline/resolveFrame'
 import { isCut } from '../timeline/transitions'
-import type { Clip, Timeline, Track } from '../timeline/timeline'
+import type { Clip, Timeline, Track, Transform } from '../timeline/timeline'
 
 export const DEFAULT_RENDER_FPS = 30
 
@@ -89,10 +90,51 @@ function sec(ms: number): string {
   return num(ms / 1000)
 }
 
-function placementFilters(placement: Placement): string[] {
+// The scale and overlay position of a layer that moves during its clip (an eased pan). Each is an
+// expression of t, evaluated per frame. The overlay reads its own size as w and h.
+interface PanPlacement {
+  width: string
+  height: string
+  position: string
+}
+
+// The pan of a fill-framed video clip, as the expressions that describeFrame's placeFramed gives at each
+// time. Follows the same maths: the cover crop divided by the zoom s, the crop centre moved by x and y
+// across the room the crop has, scaled to the canvas. Returns null when the clip does not pan, or its
+// source size is not known (then the placement is constant and the layer uses it as is).
+export function panPlacement(clip: Clip, source: SourceSize | null): PanPlacement | null {
+  const framing = clip.framing
+  if (!framing || framing.mode !== 'fill' || !framing.panTo || !source) return null
+  if (source.width <= 0 || source.height <= 0) return null
+  const cover = coverCropSize(source.width, source.height, CANVAS_WIDTH, CANVAS_HEIGHT)
+  const transform: Transform = clip.transform
+  const progress = `clip((t-${sec(clip.startMs)})/${sec(clip.durationMs)},0,1)`
+  const eased =
+    (framing.ease ?? DEFAULT_PAN_EASE) === 'linear'
+      ? progress
+      : `(${progress}*${progress}*(3-2*${progress}))`
+  const between = (from: number, to: number): string =>
+    `(${num(from)}+(${num(to - from)})*${eased})`
+  const end = framing.panTo
+  const x = between(clampUnit(framing.x), clampUnit(end.x))
+  const y = between(clampUnit(framing.y), clampUnit(end.y))
+  const scale = between(clampFramingScale(framing.scale), clampFramingScale(end.scale))
+  // Pixels per source pixel is CANVAS_WIDTH / (cover width / zoom).
+  const perSource = `(${num(CANVAS_WIDTH)}*${scale}/${num(cover.width)})`
+  const width = `round(${num(source.width * transform.scale)}*${perSource})`
+  const height = `round(${num(source.height * transform.scale * (transform.stretch ?? 1))}*${perSource})`
+  // The crop centre sits off the source centre by x (or y) times the room it has, scaled to the canvas.
+  const centreX = `${num(CANVAS_WIDTH / 2 + transform.x)}-${x}*${num(CANVAS_WIDTH)}*(${num(source.width)}*${scale}-${num(cover.width)})/(2*${num(cover.width)})`
+  const centreY = `${num(CANVAS_HEIGHT / 2 + transform.y)}-${y}*${num(CANVAS_WIDTH)}*(${num(source.height)}*${scale}-${num(cover.height)})/(2*${num(cover.width)})`
+  return { width, height, position: `x='round(${centreX})-w/2':y='round(${centreY})-h/2'` }
+}
+
+function placementFilters(placement: Placement, pan: PanPlacement | null = null): string[] {
   const width = Math.max(1, Math.round(placement.width))
   const height = Math.max(1, Math.round(placement.height))
-  const filters = [`scale=${width}:${height}`]
+  const filters = [
+    pan ? `scale=w='${pan.width}':h='${pan.height}':eval=frame` : `scale=${width}:${height}`
+  ]
   if (placement.rotationDeg !== 0) {
     const radians = num((placement.rotationDeg * Math.PI) / 180)
     filters.push(`rotate=${radians}:c=none:ow=rotw(${radians}):oh=roth(${radians})`)
@@ -183,7 +225,8 @@ function videoLayerChain(
   item: Item,
   layer: FrameLayer,
   input: string,
-  out: string
+  out: string,
+  pan: PanPlacement | null
 ): { parts: string[]; out: string } {
   const srcStartMs = item.clip.sourceInMs - (item.clip.startMs - item.startMs)
   const trim = `trim=start=${sec(srcStartMs)}:duration=${sec(item.endMs - item.startMs)},setpts=PTS-STARTPTS+${sec(item.startMs)}/TB,format=rgba`
@@ -194,7 +237,7 @@ function videoLayerChain(
     )
   const render: LayerRender = layer.render
   if (render.mode === 'direct') {
-    const filters = [trim, ...placementFilters(layer.placement), ...fades]
+    const filters = [trim, ...placementFilters(layer.placement, pan), ...fades]
     return { parts: [`${input}${filters.join(',')}[${out}]`], out }
   }
   const fg = `${out}fg`
@@ -361,9 +404,17 @@ export function buildRenderGraph(
   visual.forEach((item, index) => {
     const layer = layerFor(timeline, item, sizeOf)
     const layerOut = `vl${index}`
-    const chain = videoLayerChain(item, layer, videoTaps.take(item.input), layerOut)
+    const source = item.clip.mediaId ? sizeOf(item.clip.mediaId) : null
+    const pan =
+      item.track.kind === 'video' && layer.render.mode === 'direct'
+        ? panPlacement(item.clip, source)
+        : null
+    const chain = videoLayerChain(item, layer, videoTaps.take(item.input), layerOut, pan)
     parts.push(...chain.parts)
-    const position = layer.render.mode === 'direct' ? overlayPosition(layer.placement) : 'x=0:y=0'
+    const position =
+      layer.render.mode === 'direct'
+        ? (pan?.position ?? overlayPosition(layer.placement))
+        : 'x=0:y=0'
     const next = `vc${index}`
     parts.push(
       `[${current}][${chain.out}]overlay=${position}:eof_action=pass:enable='between(t,${sec(item.startMs)},${sec(item.endMs)})'[${next}]`
