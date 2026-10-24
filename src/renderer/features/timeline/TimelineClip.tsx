@@ -33,6 +33,8 @@ export interface TimelineClipProps {
   linked?: LinkedAudio
   // Pointer down starts a press: select, or start a drag. The pane handles the rest.
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
+  // Pointer down on a trim handle. Absent on a locked track, which shows no handles.
+  onTrimPointerDown?: (edge: 'start' | 'end', event: PointerEvent<HTMLDivElement>) => void
   // Keyboard selection, for Enter and Space.
   onSelect: () => void
 }
@@ -52,6 +54,7 @@ export function TimelineClip({
   projectFolder,
   linked,
   onPointerDown,
+  onTrimPointerDown,
   onSelect
 }: TimelineClipProps): JSX.Element {
   const box = clipBox(clip, pxPerMs)
@@ -151,6 +154,22 @@ export function TimelineClip({
             backgroundPosition: `${linkedStrip.offsetPx}px 0`
           }}
         />
+      ) : null}
+      {onTrimPointerDown ? (
+        <>
+          <div
+            className={`${styles.handle} ${styles.handleStart}`}
+            data-edge="start"
+            aria-hidden="true"
+            onPointerDown={(event) => onTrimPointerDown('start', event)}
+          />
+          <div
+            className={`${styles.handle} ${styles.handleEnd}`}
+            data-edge="end"
+            aria-hidden="true"
+            onPointerDown={(event) => onTrimPointerDown('end', event)}
+          />
+        </>
       ) : null}
       <span className={styles.label}>{label}</span>
       {offline ? <span className={styles.badge}>Offline</span> : null}
