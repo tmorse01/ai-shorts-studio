@@ -85,3 +85,47 @@
   color: var(--color-editorial);
   font-size: var(--type-small-size);
 }
+
+.empty {
+  margin: var(--space-2) 0;
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.chip {
+  cursor: pointer;
+  cursor: pointer;
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: var(--color-text-2);
+  font: inherit;
+  font-size: var(--type-small-size);
+  white-space: nowrap;
+}
+
+.chipOn {
+  border-color: var(--color-focus);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.tagBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tagBarLabel {
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+  margin-right: var(--space-1);
+}

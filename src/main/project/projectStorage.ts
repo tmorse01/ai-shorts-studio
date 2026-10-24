@@ -50,6 +50,7 @@ export async function createProject(folderPath: string, name: string): Promise<O
     createdAt: now,
     updatedAt: now,
     media: [],
+    mediaTags: [],
     defaults: {
       ...DEFAULT_SHORT_DEFAULTS,
       targetLength: { ...DEFAULT_SHORT_DEFAULTS.targetLength }

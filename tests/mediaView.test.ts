@@ -30,6 +30,7 @@ const project: Project = projectSchema.parse({
   name: 'Test',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
+  mediaTags: [],
   media: [ref('a', 'b.mp4', 61_000), ref('b', 'a.mp4', 5_000), ref('c', 'c.mp4')],
   defaults: { targetLength: { minSec: 30, maxSec: 60 }, platform: 'generic', safeZones: true },
   shorts: [],

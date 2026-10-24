@@ -1,17 +1,29 @@
-// The Media tool panel: the project's footage as a grid of cards or a sortable list. Selection, sort
-// and view live in mediaPanelStore; the footage itself lives in projectStore.
+// The Media tool panel: the project's footage as a grid of cards or a sortable list, with search,
+// filters and tags. Selection, sort, view and filter live in mediaPanelStore; the footage and its tags
+// live in projectStore. Tag edits run as project commands, so they can be undone.
 import { useState, type JSX, type MouseEvent } from 'react'
 import { useStore } from 'zustand'
-import { Film, Image as ImageIcon, LayoutGrid, List, Music, Trash2 } from 'lucide-react'
+import { Film, Image as ImageIcon, LayoutGrid, List, Music, Settings2, Trash2 } from 'lucide-react'
 import type { MediaRef } from '@shared/project/schema'
 import { Button } from '@renderer/ui/Button'
 import { Dialog } from '@renderer/ui/Dialog'
 import { IconButton } from '@renderer/ui/IconButton'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
+import { applyProjectCommand } from '../shorts/shortActions'
 import { projectStore } from '../project/projectStore'
 import { pickAndImportMedia } from './importMedia'
+import { MediaFilterBar } from './MediaFilterBar'
+import { MediaTagsDialog } from './MediaTagsDialog'
 import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
-import { formatDuration, removeMediaCommand, sortMedia, type MediaSortKey } from './mediaView'
+import { allMediaTags, setMediaTagCommand, tagCoverage, tagsOfMedia } from './mediaTags'
+import {
+  EMPTY_MEDIA_FILTER,
+  filterMedia,
+  formatDuration,
+  removeMediaCommand,
+  sortMedia,
+  type MediaSortKey
+} from './mediaView'
 import styles from './MediaPanel.module.css'
 
 const KIND_ICON = { video: Film, audio: Music, image: ImageIcon } as const
@@ -21,10 +33,14 @@ export function MediaPanel(): JSX.Element {
   const view = useStore(mediaPanelStore, (state) =>
     current ? state.viewByProject[current.folderPath] : undefined
   )
+  const filter = useStore(mediaPanelStore, (state) =>
+    current ? (state.filterByProject[current.folderPath] ?? EMPTY_MEDIA_FILTER) : EMPTY_MEDIA_FILTER
+  )
   const sortKey = useStore(mediaPanelStore, (state) => state.sortKey)
   const sortDirection = useStore(mediaPanelStore, (state) => state.sortDirection)
   const selection = useStore(mediaPanelStore, (state) => state.selection)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
 
   if (!current) {
     return (
@@ -41,9 +57,11 @@ export function MediaPanel(): JSX.Element {
   }
 
   const activeView: MediaViewMode = view ?? 'grid'
-  const items = sortMedia(current.project.media, sortKey, sortDirection)
+  const tags = allMediaTags(current.project)
+  const items = sortMedia(filterMedia(current.project.media, filter), sortKey, sortDirection)
   const order = items.map((ref) => ref.id)
-  const selectedIds = selection.ids
+  // Only files on screen count as selected, so a tag or remove never reaches a hidden file.
+  const selectedIds = selection.ids.filter((id) => order.includes(id))
 
   const onItemClick = (id: string, event: MouseEvent) => {
     mediaPanelStore
@@ -56,6 +74,26 @@ export function MediaPanel(): JSX.Element {
     projectStore.getState().edit((draft) => removeMediaCommand(ids).produce(draft))
     mediaPanelStore.getState().clearSelection()
     setConfirmOpen(false)
+  }
+
+  // Adds the tag to every selected file, or removes it from all of them when all already have it.
+  const toggleTagOnSelection = (tagId: string) => {
+    const coverage = tagCoverage(current.project.media, selectedIds, tagId)
+    applyProjectCommand(setMediaTagCommand(selectedIds, tagId, coverage !== 'all'))
+  }
+
+  const renderTags = (ref: MediaRef) => {
+    const chips = tagsOfMedia(ref, current.project)
+    if (chips.length === 0) return null
+    return (
+      <span className={styles.chips}>
+        {chips.map((tag) => (
+          <span key={tag.id} className={styles.chip}>
+            {tag.name}
+          </span>
+        ))}
+      </span>
+    )
   }
 
   const renderRow = (ref: MediaRef) => {
@@ -73,6 +111,7 @@ export function MediaPanel(): JSX.Element {
           <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
         </span>
         <span className={styles.name}>{ref.fileName}</span>
+        {renderTags(ref)}
         <span className={styles.meta}>{formatDuration(ref.durationMs)}</span>
         {activeView === 'list' ? (
           <span className={styles.meta}>{formatBytes(ref.sizeBytes)}</span>
@@ -113,6 +152,7 @@ export function MediaPanel(): JSX.Element {
         <Button variant="ghost" size="sm" onClick={() => void pickAndImportMedia()}>
           Import
         </Button>
+        <IconButton icon={Settings2} label="Manage tags" onClick={() => setTagsOpen(true)} />
         <IconButton
           icon={Trash2}
           label="Remove from project"
@@ -120,6 +160,31 @@ export function MediaPanel(): JSX.Element {
           onClick={() => setConfirmOpen(true)}
         />
       </div>
+
+      <MediaFilterBar folderPath={current.folderPath} filter={filter} tags={tags} />
+
+      {selectedIds.length > 0 ? (
+        <div className={styles.tagBar} role="group" aria-label="Tag selected files">
+          <span className={styles.tagBarLabel}>
+            {selectedIds.length === 1 ? '1 selected' : `${selectedIds.length} selected`}
+          </span>
+          {tags.map((tag) => {
+            const coverage = tagCoverage(current.project.media, selectedIds, tag.id)
+            return (
+              <button
+                type="button"
+                key={tag.id}
+                aria-pressed={coverage === 'all'}
+                data-coverage={coverage}
+                className={`${styles.chip} ${coverage !== 'none' ? styles.chipOn : ''}`}
+                onClick={() => toggleTagOnSelection(tag.id)}
+              >
+                {coverage === 'some' ? `${tag.name} (some)` : tag.name}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
 
       {activeView === 'list' ? (
         <div className={styles.header} role="presentation">
@@ -129,9 +194,13 @@ export function MediaPanel(): JSX.Element {
         </div>
       ) : null}
 
-      <div className={activeView === 'grid' ? styles.grid : styles.list}>
-        {items.map(renderRow)}
-      </div>
+      {items.length === 0 ? (
+        <p className={styles.empty}>No files match the search and filters.</p>
+      ) : (
+        <div className={activeView === 'grid' ? styles.grid : styles.list}>
+          {items.map(renderRow)}
+        </div>
+      )}
 
       <Dialog
         open={confirmOpen}
@@ -149,6 +218,8 @@ export function MediaPanel(): JSX.Element {
           </>
         }
       />
+
+      <MediaTagsDialog open={tagsOpen} onOpenChange={setTagsOpen} project={current.project} />
     </div>
   )
 }

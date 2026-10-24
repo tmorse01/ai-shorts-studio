@@ -1,11 +1,15 @@
 import { Link } from '@tanstack/react-router'
-import { Download, FileInput, Keyboard, Redo2, Undo2 } from 'lucide-react'
+import { Download, FileInput, Film, Keyboard, Redo2, Undo2 } from 'lucide-react'
 import { APP_NAME } from '@shared/app'
 import { Button } from '@renderer/ui/Button'
 import { IconButton } from '@renderer/ui/IconButton'
 import { shortcutHelpStore } from '@renderer/features/shortcuts/shortcutHelpStore'
 import { pickAndImportMedia } from '@renderer/features/media/importMedia'
 import { ShortSwitcher } from '@renderer/features/shorts/ShortSwitcher'
+import {
+  previewSettingsStore,
+  usePreviewSettings
+} from '@renderer/features/preview/previewSettingsStore'
 import { useUiStore } from './useUiStore'
 import styles from './EditorToolbar.module.css'
 
@@ -16,6 +20,7 @@ const PROJECT_NAME_PLACEHOLDER = 'Untitled project'
 export function EditorToolbar() {
   const setLeftTool = useUiStore((s) => s.setLeftTool)
   const setPaneCollapsed = useUiStore((s) => s.setPaneCollapsed)
+  const useOriginals = usePreviewSettings((s) => s.useOriginals)
 
   return (
     <header className={styles.toolbar}>
@@ -36,6 +41,16 @@ export function EditorToolbar() {
       <div className={styles.group}>
         <IconButton icon={Undo2} label="Undo" disabled />
         <IconButton icon={Redo2} label="Redo" disabled />
+        <Button
+          variant={useOriginals ? 'primary' : 'secondary'}
+          size="sm"
+          aria-pressed={useOriginals}
+          title="Play the source files instead of proxies"
+          onClick={() => previewSettingsStore.getState().setUseOriginals(!useOriginals)}
+        >
+          <Film size={14} strokeWidth={1.75} aria-hidden="true" />
+          Originals
+        </Button>
         <IconButton
           icon={FileInput}
           label="Import media"

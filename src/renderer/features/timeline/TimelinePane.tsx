@@ -1,8 +1,9 @@
-import { useEffect, useRef, type JSX, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type JSX, type PointerEvent } from 'react'
 import { useStore } from 'zustand'
 import { Lock, LockOpen, Maximize2, Volume2, VolumeX, ZoomIn, ZoomOut } from 'lucide-react'
 import { addTrack, setTrackFlag } from '@shared/timeline/edits'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
+import type { MediaRef } from '@shared/project/schema'
 import type { Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/timeline'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
@@ -10,6 +11,8 @@ import { IconButton } from '@renderer/ui/IconButton'
 import { formatTimecode } from '../playback/playbackClock'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
+import { clipsInRange, visibleLaneRange } from './clipView'
+import { TimelineClip } from './TimelineClip'
 import {
   fitPxPerMs,
   followPlayhead,
@@ -24,6 +27,14 @@ import styles from './TimelinePane.module.css'
 
 export type TimelineEdit = (timeline: Timeline) => Timeline
 
+// The footage clips refer to. Clips show thumbnails from projectFolder's cache, and offline media is
+// marked. Without it, clips show their labels only.
+export interface TimelineMedia {
+  projectFolder: string
+  items: readonly MediaRef[]
+  offlineIds: readonly string[]
+}
+
 export interface TimelinePaneProps {
   timeline: Timeline
   // The short's target length. The band shows where the length should fall.
@@ -31,6 +42,7 @@ export interface TimelinePaneProps {
   // Each edit goes to the caller, which runs it as a command. A drag passes a mergeKey.
   onEdit: (label: string, edit: TimelineEdit, mergeKey?: string) => void
   newId?: () => string
+  media?: TimelineMedia
 }
 
 // The fixed lanes, top to bottom. Each lane is one track role; a lane with no track offers Add.
@@ -55,13 +67,22 @@ const LANE_HEIGHT_PX = 44
 
 // Timeline pane: a timecode ruler that seeks, fixed lanes with mute and lock, an Add track menu, zoom
 // with Ctrl+wheel and Fit, a playhead that follows playback, and the target band.
-export function TimelinePane({ timeline, target, onEdit, newId }: TimelinePaneProps): JSX.Element {
+export function TimelinePane({
+  timeline,
+  target,
+  onEdit,
+  newId,
+  media
+}: TimelinePaneProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const rulerRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
   const pxPerMs = useStore(timelineViewStore, (state) => state.pxPerMs)
   const playheadMs = usePlaybackStore((state) => state.playheadMs)
   const playing = usePlaybackStore((state) => state.playing)
+  // What the scroll area shows. Only clips in this range are rendered.
+  const [viewport, setViewport] = useState({ scrollLeft: 0, width: 0 })
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null)
 
   const durationMs = timelineDurationMs(timeline)
   const widthPx = timelineWidthPx(durationMs, target.maxMs, pxPerMs)
@@ -70,11 +91,30 @@ export function TimelinePane({ timeline, target, onEdit, newId }: TimelinePanePr
   const extraTracks = timeline.tracks.filter((track) => !FIXED_ROLES.has(track.role))
   const newTrackId = newId ?? (() => crypto.randomUUID())
   const playheadX = timeToX(playheadMs, pxPerMs)
+  const laneRange = visibleLaneRange(viewport.scrollLeft, viewport.width, HEADER_PX)
+  const offlineIds = new Set(media?.offlineIds ?? [])
+  const allClips = timeline.tracks.flatMap((track) => track.clips)
 
   // Playback length follows the timeline, so the scrub bar and the playhead stop at its end.
   useEffect(() => {
     playbackStore.getState().setDurationMs(durationMs)
   }, [durationMs])
+
+  // Tracks the viewport width, so clips scrolled into a wider window are rendered.
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return undefined
+    const measure = () =>
+      setViewport((current) =>
+        current.width === element.clientWidth && current.scrollLeft === element.scrollLeft
+          ? current
+          : { scrollLeft: element.scrollLeft, width: element.clientWidth }
+      )
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   // Ctrl+wheel zooms. It is a native listener so the page does not scroll with it.
   useEffect(() => {
@@ -127,6 +167,45 @@ export function TimelinePane({ timeline, target, onEdit, newId }: TimelinePanePr
     onEdit('Add track', (current) => addTrack(current, track))
   }
 
+  // The clips of one lane that are on screen. Each is positioned in the lane body.
+  function laneClips(track: Track) {
+    return clipsInRange(track.clips, pxPerMs, laneRange).map((clip) => {
+      const linkedClip = clip.linkedAudio
+        ? allClips.find((item) => item.id === clip.linkedAudio)
+        : undefined
+      const linkedMedia = linkedClip?.mediaId
+        ? media?.items.find((ref) => ref.id === linkedClip.mediaId)
+        : undefined
+      const mediaRef = clip.mediaId
+        ? media?.items.find((ref) => ref.id === clip.mediaId)
+        : undefined
+      return (
+        <TimelineClip
+          key={clip.id}
+          clip={clip}
+          kind={track.kind}
+          locked={track.locked ?? false}
+          selected={clip.id === selectedClipId}
+          pxPerMs={pxPerMs}
+          range={laneRange}
+          media={mediaRef}
+          offline={clip.mediaId !== undefined && offlineIds.has(clip.mediaId)}
+          projectFolder={media?.projectFolder}
+          linked={
+            linkedClip
+              ? {
+                  clip: linkedClip,
+                  media: linkedMedia,
+                  offline: linkedClip.mediaId !== undefined && offlineIds.has(linkedClip.mediaId)
+                }
+              : undefined
+          }
+          onSelect={() => setSelectedClipId(clip.id)}
+        />
+      )
+    })
+  }
+
   function laneRow(track: Track | undefined, label: string, kind: TrackKind, role: TrackRole) {
     return (
       <div
@@ -168,7 +247,9 @@ export function TimelinePane({ timeline, target, onEdit, newId }: TimelinePanePr
             </Button>
           )}
         </div>
-        <div className={styles.laneBody} style={{ width: widthPx }} data-role={role} />
+        <div className={styles.laneBody} style={{ width: widthPx }} data-role={role}>
+          {track ? laneClips(track) : null}
+        </div>
       </div>
     )
   }
@@ -205,7 +286,16 @@ export function TimelinePane({ timeline, target, onEdit, newId }: TimelinePanePr
         </div>
       </div>
 
-      <div className={styles.scroll} ref={scrollRef}>
+      <div
+        className={styles.scroll}
+        ref={scrollRef}
+        onScroll={(event) =>
+          setViewport({
+            scrollLeft: event.currentTarget.scrollLeft,
+            width: event.currentTarget.clientWidth
+          })
+        }
+      >
         <div className={styles.canvas} style={{ width: HEADER_PX + widthPx }}>
           <div className={styles.rulerRow} style={{ height: RULER_HEIGHT_PX }}>
             <div className={styles.headerSpacer} style={{ width: HEADER_PX }} />

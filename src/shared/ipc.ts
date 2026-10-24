@@ -9,6 +9,8 @@ import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
+import { THUMB_READ_FILES } from './media/thumbs'
+import { mediaSourceInfoSchema, mediaSourceRefSchema } from './media/mediaSources'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -196,6 +198,16 @@ export const ipcChannels = {
       waiting: z.number().int().nonnegative()
     })
   },
+  // Reads one cached thumbnail, filmstrip or waveform as a data URL. dataUrl is null when the cache
+  // has no such file yet, for example while the thumbs job is still running.
+  'media:thumb:read': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/),
+      file: z.enum(THUMB_READ_FILES)
+    }),
+    output: z.object({ dataUrl: z.string().nullable() })
+  },
   // Queues a 720p proxy for each video that needs one and has no file on disk. Items that do not
   // need one are skipped; the renderer sends the probe's video info so main can decide.
   'media:proxy': {
@@ -219,6 +231,15 @@ export const ipcChannels = {
       cached: z.number().int().nonnegative(),
       skipped: z.number().int().nonnegative()
     })
+  },
+  // Checks each media item's original and proxy on disk, and records their paths in main so the media
+  // protocol can serve them. The renderer gets flags only, never paths.
+  'media:sources': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      media: z.array(mediaSourceRefSchema).max(500)
+    }),
+    output: z.object({ sources: z.array(mediaSourceInfoSchema) })
   },
   // Reads the name and size of each path. Paths that are not files come back in missing.
   'media:stat': {

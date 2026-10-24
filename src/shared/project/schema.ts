@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { timelineSchema } from '../timeline/timeline'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 5
+export const CURRENT_SCHEMA_VERSION = 6
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -27,9 +27,19 @@ export const mediaRefSchema = z.object({
   durationMs: z.number().nonnegative().optional(),
   kind: mediaKindSchema,
   // Set by the user's "Use proxy" toggle. Playback reads the proxy only when this is true and it is ready.
-  useProxy: z.boolean().optional()
+  useProxy: z.boolean().optional(),
+  // Ids of the tags on this file: built-in tags (see src/renderer/features/media/mediaTags.ts) or
+  // custom tags from the project's mediaTags list. Unset means no tags.
+  tagIds: z.array(nonEmptyString).optional()
 })
 export type MediaRef = z.infer<typeof mediaRefSchema>
+
+// A custom tag the user made for footage. Built-in tags are not stored here.
+export const mediaTagSchema = z.object({
+  id: nonEmptyString,
+  name: nonEmptyString
+})
+export type MediaTag = z.infer<typeof mediaTagSchema>
 
 export const shortStatusSchema = z.enum(['draft', 'ready', 'exported'])
 export type ShortStatus = z.infer<typeof shortStatusSchema>
@@ -104,6 +114,8 @@ export const projectSchema = z.object({
   createdAt: isoTimestamp,
   updatedAt: isoTimestamp,
   media: z.array(mediaRefSchema),
+  // Custom media tags, in the order the user created them. Schema 6 added this list.
+  mediaTags: z.array(mediaTagSchema),
   defaults: shortDefaultsSchema,
   shorts: z.array(shortSchema),
   scripts: z.array(scriptSchema)

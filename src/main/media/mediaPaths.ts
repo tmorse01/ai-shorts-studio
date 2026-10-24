@@ -24,7 +24,10 @@ export function storedMediaPath(projectFolder: string, mediaFile: string): Store
 }
 
 // The absolute path of a media item, given the project folder it was stored in.
-export function resolveMediaPath(projectFolder: string, ref: MediaRef): string {
+export function resolveMediaPath(
+  projectFolder: string,
+  ref: Pick<MediaRef, 'path' | 'pathKind'>
+): string {
   return ref.pathKind === 'relative' ? resolve(projectFolder, ref.path) : ref.path
 }
 

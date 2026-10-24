@@ -15,6 +15,7 @@ const project: Project = projectSchema.parse({
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   media: [],
+  mediaTags: [],
   defaults: {
     targetLength: { minSec: 30, maxSec: 60 },
     platform: 'generic',
