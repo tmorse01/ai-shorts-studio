@@ -52,3 +52,36 @@
   bottom: var(--space-2);
   left: var(--space-6);
 }
+
+/* The decoded frame fills the 9:16 frame. The canvas stays transparent where no frame is drawn. */
+.video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Shown in place of a frame when the footage is not on disk. */
+.offline {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-text-2);
+}
+
+.offlineTitle {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-1);
+}
+
+.offlineHint {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}

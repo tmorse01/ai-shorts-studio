@@ -11,6 +11,7 @@ import { relinkMediaFolder } from '../media/relinkMedia'
 import { statMediaFiles } from '../media/statMedia'
 import { ensureMediaThumbs } from '../media/ensureThumbs'
 import { ensureMediaProxies } from '../media/ensureProxies'
+import { MediaSourceRegistry, describeMediaSources } from '../media/mediaSources'
 import type { IpcHandlers } from './dispatch'
 import { logError } from '../errors/errorLog'
 import { join } from 'node:path'
@@ -46,6 +47,8 @@ export interface IpcHandlerOptions {
   jobs?: JobQueue
   /** Native actions. Defaults refuse, so a caller that forgets them fails loudly. */
   system?: Partial<SystemActions>
+  /** Where media:sources records each item's files for the media protocol. Shared with the protocol. */
+  mediaSources?: MediaSourceRegistry
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -53,7 +56,8 @@ export function createIpcHandlers({
   layoutFile,
   recentFile,
   jobs = new JobQueue(unavailableExecutors()),
-  system = {}
+  system = {},
+  mediaSources = new MediaSourceRegistry()
 }: IpcHandlerOptions): IpcHandlers {
   const actions: SystemActions = {
     pickFolder: system.pickFolder ?? unavailable,
@@ -134,6 +138,9 @@ export function createIpcHandlers({
     'media:pick': async () => ({ paths: await actions.pickMediaFiles() }),
     'media:stat': ({ paths }) => statMediaFiles(paths),
     'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs),
-    'media:proxy': ({ projectFolder, items }) => ensureMediaProxies(projectFolder, items, jobs)
+    'media:proxy': ({ projectFolder, items }) => ensureMediaProxies(projectFolder, items, jobs),
+    'media:sources': async ({ projectFolder, media }) => ({
+      sources: await describeMediaSources(projectFolder, media, mediaSources)
+    })
   }
 }

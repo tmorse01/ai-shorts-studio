@@ -9,6 +9,7 @@ import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
+import { mediaSourceInfoSchema, mediaSourceRefSchema } from './media/mediaSources'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -219,6 +220,15 @@ export const ipcChannels = {
       cached: z.number().int().nonnegative(),
       skipped: z.number().int().nonnegative()
     })
+  },
+  // Checks each media item's original and proxy on disk, and records their paths in main so the media
+  // protocol can serve them. The renderer gets flags only, never paths.
+  'media:sources': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      media: z.array(mediaSourceRefSchema).max(500)
+    }),
+    output: z.object({ sources: z.array(mediaSourceInfoSchema) })
   },
   // Reads the name and size of each path. Paths that are not files come back in missing.
   'media:stat': {
