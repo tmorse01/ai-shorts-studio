@@ -1,0 +1,99 @@
+/* A clip sits in its lane. Its outline is an inset shadow, so the body keeps the full clip height and
+   the filmstrip tiles line up with it. */
+.clip {
+  position: absolute;
+  top: 4px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--color-canvas);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-subtle-border);
+  color: var(--color-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.clip:hover {
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-primary);
+}
+
+.clip:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: var(--border-width);
+}
+
+.selected,
+.selected:hover {
+  box-shadow: inset 0 0 0 calc(var(--border-width) * 2) var(--color-focus);
+}
+
+.locked {
+  cursor: not-allowed;
+}
+
+.locked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-surface) 35%, transparent);
+  pointer-events: none;
+}
+
+/* Offline footage: dashed warning outline and a badge. The thumbnails are not loaded. */
+.offline {
+  background: color-mix(in srgb, var(--color-destructive) 12%, var(--color-canvas));
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-destructive);
+}
+
+.tile {
+  position: absolute;
+  top: 0;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+.wave {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.linkedWave {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-repeat: no-repeat;
+  border-top: var(--border-width) solid var(--color-subtle-border);
+  pointer-events: none;
+}
+
+.label {
+  position: absolute;
+  left: var(--space-1);
+  top: 0;
+  max-width: calc(100% - var(--space-2));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-surface) 75%, transparent);
+  font-family: var(--font-ui);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.badge {
+  position: absolute;
+  right: var(--space-1);
+  bottom: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-destructive);
+  color: var(--color-on-destructive);
+  font-family: var(--font-ui);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}

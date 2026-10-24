@@ -9,6 +9,7 @@ import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
+import { THUMB_READ_FILES } from './media/thumbs'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -195,6 +196,16 @@ export const ipcChannels = {
       cached: z.number().int().nonnegative(),
       waiting: z.number().int().nonnegative()
     })
+  },
+  // Reads one cached thumbnail, filmstrip or waveform as a data URL. dataUrl is null when the cache
+  // has no such file yet, for example while the thumbs job is still running.
+  'media:thumb:read': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/),
+      file: z.enum(THUMB_READ_FILES)
+    }),
+    output: z.object({ dataUrl: z.string().nullable() })
   },
   // Queues a 720p proxy for each video that needs one and has no file on disk. Items that do not
   // need one are skipped; the renderer sends the probe's video info so main can decide.
