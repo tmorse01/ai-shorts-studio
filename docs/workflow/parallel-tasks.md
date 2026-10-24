@@ -27,9 +27,18 @@ The orchestrator names the mode in each sub-agent's brief. Mode A is the default
 3. Prefer tasks that touch different areas. Expect shared-file conflicts in `package.json`,
    `pnpm-lock.yaml`, `src/renderer/App.tsx`, `src/main/index.ts` and `tests/`. Two tasks that both
    need to rewrite the same file should run one after the other.
-4. If fewer than three tasks are unblocked, start the ones that are. Do not start a task early
-   just to fill a slot.
-5. Choose the mode per task:
+4. **Skip blocked tasks and take the next unblocked one.** Walk the backlog in order (epic number,
+   then task number, e.g. 01.07 → 01.10 → 02.01 → 02.02 …). A task is blocked if any issue in its
+   **Depends on** is still open and unmerged, including one another sub-agent is working on right
+   now, or if its description says it uses work from an epic that isn't merged yet. Don't wait on a
+   blocked task, and don't branch from another sub-agent's unmerged branch. Move on down the list
+   until you find a task whose dependencies are all merged into `rebuild`, even if it's in a later
+   epic. The same rule applies when a slot frees up after a merge: re-walk the list from the top,
+   because the merge may have unblocked an earlier task.
+5. If fewer than three tasks are unblocked anywhere in the backlog, start the ones that are. Do not
+   start a task early just to fill a slot. If none are unblocked, report which open PRs are holding
+   things up and stop.
+6. Choose the mode per task:
    - **Mode A** for anything that changes a shared contract: the IPC channel set, the store or undo
      engine, the dependency list, routing, or the design tokens.
    - **Mode B** for self-contained work inside one feature folder, such as a component set or a
@@ -42,7 +51,11 @@ modes. Steps 8 and 9 differ.
 
 1. **Read the task.** `gh issue view <N> -R tmorse01/ai-shorts-studio` and its parent epic.
    Read `CLAUDE.md` and the design source it points to (`docs/rebuild/DESIGN.md`) if the task has
-   any UI.
+   any UI. Then check that every **Depends on** issue is merged into `origin/rebuild`. If one isn't,
+   including one another sub-agent is still working on, don't start and don't stub the missing
+   piece. Report "blocked on #X" and the orchestrator gives you the next unblocked task under
+   *Picking tasks* rule 4. The same applies if you find a hidden dependency partway through: stop,
+   push nothing, and report.
 2. **Branch from `rebuild`.** Fetch, then create a branch named `claude/<NNNN>-<slug>-haiku-<hash>`
    from `origin/rebuild`. Work only in its own worktree.
 3. **Implement only the issue.** Anything else it notices becomes a follow-up note in the PR
