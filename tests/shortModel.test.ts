@@ -20,7 +20,7 @@ function sampleV2Project() {
         createdAt: '2026-10-23T09:10:00.000Z',
         updatedAt: '2026-10-23T09:20:00.000Z',
         status: 'exported',
-        timeline: {}
+        timeline: { tracks: [] }
       },
       {
         id: 'short_b',
@@ -28,7 +28,7 @@ function sampleV2Project() {
         createdAt: '2026-10-23T09:11:00.000Z',
         updatedAt: '2026-10-23T09:21:00.000Z',
         status: 'draft',
-        timeline: {}
+        timeline: { tracks: [] }
       }
     ],
     scripts: []
@@ -36,11 +36,12 @@ function sampleV2Project() {
 }
 
 describe('short model: schema', () => {
-  it('bumps the schema version and registers a v2 to v3 migration', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(3)
+  it('bumps the schema version and registers each migration in order', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(4)
     expect(projectMigrations.map((m) => [m.from, m.to])).toEqual([
       [1, 2],
-      [2, 3]
+      [2, 3],
+      [3, 4]
     ])
   })
 
@@ -56,7 +57,7 @@ describe('short model: schema', () => {
       platform: 'tiktok',
       overrides: {},
       editedSinceExport: false,
-      timeline: {}
+      timeline: { tracks: [] }
     })
     expect(result.success).toBe(false)
   })
@@ -72,7 +73,7 @@ describe('short model: schema', () => {
       targetLength: { minSec: 30, maxSec: 60 },
       platform: 'reels',
       editedSinceExport: false,
-      timeline: {}
+      timeline: { tracks: [] }
     }
     expect(shortSchema.safeParse({ ...base, overrides: { safeZones: false } }).success).toBe(true)
     expect(shortSchema.safeParse({ ...base, overrides: {}, platform: 'myspace' }).success).toBe(
