@@ -46,7 +46,12 @@ function projectWith(media: MediaRef[], mediaTags: { id: string; name: string }[
 describe('built-in and custom tags', () => {
   it('lists the quick tags first, then custom tags', () => {
     const project = projectWith([], [{ id: 'c1', name: 'Interview' }])
-    expect(allMediaTags(project).map((tag) => tag.name)).toEqual(['A-roll', 'B-roll', 'Interview'])
+    expect(allMediaTags(project).map((tag) => tag.name)).toEqual([
+      'A-roll',
+      'B-roll',
+      'Music',
+      'Interview'
+    ])
   })
 
   it('treats names as taken regardless of case and spaces', () => {
