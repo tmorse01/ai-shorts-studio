@@ -1,0 +1,24 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line);
+  color: var(--color-editorial);
+  cursor: text;
+}
+
+.rename {
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  max-width: 420px;
+}
