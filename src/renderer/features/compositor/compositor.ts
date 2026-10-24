@@ -4,14 +4,14 @@
 import type { FrameDescription, FrameLayer } from '@shared/compositor/frame'
 import type { LayerRegistry } from '@shared/compositor/layerRegistry'
 import type { FrameBackend } from './frameBackend'
-import { createLayerRegistry, type LayerContext, type LayerSource } from './layerRenderers'
+import { layerRegistry, type LayerContext, type LayerSource } from './layerRenderers'
 
 export class Compositor {
   private hasFrame = false
 
   constructor(
     private readonly backend: FrameBackend,
-    private readonly registry: LayerRegistry<LayerContext> = createLayerRegistry()
+    private readonly registry: LayerRegistry<LayerContext> = layerRegistry
   ) {}
 
   // Returns false when the frame was held because a video layer is still pending. The frame drawn

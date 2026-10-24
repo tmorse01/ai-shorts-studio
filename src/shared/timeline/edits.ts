@@ -1,7 +1,7 @@
 // Pure edit operations on a timeline (Epic 07, #84). Each takes a timeline and returns a new one; the
 // input is never mutated. The renderer wraps these as undoable commands. Every edit ends with the
 // Main-track check, so a Main track never overlaps after any edit.
-import type { Clip, Timeline, Track, Transition } from './timeline'
+import type { Clip, Timeline, Track, Transform, Transition } from './timeline'
 
 export class TimelineEditError extends Error {
   constructor(message: string) {
@@ -296,6 +296,25 @@ export function addTrack(timeline: Timeline, track: Track): Timeline {
     throw new TimelineEditError(`A track with id "${track.id}" already exists.`)
   }
   return { ...timeline, tracks: [...timeline.tracks, { ...track, clips: [] }] }
+}
+
+// Changes one clip's transform (position, scale, stretch, rotation). The update gets the stored
+// transform, so a caller can nudge or drag from what is stored when the edit runs. Refused on a locked
+// track, like every clip edit.
+export function updateClipTransform(
+  timeline: Timeline,
+  clipId: string,
+  update: (transform: Transform) => Transform
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  const next = update(clip.transform)
+  if (!(next.scale > 0) || !Number.isFinite(next.x) || !Number.isFinite(next.y)) {
+    throw new TimelineEditError(`Clip "${clipId}" got an invalid transform.`)
+  }
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? { ...item, transform: next } : item))
+  })
 }
 
 // Moves one or more clips to startMs on a track, as one edit (Epic 07, #88). The moving clips keep
