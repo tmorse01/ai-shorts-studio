@@ -2,6 +2,7 @@
 // label, and which part of a filmstrip or waveform each clip shows. No DOM, so each rule is tested.
 import type { FilmstripPlan } from '@shared/media/thumbs'
 import type { Clip } from '@shared/timeline/timeline'
+import { envelopeWithin, type EnvelopePoint } from '@shared/timeline/ducking'
 import { timeToX } from './timelineView'
 
 // How far past each edge of the viewport clips are still rendered, so a scroll shows no pop-in.
@@ -82,6 +83,24 @@ export function filmstripTiles(args: {
     tiles.push({ leftPx, col: frame % plan.columns, row: Math.floor(frame / plan.columns) })
   }
   return tiles
+}
+
+// The gain line of a music clip: the ducking envelope across the clip, as SVG points in clip-local
+// pixels. Full gain sits near the top of the clip and a drop moves the line down.
+export function gainLinePoints(
+  clip: Clip,
+  envelope: readonly EnvelopePoint[],
+  pxPerMs: number,
+  heightPx: number
+): string {
+  const padPx = 6
+  return envelopeWithin(envelope, clip.startMs, clip.startMs + clip.durationMs)
+    .map((point) => {
+      const x = (point.tMs - clip.startMs) * pxPerMs
+      const y = padPx + (1 - point.gain) * (heightPx - 2 * padPx)
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
 }
 
 export interface SourceStrip {

@@ -11,12 +11,18 @@ import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
 import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
+import { transcriptSchema } from './analysis/transcript'
 import {
   aiStatusSchema,
   MAX_CAP_USD,
   visionEstimateSchema,
   visionModelSchema
 } from './ai/aiSettings'
+import {
+  generatedScriptSchema,
+  scriptEstimateSchema,
+  scriptRunInputSchema
+} from './ai/scriptGeneration'
 
 const analysisItemSchema = z.object({
   id: z.string().min(1),
@@ -325,6 +331,14 @@ export const ipcChannels = {
     }),
     output: z.object({ file: analysisFileSchema })
   },
+  // One media item's cached transcript, or null when it has none yet (not analyzed, or cache cleared).
+  'analysis:transcript:read': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/)
+    }),
+    output: z.object({ transcript: transcriptSchema.nullable() })
+  },
   // Tells main that playback started or stopped. Analysis pauses while playback runs.
   'analysis:playback': {
     input: z.object({ playing: z.boolean() }),
@@ -360,6 +374,17 @@ export const ipcChannels = {
   'ai:vision:estimate': {
     input: z.object({ shotCount: z.number().int().nonnegative().max(100000) }),
     output: visionEstimateSchema
+  },
+  // What one script run would cost and which footage it would use. Sends nothing to the API.
+  'ai:scripts:estimate': {
+    input: scriptRunInputSchema,
+    output: scriptEstimateSchema
+  },
+  // Drafts scripts from the request and the project's footage. The reply is drafts only; the renderer
+  // saves them through a project command, so they can be undone.
+  'ai:scripts:generate': {
+    input: scriptRunInputSchema,
+    output: z.object({ scripts: z.array(generatedScriptSchema).min(1) })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 

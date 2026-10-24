@@ -4,13 +4,20 @@ import type { ComponentType } from 'react'
 import type { Gap } from '@shared/timeline/gaps'
 import type { Timeline, TrackKind } from '@shared/timeline/timeline'
 
-export const INSPECTOR_TABS = ['video', 'audio', 'ai'] as const
+export const INSPECTOR_TABS = ['video', 'audio', 'ai', 'transcript'] as const
 export type InspectorTab = (typeof INSPECTOR_TABS)[number]
 
 export const INSPECTOR_TAB_LABELS: Record<InspectorTab, string> = {
   video: 'Video',
   audio: 'Audio',
-  ai: 'AI'
+  ai: 'AI',
+  transcript: 'Transcript'
+}
+
+// The tabs the inspector shows. The transcript tab belongs to the source view only, so it is
+// listed only while the centre pane shows a source clip.
+export function visibleInspectorTabs(sourceView: boolean): readonly InspectorTab[] {
+  return sourceView ? INSPECTOR_TABS : INSPECTOR_TABS.filter((tab) => tab !== 'transcript')
 }
 
 // What the inspector is editing. 'short' is the empty selection: the short's own properties.
