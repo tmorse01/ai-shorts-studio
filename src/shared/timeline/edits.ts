@@ -30,7 +30,11 @@ function trackById(timeline: Timeline, trackId: string): Track {
   return track
 }
 
+// Every clip edit goes through here, so a locked track refuses all of them in one place.
+// setTrackFlag is the only edit that changes a locked track's flags.
 function replaceTrack(timeline: Timeline, next: Track): Timeline {
+  const current = timeline.tracks.find((track) => track.id === next.id)
+  if (current?.locked) throw new TimelineEditError(`Track "${next.id}" is locked.`)
   return {
     ...timeline,
     tracks: timeline.tracks.map((track) => (track.id === next.id ? next : track))
@@ -267,4 +271,29 @@ export function detachAudio(
   const target = trackById(next, audioTrackId)
   next = replaceTrack(next, { ...target, clips: [...target.clips, audioClip] })
   return assertMainNoOverlap(next)
+}
+
+// Turns a track's mute or lock flag on or off. This is the only edit that works on a locked track,
+// so a locked track can still be unlocked.
+export function setTrackFlag(
+  timeline: Timeline,
+  trackId: string,
+  flag: 'muted' | 'locked',
+  value: boolean
+): Timeline {
+  trackById(timeline, trackId)
+  return {
+    ...timeline,
+    tracks: timeline.tracks.map((track) =>
+      track.id === trackId ? { ...track, [flag]: value } : track
+    )
+  }
+}
+
+// Adds an empty track. Ids must be unique on the timeline.
+export function addTrack(timeline: Timeline, track: Track): Timeline {
+  if (timeline.tracks.some((item) => item.id === track.id)) {
+    throw new TimelineEditError(`A track with id "${track.id}" already exists.`)
+  }
+  return { ...timeline, tracks: [...timeline.tracks, { ...track, clips: [] }] }
 }

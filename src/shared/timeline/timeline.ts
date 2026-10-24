@@ -48,6 +48,8 @@ export const trackSchema = z.object({
   kind: trackKindSchema,
   role: trackRoleSchema,
   muted: z.boolean(),
+  // A locked track refuses clip edits. Optional so existing tracks need no key. Read it as `?? false`.
+  locked: z.boolean().optional(),
   clips: z.array(clipSchema)
 })
 export type Track = z.infer<typeof trackSchema>

@@ -1,0 +1,133 @@
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-subtle-border);
+}
+
+.zoom {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.canvas {
+  position: relative;
+  min-height: 100%;
+}
+
+.rulerRow {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  background: var(--color-surface);
+}
+
+.headerSpacer {
+  position: sticky;
+  left: 0;
+  flex: none;
+  background: var(--color-surface);
+}
+
+.ruler {
+  position: relative;
+  height: 100%;
+  border-bottom: var(--border-width) solid var(--color-subtle-border);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.tick {
+  position: absolute;
+  top: var(--space-1);
+  padding-left: var(--space-1);
+  border-left: var(--border-width) solid var(--color-subtle-border);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lane {
+  position: relative;
+  display: flex;
+  border-bottom: var(--border-width) solid var(--color-subtle-border);
+}
+
+.header {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  background: var(--color-surface);
+  border-right: var(--border-width) solid var(--color-subtle-border);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.laneBody {
+  flex: none;
+}
+
+/* Sits over the lane bodies only, below the ruler (its top is set inline). Clicks pass through. */
+.overlay {
+  position: absolute;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.targetBand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.overTarget {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--color-destructive) 14%, transparent);
+}
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--border-width);
+  background: var(--color-primary);
+}
