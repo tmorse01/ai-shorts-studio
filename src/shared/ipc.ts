@@ -2,6 +2,7 @@
 // zod schema for its request and its response. Main validates requests and responses with these
 // schemas; the preload bridge checks responses too, so a drifted main process fails loudly.
 import { z } from 'zod'
+import { projectSchema } from './project/schema'
 
 export const ipcErrorCodeSchema = z.enum([
   'UNKNOWN_CHANNEL',
@@ -41,10 +42,28 @@ export function ipcFailure(
 }
 
 // One entry per channel. Add new channels here, then add a handler in src/main/ipc/handlers.ts.
+const projectOpenedSchema = z.object({
+  folderPath: z.string().min(1),
+  project: projectSchema,
+  // Plain-language warning for a toast, for example when the project was recovered from its backup.
+  warning: z.string().optional()
+})
+
 export const ipcChannels = {
   'app:echo': {
     input: z.object({ text: z.string().trim().min(1).max(200) }),
     output: z.object({ text: z.string(), length: z.number().int().nonnegative() })
+  },
+  'project:create': {
+    input: z.object({
+      folderPath: z.string().trim().min(1),
+      name: z.string().trim().min(1).max(120)
+    }),
+    output: projectOpenedSchema
+  },
+  'project:open': {
+    input: z.object({ folderPath: z.string().trim().min(1) }),
+    output: projectOpenedSchema
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 
