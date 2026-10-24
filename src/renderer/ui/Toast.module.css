@@ -1,0 +1,110 @@
+.viewport {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 360px;
+  max-width: calc(100vw - var(--space-5) * 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  outline: none;
+  z-index: 70;
+}
+
+.root {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-border);
+  border-left: 2px solid var(--color-primary);
+  border-radius: var(--radius);
+}
+
+.root[data-state='open'] {
+  animation: slideIn var(--duration-slow) var(--ease-standard);
+}
+
+.root[data-state='closed'] {
+  animation: fadeOut var(--duration-base) var(--ease-standard);
+}
+
+.root[data-swipe='move'] {
+  transform: translateX(var(--radix-toast-swipe-move-x));
+}
+
+.root[data-swipe='end'] {
+  animation: fadeOut var(--duration-fast) var(--ease-standard);
+}
+
+.error {
+  border-left-color: var(--color-destructive);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.title {
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  font-weight: 600;
+}
+
+.description {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+  overflow-wrap: anywhere;
+}
+
+.close {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-2);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--color-text);
+}
+
+.close:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(calc(100% + var(--space-5)));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root[data-state='open'],
+  .root[data-state='closed'],
+  .root[data-swipe='end'] {
+    animation: none;
+  }
+}
