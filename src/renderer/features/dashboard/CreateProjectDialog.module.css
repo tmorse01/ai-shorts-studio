@@ -1,0 +1,27 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+}
+
+.folderRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.folderRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
