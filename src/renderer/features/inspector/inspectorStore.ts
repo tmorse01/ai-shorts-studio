@@ -26,12 +26,13 @@ export interface VideoClipTarget {
   apply: (label: string, edit: (timeline: Timeline) => Timeline, mergeKey?: string) => void
 }
 
-// The framing of the one selected fill-framed clip, for the pan section (Epic 09, #105). framing is the
-// stored framing, or a centred fill. apply runs an edit on that clip as one history entry.
+// The framing of the one selected video clip, for the framing section (Epic 09, #105 and #106). framing
+// is the stored framing, or a centred fill. apply runs an edit on that clip as one history entry; calls
+// with the same mergeKey fold into one entry, so a slider drag is one undo step.
 export interface FramingTarget {
   clipId: string
   framing: ClipFraming
-  apply: (label: string, edit: (framing: ClipFraming) => ClipFraming) => void
+  apply: (label: string, edit: (framing: ClipFraming) => ClipFraming, mergeKey?: string) => void
 }
 
 export interface InspectorState {

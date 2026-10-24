@@ -7,6 +7,7 @@ import {
   easeInOut,
   interpolatePose,
   poseOf,
+  resetFraming,
   resolveFramingAt,
   setEndFraming,
   withPose,
@@ -14,7 +15,7 @@ import {
 } from '@shared/timeline/framing'
 import { updateClipFraming } from '@shared/timeline/edits'
 import { IDENTITY_TRANSFORM, type Timeline } from '@shared/timeline/timeline'
-import { framedClipFor } from '@renderer/features/compositor/panTarget'
+import { framingClipFor } from '@renderer/features/compositor/panTarget'
 import { createHistoryStore, type Command } from '@renderer/features/history/historyStore'
 
 const LANDSCAPE = { width: 1920, height: 1080 }
@@ -191,21 +192,28 @@ describe('framingOutlines', () => {
   })
 })
 
-describe('framedClipFor', () => {
-  it('returns the one selected fill-framed video clip', () => {
+describe('framingClipFor', () => {
+  it('returns the one selected video clip, fill or blur-fit', () => {
     const timeline = timelineWith({ mode: 'fill', x: 0, y: 0, scale: 1 })
-    expect(framedClipFor(timeline, ['c1'])?.id).toBe('c1')
+    expect(framingClipFor(timeline, ['c1'])?.id).toBe('c1')
+    const blur = timelineWith({ mode: 'blurFit', x: 0, y: 0, scale: 1 })
+    expect(framingClipFor(blur, ['c1'])?.id).toBe('c1')
   })
 
   it('treats a clip with no framing as a centred fill', () => {
-    expect(framedClipFor(timelineWith(undefined), ['c1'])?.id).toBe('c1')
+    expect(framingClipFor(timelineWith(undefined), ['c1'])?.id).toBe('c1')
   })
 
-  it('gives nothing for blur-fit, several clips, no selection or an unknown clip', () => {
-    const blur = timelineWith({ mode: 'blurFit', x: 0, y: 0, scale: 1 })
-    expect(framedClipFor(blur, ['c1'])).toBeNull()
-    expect(framedClipFor(timelineWith(undefined), ['c1', 'c2'])).toBeNull()
-    expect(framedClipFor(timelineWith(undefined), [])).toBeNull()
-    expect(framedClipFor(timelineWith(undefined), ['missing'])).toBeNull()
+  it('gives nothing for several clips, no selection or an unknown clip', () => {
+    expect(framingClipFor(timelineWith(undefined), ['c1', 'c2'])).toBeNull()
+    expect(framingClipFor(timelineWith(undefined), [])).toBeNull()
+    expect(framingClipFor(timelineWith(undefined), ['missing'])).toBeNull()
+  })
+})
+
+describe('resetFraming', () => {
+  it('centres the crop at the cover zoom and removes the pan, keeping the mode', () => {
+    const reset = resetFraming({ ...PANNED, mode: 'blurFit' })
+    expect(reset).toEqual({ mode: 'blurFit', x: 0, y: 0, scale: 1 })
   })
 })
