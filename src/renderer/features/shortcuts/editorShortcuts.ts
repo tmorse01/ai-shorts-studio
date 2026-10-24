@@ -2,6 +2,7 @@ import { editorHistory } from '@renderer/features/history/editorHistory'
 import { redoProjectEdit, undoProjectEdit } from '@renderer/features/shorts/shortActions'
 import { uiStore } from '@renderer/features/layout/useUiStore'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
+import { timelineViewStore } from '@renderer/features/timeline/timelineViewStore'
 import type { PaneId } from '@shared/layout'
 import { shortcutHelpStore } from './shortcutHelpStore'
 import type { ShortcutDefinition, ShortcutRegistry } from './shortcutRegistry'
@@ -62,6 +63,13 @@ export function editorShortcuts(): ShortcutDefinition[] {
       label: 'Step forward one frame',
       group: 'Playback',
       run: () => playbackStore.getState().step(1)
+    },
+    {
+      id: 'timeline.toggleSnapping',
+      keys: ['n'],
+      label: 'Toggle snapping in the timeline',
+      group: 'Timeline',
+      run: () => timelineViewStore.getState().toggleSnapping()
     },
     togglePane('left', 'Toggle left panel', '1'),
     togglePane('right', 'Toggle right panel', '2'),

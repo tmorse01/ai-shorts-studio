@@ -162,7 +162,7 @@ describe('editor shortcuts', () => {
     const unregister = registerEditorShortcuts(registry)
 
     const groups = new Set(registry.list().map((shortcut) => shortcut.group))
-    expect(groups).toEqual(new Set(['Edit', 'Playback', 'Panes', 'Help']))
+    expect(groups).toEqual(new Set(['Edit', 'Playback', 'Timeline', 'Panes', 'Help']))
 
     unregister()
     expect(registry.list()).toEqual([])
