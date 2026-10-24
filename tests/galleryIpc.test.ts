@@ -29,6 +29,7 @@ afterEach(async () => {
 function setup(overrides: Partial<SystemActions> = {}) {
   const system: SystemActions = {
     pickFolder: async () => folder,
+    pickMediaFiles: async () => [],
     revealFolder: (path) => {
       revealed.push(path)
     },
