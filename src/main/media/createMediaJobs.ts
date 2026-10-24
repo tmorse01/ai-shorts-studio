@@ -4,6 +4,8 @@ import { app } from 'electron'
 import { JobQueue, unavailableExecutors, type JobExecutors } from '../jobs/jobQueue'
 import { resolveBinary, type BinaryLocation } from './binaries'
 import { probeMedia } from './probeMedia'
+import { makeFilmstrip, makeThumb } from './thumbnails'
+import { UserFacingError } from '../errors'
 
 export function createMediaJobs(): JobQueue {
   const location: BinaryLocation = {
@@ -16,7 +18,23 @@ export function createMediaJobs(): JobQueue {
   const executors: JobExecutors = {
     ...unavailableExecutors(),
     probe: ({ path }, { signal }) =>
-      probeMedia(path, { ffprobe: resolveBinary('ffprobe', location), signal })
+      probeMedia(path, { ffprobe: resolveBinary('ffprobe', location), signal }),
+    thumbs: ({ path, outDir, mediaKind }, { signal }) => {
+      if (!outDir || !mediaKind) throw new UserFacingError('The thumbnail job lost its details.')
+      return makeThumb(mediaKind, path, outDir, {
+        ffmpeg: resolveBinary('ffmpeg', location),
+        signal
+      })
+    },
+    filmstrip: ({ path, outDir, durationSec }, { signal }) => {
+      if (!outDir || durationSec === undefined) {
+        throw new UserFacingError('The filmstrip job lost its details.')
+      }
+      return makeFilmstrip(path, outDir, durationSec, {
+        ffmpeg: resolveBinary('ffmpeg', location),
+        signal
+      })
+    }
   }
   return new JobQueue(executors)
 }

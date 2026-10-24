@@ -3,11 +3,18 @@
 // No Electron imports here, so it can be tested directly.
 import { basename } from 'node:path'
 import { isJobFinished, type JobKind, type JobSnapshot } from '@shared/media/jobs'
+import type { MediaKind } from '@shared/project/schema'
 import type { ProbeResult } from '@shared/media/probe'
 import { UserFacingError } from '../errors'
 
 export interface JobInput {
   path: string
+  /** Folder the job writes its output into. Set for thumbnail and filmstrip jobs. */
+  outDir?: string
+  /** What kind of media the file is. Thumbnail jobs pick their output from it. */
+  mediaKind?: MediaKind
+  /** Length of the file in seconds. Filmstrip jobs need it to space their frames. */
+  durationSec?: number
 }
 
 export interface JobContext {
@@ -75,7 +82,11 @@ export class JobQueue {
     private readonly concurrency = DEFAULT_CONCURRENCY
   ) {}
 
-  enqueue<K extends JobKind>(kind: K, path: string): EnqueuedJob<K> {
+  enqueue<K extends JobKind>(
+    kind: K,
+    path: string,
+    extra: Omit<JobInput, 'path'> = {}
+  ): EnqueuedJob<K> {
     this.sequence += 1
     const id = `job-${this.sequence}`
     let resolve!: (value: unknown) => void
@@ -89,7 +100,7 @@ export class JobQueue {
 
     const entry: Entry = {
       seq: this.sequence,
-      input: { path },
+      input: { path, ...extra },
       snapshot: { id, kind, label: basename(path), status: 'queued', progress: 0 },
       controller: new AbortController(),
       settle: { resolve, reject }
