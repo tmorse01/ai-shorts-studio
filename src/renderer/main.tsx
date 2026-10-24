@@ -1,15 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import * as Tooltip from '@radix-ui/react-tooltip'
-import '@fontsource-variable/inter'
-import '@fontsource-variable/jetbrains-mono'
-import App from './App'
-import './styles.css'
+import { App } from '@renderer/App'
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <Tooltip.Provider>
-      <App />
-    </Tooltip.Provider>
+    <App />
   </StrictMode>
 )

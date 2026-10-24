@@ -2,15 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [rebuild, main]
   pull_request:
+    branches: [rebuild, main]
 
 permissions:
   contents: read
 
 jobs:
   app:
-    name: App (lint, typecheck, test)
+    name: App (lint, typecheck, test, build)
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -28,12 +29,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install FFmpeg
-        run: choco install ffmpeg -y --no-progress
-
-      - name: Fetch FFmpeg and build parakeet-cli
-        run: pnpm fetch:bin
-
       - name: Lint
         run: pnpm lint
 
@@ -42,6 +37,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Build
+        run: pnpm build
 
   site:
     name: Site (build)
