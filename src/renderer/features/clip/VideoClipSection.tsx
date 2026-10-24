@@ -1,12 +1,9 @@
 import type { JSX, ReactNode } from 'react'
 import { Film } from 'lucide-react'
-import { setClipAudio } from '@shared/timeline/edits'
 import type { Moment } from '@shared/project/schema'
-import type { Clip } from '@shared/timeline/timeline'
 import { Button } from '@renderer/ui/Button'
-import { SliderNumberField } from '@renderer/ui/SliderNumberField'
 import { TimecodeField } from '@renderer/ui/TimecodeField'
-import { dbToGain, formatDb, gainToDb, parseDb, SILENT_DB } from '@renderer/ui/fieldMath'
+import { SoundFields } from '@renderer/features/audio/SoundFields'
 import { useProjectStore } from '../project/useProjectStore'
 import { sourceStore } from '../source/sourceStore'
 import { useInspectorStore } from '../inspector/useInspectorStore'
@@ -14,15 +11,26 @@ import type { VideoClipTarget } from '../inspector/inspectorStore'
 import { setDuration, setSourceIn, setSourceOut, sourceWindowOf } from './videoClipFields'
 import styles from './VideoClipSection.module.css'
 
-// The inspector's video clip section (Epic 08, #96), in the Video tab. It shows the clip's source, with
-// Show in source viewer, and its Source In, Out and Duration. Linked audio (volume, mute and fades) shows
-// only while the clip's sound is attached. Each change is one undoable edit.
+// The inspector's video clip section (Epic 08, #96 and #99), in the Video tab. With one clip selected it
+// shows the clip's source, with Show in source viewer, and its Source In, Out and Duration. The sound
+// (volume, mute and fades) shows while the clip's sound is attached, and with several clips selected it
+// shows the sound they share. Each change is one undoable edit.
 export function VideoClipSection(): JSX.Element {
   const target = useInspectorStore((state) => state.videoTarget)
-  if (!target) {
+  const sound = useInspectorStore((state) => state.audioTarget)
+  if (!target && !sound) {
     return <p className={styles.empty}>Select a video clip to see its properties.</p>
   }
-  return <VideoClipForm key={target.clip.id} target={target} />
+  return (
+    <div className={styles.body}>
+      {target ? <VideoClipForm key={target.clip.id} target={target} /> : null}
+      {sound ? (
+        <div className={styles.sound}>
+          <SoundFields target={sound} />
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 interface VideoClipFormProps {
@@ -30,7 +38,7 @@ interface VideoClipFormProps {
 }
 
 function VideoClipForm({ target }: VideoClipFormProps): JSX.Element {
-  const { clip, linkedAudio, apply } = target
+  const { clip, apply } = target
   const media = useProjectStore((state) =>
     state.current?.project.media.find((item) => item.id === clip.mediaId)
   )
@@ -76,77 +84,6 @@ function VideoClipForm({ target }: VideoClipFormProps): JSX.Element {
           label="Duration"
           valueMs={span.durationMs}
           onChange={(ms) => apply('Change duration', setDuration(clip, ms, sourceLengthMs))}
-        />
-      </Field>
-
-      {linkedAudio ? <LinkedAudio audio={linkedAudio} apply={apply} /> : null}
-    </div>
-  )
-}
-
-interface LinkedAudioProps {
-  audio: Clip
-  apply: VideoClipTarget['apply']
-}
-
-// The sound of the clip while it is linked. Edits go to the audio clip, the one whose sound plays.
-function LinkedAudio({ audio, apply }: LinkedAudioProps): JSX.Element {
-  const muted = audio.muted ?? false
-  const gain = audio.gain ?? 1
-
-  return (
-    <div className={styles.sound}>
-      <Field label="Sound">
-        <Button
-          variant="secondary"
-          aria-pressed={muted}
-          onClick={() =>
-            apply(muted ? 'Unmute clip' : 'Mute clip', (timeline) =>
-              setClipAudio(timeline, audio.id, { muted: !muted })
-            )
-          }
-        >
-          {muted ? 'Unmute' : 'Mute'}
-        </Button>
-      </Field>
-      <Field label="Volume">
-        <SliderNumberField
-          label="Clip volume"
-          value={gainToDb(gain)}
-          min={SILENT_DB}
-          max={gainToDb(2)}
-          step={0.5}
-          format={formatDb}
-          parse={parseDb}
-          onChange={(db) =>
-            apply(
-              'Change clip volume',
-              (timeline) => setClipAudio(timeline, audio.id, { gain: dbToGain(db) }),
-              `clip-volume-${audio.id}`
-            )
-          }
-        />
-      </Field>
-      <Field label="Fade in">
-        <TimecodeField
-          label="Fade in"
-          valueMs={audio.fadeInMs ?? 0}
-          onChange={(ms) =>
-            apply('Change fade in', (timeline) =>
-              setClipAudio(timeline, audio.id, { fadeInMs: ms })
-            )
-          }
-        />
-      </Field>
-      <Field label="Fade out">
-        <TimecodeField
-          label="Fade out"
-          valueMs={audio.fadeOutMs ?? 0}
-          onChange={(ms) =>
-            apply('Change fade out', (timeline) =>
-              setClipAudio(timeline, audio.id, { fadeOutMs: ms })
-            )
-          }
         />
       </Field>
     </div>

@@ -6,17 +6,17 @@ import type { ClipAudioChange } from '@shared/timeline/edits'
 import type { DuckingSettings } from '@shared/timeline/ducking'
 import type { ClipFraming } from '@shared/timeline/framing'
 import type { Clip, Timeline, Transition, TransitionKind } from '@shared/timeline/timeline'
+import type { SoundValues } from '@renderer/features/audio/soundValues'
 import { defaultTabFor, type InspectorTab, type SelectionType } from './inspectorModel'
+import type { SharedProperties } from './sharedProperties'
 
-// The sound of the one selected clip, for the clip audio section (Epic 07, #91). The timeline pane
-// publishes it. apply runs an edit on that clip as one history entry; calls with the same mergeKey fold
-// into one entry, so a volume drag is one undo step.
+// The sound of the selection, for the sound fields (Epic 07, #91; multi-select #99). The timeline pane
+// publishes it when every selected item has a sound. shared holds each sound property's value, mixed
+// when the items differ. apply runs one edit on every sound as one history entry; calls with the same
+// mergeKey fold into one entry, so a volume drag is one undo step.
 export interface AudioTarget {
-  clipId: string
-  muted: boolean
-  gain: number
-  fadeInMs: number
-  fadeOutMs: number
+  soundIds: readonly string[]
+  shared: SharedProperties<SoundValues>
   apply: (label: string, change: ClipAudioChange, mergeKey?: string) => void
 }
 
@@ -32,11 +32,10 @@ export interface MusicTarget {
 }
 
 // The one selected video clip, for the video clip section (Epic 08, #96). The timeline pane publishes
-// it. apply runs an edit as one history entry; calls with the same mergeKey fold into one entry. The
-// linked audio is the clip's sound when it has one, or null when the sound is detached.
+// it. apply runs an edit as one history entry; calls with the same mergeKey fold into one entry. Its
+// sound is published separately as the audio target.
 export interface VideoClipTarget {
   clip: Clip
-  linkedAudio: Clip | null
   apply: (label: string, edit: (timeline: Timeline) => Timeline, mergeKey?: string) => void
 }
 
@@ -62,6 +61,8 @@ export interface TransitionTarget {
 
 export interface InspectorState {
   selectionType: SelectionType
+  // How many timeline items the selection holds. Shown in the selection header.
+  selectionCount: number
   tab: InspectorTab
   collapsed: Record<string, boolean>
   audioTarget: AudioTarget | null
@@ -73,7 +74,8 @@ export interface InspectorState {
 
 export interface InspectorActions {
   // Changing the selection type moves the tab to the one it opens. The same type keeps the tab.
-  setSelectionType: (selectionType: SelectionType) => void
+  // count is the number of selected items (defaults to 1). The short has no selection and ignores it.
+  setSelectionType: (selectionType: SelectionType, count?: number) => void
   setTab: (tab: InspectorTab) => void
   toggleSection: (sectionId: string) => void
   setAudioTarget: (target: AudioTarget | null) => void
@@ -88,6 +90,7 @@ export type InspectorStore = InspectorState & InspectorActions
 export function createInspectorStore() {
   return createStore<InspectorStore>()((set, get) => ({
     selectionType: 'short',
+    selectionCount: 0,
     tab: defaultTabFor('short'),
     collapsed: {},
     audioTarget: null,
@@ -100,9 +103,13 @@ export function createInspectorStore() {
     setMusicTarget: (musicTarget) => set({ musicTarget }),
     setVideoTarget: (videoTarget) => set({ videoTarget }),
     setFramingTarget: (framingTarget) => set({ framingTarget }),
-    setSelectionType: (selectionType) => {
-      if (selectionType === get().selectionType) return
-      set({ selectionType, tab: defaultTabFor(selectionType) })
+    setSelectionType: (selectionType, count = 1) => {
+      const current = get()
+      if (selectionType === current.selectionType) {
+        if (count !== current.selectionCount) set({ selectionCount: count })
+        return
+      }
+      set({ selectionType, selectionCount: count, tab: defaultTabFor(selectionType) })
     },
     setTab: (tab) => set({ tab }),
     toggleSection: (sectionId) =>

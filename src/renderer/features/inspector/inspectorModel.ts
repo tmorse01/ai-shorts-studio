@@ -85,3 +85,20 @@ function trackKindOfClip(timeline: Timeline, clipId: string): TrackKind | undefi
   }
   return undefined
 }
+
+// The selection header's text (Epic 08, #99): the selection count and type, such as "3 audio clips".
+// The short has no selection to count, so it reads "Short".
+export function selectionHeaderFor(selection: SelectionType, count: number): string {
+  switch (selection) {
+    case 'short':
+      return 'Short'
+    case 'gap':
+      return 'Gap'
+    case 'transition':
+      return 'Transition'
+    case 'video-clip':
+      return count === 1 ? 'Video clip' : `${count} video clips`
+    case 'audio-clip':
+      return count === 1 ? 'Audio clip' : `${count} audio clips`
+  }
+}
