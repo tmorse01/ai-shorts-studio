@@ -61,6 +61,30 @@
   height: 100%;
 }
 
+/* The empty state, shown over the frame when the short has no clips. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Development only: how many frames playback held because footage was not decoded yet. */
+.dropped {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+  font-feature-settings: var(--font-mono-features);
+}
+
 /* Shown in place of a frame when the footage is not on disk. */
 .offline {
   position: absolute;
