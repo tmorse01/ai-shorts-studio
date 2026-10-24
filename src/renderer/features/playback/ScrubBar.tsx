@@ -1,7 +1,9 @@
 import { useStore } from 'zustand'
 import { markedRange, rangePercent } from '@shared/media/sourceMarks'
+import { mediaUsageIndex } from '@shared/timeline/mediaUsage'
 import { MasterVolume } from '../audio/MasterVolume'
 import { SaveMomentControl } from '../moments/SaveMomentControl'
+import { projectStore } from '../project/projectStore'
 import { sourceStore } from '../source/sourceStore'
 import { usePlaybackClock } from './usePlaybackClock'
 import { formatTimecode } from './playbackClock'
@@ -19,8 +21,18 @@ export function ScrubBar() {
   const inMs = useStore(sourceStore, (state) => state.inMs)
   const outMs = useStore(sourceStore, (state) => state.outMs)
 
+  const sourceId = useStore(sourceStore, (state) => state.sourceId)
+  const shorts = useStore(projectStore, (state) => state.current?.project.shorts)
+
   const range = mode === 'source' ? markedRange({ inMs, outMs }) : null
   const span = range && durationMs > 0 ? rangePercent(range, durationMs) : null
+
+  // Stretches of this footage that a short already uses, with the shorts' names on hover.
+  const shortNames = new Map((shorts ?? []).map((short) => [short.id, short.name]))
+  const usedRanges =
+    mode === 'source' && sourceId !== null && shorts
+      ? (mediaUsageIndex(shorts).get(sourceId)?.ranges ?? [])
+      : []
 
   return (
     <div className={styles.bar}>
@@ -42,6 +54,20 @@ export function ScrubBar() {
               style={{ left: `${span.left}%`, width: `${span.width}%` }}
             />
           ) : null}
+        </div>
+        <div className={styles.usedRow}>
+          {usedRanges.map((used, index) => {
+            const place = durationMs > 0 ? rangePercent(used, durationMs) : { left: 0, width: 0 }
+            const names = used.shortIds.map((id) => shortNames.get(id) ?? id).join(', ')
+            return (
+              <span
+                key={`${used.startMs}-${used.endMs}-${index}`}
+                className={styles.used}
+                style={{ left: `${place.left}%`, width: `${place.width}%` }}
+                title={`Used in ${names}`}
+              />
+            )
+          })}
         </div>
       </div>
       {mode === 'source' && (inMs !== null || outMs !== null) ? (

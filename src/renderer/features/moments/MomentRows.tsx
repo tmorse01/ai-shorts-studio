@@ -12,6 +12,7 @@ import { toast } from '../toasts/toast'
 import { allMediaTags } from '../media/mediaTags'
 import { deleteMomentCommand, renameMomentCommand, retagMomentCommand } from './momentCommands'
 import { formatMomentDuration } from './momentView'
+import { DRAG_MIME, encodeDragPayload, momentPayload } from '@shared/timeline/dragPayload'
 import styles from './MomentRows.module.css'
 
 export interface MomentRowsProps {
@@ -74,7 +75,12 @@ export function MomentRows({ moments, project }: MomentRowsProps): JSX.Element {
             key={moment.id}
             className={`${styles.moment} ${ai ? styles.ai : ''}`}
             data-created-by={moment.createdBy}
-            title="Double-click to open in the source viewer"
+            title="Double-click to open in the source viewer. Drag onto the timeline."
+            draggable={renamingId !== moment.id}
+            onDragStart={(event) => {
+              event.dataTransfer.setData(DRAG_MIME, encodeDragPayload(momentPayload(moment)))
+              event.dataTransfer.effectAllowed = 'copy'
+            }}
             onDoubleClick={() => {
               if (renamingId === moment.id) return
               sourceStore.getState().openRange(moment.mediaId, moment.inMs, moment.outMs)
@@ -82,7 +88,10 @@ export function MomentRows({ moments, project }: MomentRowsProps): JSX.Element {
           >
             <div className={styles.row}>
               {renamingId === moment.id ? (
-                <form className={styles.renameForm} onSubmit={(event) => onRenameSubmit(event, moment.id)}>
+                <form
+                  className={styles.renameForm}
+                  onSubmit={(event) => onRenameSubmit(event, moment.id)}
+                >
                   <Input
                     autoFocus
                     aria-label="Moment name"
@@ -96,7 +105,9 @@ export function MomentRows({ moments, project }: MomentRowsProps): JSX.Element {
                 <span className={styles.name}>{moment.name}</span>
               )}
               {ai ? <span className={styles.aiLabel}>AI</span> : null}
-              <span className={styles.meta}>{formatMomentDuration(moment.outMs - moment.inMs)}</span>
+              <span className={styles.meta}>
+                {formatMomentDuration(moment.outMs - moment.inMs)}
+              </span>
               <IconButton
                 icon={Tag}
                 label="Edit tags"
