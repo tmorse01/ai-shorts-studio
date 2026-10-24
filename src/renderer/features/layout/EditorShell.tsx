@@ -4,6 +4,7 @@ import { registerEditorShortcuts } from '@renderer/features/shortcuts/editorShor
 import { ShortcutsDialog } from '@renderer/features/shortcuts/ShortcutsDialog'
 import { shortcutRegistry } from '@renderer/features/shortcuts/shortcutRegistry'
 import { MediaPanel } from '@renderer/features/media/MediaPanel'
+import { Inspector } from '@renderer/features/inspector/Inspector'
 import { useMediaDrop } from '@renderer/features/media/useMediaDrop'
 import { LEFT_TOOL_DEFINITIONS } from './leftTools'
 import { EditorToolbar } from './EditorToolbar'
@@ -50,10 +51,7 @@ export function EditorShell({ timeline, shortId }: EditorShellProps) {
           </PaneFrame>
           <PreviewCanvas timeline={timeline} shortId={shortId} />
           <PaneFrame pane="right" title="Inspector">
-            <EmptyState
-              title="Nothing selected"
-              description="Select a clip to edit its position, timing and audio."
-            />
+            <Inspector />
           </PaneFrame>
         </div>
         <PaneFrame pane="bottom" title="Timeline">

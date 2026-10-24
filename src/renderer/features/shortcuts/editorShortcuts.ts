@@ -3,6 +3,7 @@ import { redoProjectEdit, undoProjectEdit } from '@renderer/features/shorts/shor
 import { uiStore } from '@renderer/features/layout/useUiStore'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
 import { sourceStore } from '@renderer/features/source/sourceStore'
+import { toast } from '@renderer/features/toasts/toast'
 import { timelineViewStore } from '@renderer/features/timeline/timelineViewStore'
 import type { PaneId } from '@shared/layout'
 import { shortcutHelpStore } from './shortcutHelpStore'
@@ -106,6 +107,20 @@ export function editorShortcuts(): ShortcutDefinition[] {
       label: 'Clear In and Out marks',
       group: 'Source',
       run: () => sourceStore.getState().clearMarks()
+    },
+    {
+      id: 'source.saveMoment',
+      keys: ['m'],
+      label: 'Save the In and Out range as a moment',
+      group: 'Source',
+      run: () => {
+        const store = sourceStore.getState()
+        if (store.inMs === null || store.outMs === null) {
+          toast.info({ title: 'Mark In and Out first' })
+          return
+        }
+        store.startNamingMoment()
+      }
     },
     {
       id: 'timeline.toggleSnapping',

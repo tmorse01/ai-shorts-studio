@@ -36,6 +36,7 @@ describe('deleting a short and undoing it', () => {
       updatedAt: NOW,
       media: [],
       mediaTags: [],
+      moments: [],
       defaults: { ...DEFAULT_SHORT_DEFAULTS },
       shorts: [short('a', 0), short('b', 1), short('c', 2)],
       scripts: []

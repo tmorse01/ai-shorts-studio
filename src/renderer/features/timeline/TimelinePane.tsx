@@ -11,6 +11,8 @@ import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
+import { inspectorStore } from '../inspector/inspectorStore'
+import { selectionTypeFor } from '../inspector/inspectorModel'
 import { formatTimecode } from '../playback/playbackClock'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
@@ -261,6 +263,15 @@ export function TimelinePane({
     latest.current.onEdit(label, edit)
     return true
   }
+
+  // The inspector edits what this pane selects. Publish the selection type; the short itself when nothing
+  // is selected. Reset on unmount so a closed timeline does not leave a stale selection behind.
+  useEffect(() => {
+    inspectorStore
+      .getState()
+      .setSelectionType(selectionTypeFor(timeline, selectedIds, selection.gap))
+  }, [timeline, selectedIds, selection.gap])
+  useEffect(() => () => inspectorStore.getState().setSelectionType('short'), [])
 
   // The shortcuts read the pane through this, so they always see the latest timeline and selection.
   const readShortcutContext = (): TimelineShortcutContext => ({
