@@ -47,7 +47,9 @@ import { mainGaps, type Gap } from '@shared/timeline/gaps'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
-import { audioTargetFor, soundClipFor } from '../audio/clipSound'
+import { soundClipFor, soundsFor } from '../audio/clipSound'
+import { soundValuesOf } from '../audio/soundValues'
+import { sharedProperties } from '../inspector/sharedProperties'
 import { videoSelectionFor } from '../clip/videoClipFields'
 import { carriesFootage, decodeDragPayload, DRAG_MIME } from '@shared/timeline/dragPayload'
 import { layerSelectionStore } from '../compositor/layerSelectionStore'
@@ -386,27 +388,31 @@ export function TimelinePane({
   // The inspector edits what this pane selects. Publish the selection type; the short itself when nothing
   // is selected. Reset on unmount so a closed timeline does not leave a stale selection behind.
   useEffect(() => {
-    inspectorStore
-      .getState()
-      .setSelectionType(
-        selectionTypeFor(timeline, selectedIds, selection.gap, selection.transitionId)
-      )
+    const type = selectionTypeFor(timeline, selectedIds, selection.gap, selection.transitionId)
+    // The header counts clips; a gap or a transition is one item, and the short has no selection.
+    const count =
+      type === 'short' ? 0 : selection.gap || selection.transitionId ? 1 : selectedIds.length
+    inspectorStore.getState().setSelectionType(type, count)
   }, [timeline, selectedIds, selection.gap, selection.transitionId])
-  useEffect(() => () => inspectorStore.getState().setSelectionType('short'), [])
+  useEffect(() => () => inspectorStore.getState().setSelectionType('short', 0), [])
 
-  // The clip audio section edits the sound of the one selected clip. Publish that clip, or nothing.
+  // The sound fields edit the sound of every selected clip together. They show only when every selected
+  // item has a sound, and each edit lands on all of the sounds as one history entry (#99).
   useEffect(() => {
-    const sound = audioTargetFor(timeline, selectedIds)
+    const sounds = soundsFor(timeline, selectedIds)
+    const shared = sharedProperties(sounds.map((sound) => (sound ? soundValuesOf(sound) : null)))
+    const soundIds = sounds.flatMap((sound) => (sound ? [sound.id] : []))
     inspectorStore.getState().setAudioTarget(
-      sound
+      shared && soundIds.length > 0
         ? {
-            clipId: sound.id,
-            muted: sound.muted ?? false,
-            gain: sound.gain ?? 1,
-            fadeInMs: sound.fadeInMs ?? 0,
-            fadeOutMs: sound.fadeOutMs ?? 0,
+            soundIds,
+            shared,
             apply: (label, change, mergeKey) =>
-              runEdit(label, (current) => setClipAudio(current, sound.id, change), mergeKey)
+              runEdit(
+                label,
+                (current) => soundIds.reduce((next, id) => setClipAudio(next, id, change), current),
+                mergeKey
+              )
           }
         : null
     )
@@ -454,7 +460,6 @@ export function TimelinePane({
       selected
         ? {
             clip: selected.clip,
-            linkedAudio: selected.linkedAudio,
             apply: (label, edit, mergeKey) => {
               runEdit(label, edit, mergeKey)
             }

@@ -11,6 +11,7 @@ import {
   type InspectorTab
 } from './inspectorModel'
 import { InspectorSection } from './InspectorSection'
+import { SelectionHeader } from './SelectionHeader'
 import { useInspectorStore } from './useInspectorStore'
 import styles from './Inspector.module.css'
 
@@ -32,6 +33,7 @@ export function Inspector(): JSX.Element {
 
   return (
     <div className={styles.inspector}>
+      <SelectionHeader />
       <Tabs
         aria-label="Inspector tabs"
         items={items}

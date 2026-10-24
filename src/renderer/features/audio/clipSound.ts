@@ -39,3 +39,26 @@ export function audioTargetFor(timeline: Timeline, clipIds: readonly string[]): 
   }
   return null
 }
+
+// The sound one selected clip contributes to a multi-selection's shared sound fields (#99). A video clip
+// contributes its linked audio clip, or null when its sound is detached. An audio clip contributes itself,
+// unless a video clip links to it, in which case it is edited through that video clip (as audioTargetFor
+// does). Any other clip contributes null. The result has one entry per selected clip, in order.
+export function soundsFor(timeline: Timeline, clipIds: readonly string[]): (Clip | null)[] {
+  const allClips = timeline.tracks.flatMap((track) => track.clips)
+  return clipIds.map((clipId) => {
+    const clip = allClips.find((item) => item.id === clipId)
+    if (!clip) return null
+    const kind = timeline.tracks.find((track) => track.clips.includes(clip))?.kind
+    if (kind === 'video') {
+      return clip.linkedAudio
+        ? (allClips.find((item) => item.id === clip.linkedAudio) ?? null)
+        : null
+    }
+    if (kind === 'audio') {
+      const linked = allClips.some((item) => item.linkedAudio === clipId)
+      return linked ? null : clip
+    }
+    return null
+  })
+}
