@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { RouterProvider, createHashHistory } from '@tanstack/react-router'
 import { useShortcutListener } from './features/shortcuts/useShortcutListener'
 import { ToastHost } from './features/toasts/ToastHost'
+import { VisionCostDialog } from './features/ai/VisionCostDialog'
 import { createAppRouter, type AppRouterOptions } from './routes/appRouter'
 
 export type AppProps = AppRouterOptions
@@ -15,6 +16,7 @@ export function App({ devRoutes = false }: AppProps) {
   return (
     <>
       <RouterProvider router={router} />
+      <VisionCostDialog />
       <ToastHost />
     </>
   )

@@ -15,9 +15,14 @@ export const skippedStageRunners = (): StageRunners => {
   return { transcript: skip, shots: skip, vision: skip }
 }
 
-// The stages that run for real. Everything not listed here is still skipped.
-export function liveStageRunners(shotTools: ShotTools): StageRunners {
-  return { ...skippedStageRunners(), shots: shotStageRunner(shotTools) }
+// The stages that run for real. Everything not listed here is still skipped. The vision runner is
+// passed in by the app, which owns the AI state; without one, vision is skipped.
+export function liveStageRunners(shotTools: ShotTools, vision?: StageRunner): StageRunners {
+  return {
+    ...skippedStageRunners(),
+    shots: shotStageRunner(shotTools),
+    vision: vision ?? skippedStageRunners().vision
+  }
 }
 
 // Turns an analysis job into a call to the runner for its stage.

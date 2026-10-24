@@ -1,4 +1,8 @@
-import { app, BrowserWindow, dialog, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, protocol, safeStorage, shell } from 'electron'
+import { AiService } from './ai/aiService'
+import { createAiStateFile } from './ai/aiStateFile'
+import { createSafeStorageSecretStore } from './ai/secretStore'
+import { createAnthropicClient } from './ai/anthropicClient'
 import { join } from 'node:path'
 import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
@@ -43,10 +47,19 @@ function createWindow(): void {
   }
 }
 
-void app.whenReady().then(() => {
+void app.whenReady().then(async () => {
   setupErrorReporting()
+  // The AI state is loaded before any request is served, so the vision gate can answer at once. The
+  // key is encrypted by safeStorage (the OS keychain) and stays in user data, never in a project.
+  const ai = new AiService({
+    secrets: createSafeStorageSecretStore(join(app.getPath('userData'), 'ai-key.bin'), safeStorage),
+    state: createAiStateFile(join(app.getPath('userData'), 'ai-state.json')),
+    createClient: (apiKey) => createAnthropicClient({ apiKey }),
+    onChange: (status) => emitIpcEvent('ai:changed', { status })
+  })
+  await ai.ready()
   // The job queue lives here in main, so jobs keep running when the renderer reloads.
-  const jobs = createMediaJobs()
+  const jobs = createMediaJobs(ai)
   jobs.subscribe((job) => emitIpcEvent('media:job:changed', job))
   const mediaSources = new MediaSourceRegistry()
   protocol.handle(MEDIA_SCHEME, (request) => serveMediaRequest(request, mediaSources))
@@ -55,6 +68,7 @@ void app.whenReady().then(() => {
       layoutFile: join(app.getPath('userData'), 'ui-layout.json'),
       recentFile: join(app.getPath('userData'), 'recent-projects.json'),
       jobs,
+      ai,
       onAnalysisChanged: (change) => emitIpcEvent('analysis:changed', change),
       mediaSources,
       system: {

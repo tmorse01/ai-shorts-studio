@@ -14,6 +14,8 @@ import {
   type AnalysisStage,
   type StageResult
 } from '@shared/analysis/analysis'
+import type { VisionAvailability } from '@shared/ai/aiSettings'
+import type { VisionDecision } from '@shared/analysis/analysis'
 import { JobCancelledError } from '../jobs/jobQueue'
 import { UserFacingError } from '../errors'
 import { logError } from '../errors/errorLog'
@@ -45,10 +47,17 @@ export interface AnalysisChange {
   file: AnalysisFile
 }
 
+// Decides whether the vision stage may run. Without it, vision runs like any other stage. The app
+// passes one that checks the API key, the monthly cap and the project's cost answer.
+export interface VisionPolicy {
+  availability: () => VisionAvailability
+}
+
 export interface AnalysisServiceOptions {
   queue: AnalysisQueue
   storage: AnalysisStorage
   onChange?: (change: AnalysisChange) => void
+  vision?: VisionPolicy
 }
 
 const STAGE_LABELS: Record<AnalysisStage, string> = {
@@ -111,6 +120,17 @@ export class AnalysisService {
     const file = await this.ensure(projectFolder)
     this.commit(projectFolder, { ...file, autoAnalyze: enabled })
     return this.sync(projectFolder, media)
+  }
+
+  /**
+   * Records the user's answer to the cost question for this project. Confirming starts the vision
+   * stages that were waiting; skipping marks them skipped.
+   */
+  async setVisionDecision(projectFolder: string, decision: VisionDecision): Promise<AnalysisFile> {
+    const file = await this.ensure(projectFolder)
+    this.commit(projectFolder, { ...file, visionDecision: decision })
+    for (const item of this.targets.get(projectFolder) ?? []) this.advance(projectFolder, item)
+    return this.state.get(projectFolder) ?? file
   }
 
   /** Starts a media item over from its first stage. Any stage already running is cancelled. */
@@ -201,6 +221,14 @@ export class AnalysisService {
     const stage = record ? nextPendingStage(record) : undefined
     if (!record || !stage) return
 
+    if (
+      stage === 'vision' &&
+      this.options.vision &&
+      !this.visionMayRun(projectFolder, item, record)
+    ) {
+      return
+    }
+
     const outDir = analysisFramesDir(projectFolder, item.id)
     const job = this.options.queue.enqueue('analysis', item.path, { stage, outDir })
     this.inflight.set(key, { jobId: job.id, stage, version: record.version })
@@ -209,6 +237,20 @@ export class AnalysisService {
       (outcome) => this.onStageDone(projectFolder, item, job.id, outcome),
       (error: unknown) => this.onStageFailed(projectFolder, item, job.id, error)
     )
+  }
+
+  // Decides what happens to a pending vision stage before it is queued. Returns true when it may run.
+  // Without a key or with the cap reached, the stage is skipped. Without an answer to the cost question
+  // it waits, and the record stays pending until setVisionDecision is called.
+  private visionMayRun(projectFolder: string, item: MediaTarget, record: AnalysisRecord): boolean {
+    const availability = this.options.vision?.availability() ?? 'ready'
+    const decision = this.state.get(projectFolder)?.visionDecision
+    if (availability !== 'ready' || decision === 'skipped') {
+      this.setRecord(projectFolder, withStageStatus(record, 'vision', 'skipped'))
+      this.advance(projectFolder, item)
+      return false
+    }
+    return decision === 'confirmed'
   }
 
   // Takes the job out of the in-flight map. Returns undefined when the job was already replaced (for
