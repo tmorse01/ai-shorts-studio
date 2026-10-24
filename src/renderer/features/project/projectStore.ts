@@ -29,6 +29,9 @@ export interface ProjectActions {
   // Replaces the open project with a whole project object, such as the result of a command or an
   // undo, and schedules an autosave. The object is kept as given, so its identity can be compared.
   replaceProject: (project: Project) => void
+  // Writes pending changes now, then leaves no project open. Resolves false, and keeps the project
+  // open, when that write fails.
+  close: () => Promise<boolean>
   // Writes pending changes now.
   flush: () => Promise<void>
 }
@@ -70,6 +73,13 @@ export function createProjectStore(saveOpened: (opened: OpenProject) => Promise<
       const next = { folderPath: current.folderPath, project }
       set({ current: next })
       autosaver.schedule(next)
+    },
+
+    close: async () => {
+      await autosaver.flush()
+      if (get().saveStatus.kind === 'error') return false
+      set({ current: null, saveStatus: { kind: 'saved', savedAt: undefined } })
+      return true
     },
 
     flush: () => autosaver.flush()

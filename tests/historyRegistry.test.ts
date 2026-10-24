@@ -88,3 +88,18 @@ describe('history registry', () => {
     expect(registry.get('a').getState().past).toHaveLength(1)
   })
 })
+
+describe('history registry clear', () => {
+  it('drops every history and clears the active selection', () => {
+    const registry = createRegistry()
+    registry.get('a').getState().execute(rename('1'))
+    registry.get('b')
+    registry.selection.getState().setActive('a')
+
+    registry.clear()
+
+    expect(registry.ids()).toEqual([])
+    expect(registry.selection.getState().activeId).toBeNull()
+    expect(registry.active()).toBeNull()
+  })
+})

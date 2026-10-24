@@ -4,6 +4,7 @@ import type { IpcError } from '@shared/ipc'
 import type { RecentProject } from '@shared/project/recentProjects'
 import type { Project } from '@shared/project/schema'
 import { projectStore } from '../project/projectStore'
+import { resetEditorState } from '../project/resetEditorState'
 import { syncAnalysis } from '../analysis/analysisSync'
 import { toast } from '../toasts/toast'
 
@@ -21,7 +22,10 @@ async function adoptOpened(
   if (warning) {
     toast.error({ title: 'Opened from backup', description: warning })
   }
+  const previous = projectStore.getState().current?.folderPath
   const adopted = await projectStore.getState().open({ folderPath, project })
+  // Only a different project starts with a clean editor. The old one's undo steps no longer apply.
+  if (adopted && previous !== folderPath) resetEditorState()
   if (adopted) void syncAnalysis(window.api, folderPath, project.media)
   return adopted ? project.id : null
 }
