@@ -1,8 +1,8 @@
 // The payload carried by a footage drag: a whole clip, a marked range of a source, or a saved moment.
 // Every drag source (media cards, the source viewer's marks, moment rows) writes this, and every drop
-// target reads it. Epic 07 inserts the payload into a timeline; until then the timeline shows a
-// placeholder. The MIME type is the only thing a drop target can read during dragover, so targets
-// check `types` for DRAG_MIME and decode the data on drop.
+// target reads it. The timeline's video lanes insert it as a clip (see footageDrop.ts). The MIME type
+// is the only thing a drop target can read during dragover, so targets check `types` for DRAG_MIME
+// and decode the data on drop.
 import { z } from 'zod'
 
 export const DRAG_MIME = 'application/x-aism-footage'

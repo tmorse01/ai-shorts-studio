@@ -38,6 +38,7 @@ import {
   transitionWindow
 } from '@shared/timeline/transitions'
 import { audioClipForDrop } from '@shared/timeline/audioDrop'
+import { footageClipForDrop, footageInsertMs } from '@shared/timeline/footageDrop'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import { duckEnvelope, duckingFor, narrationRanges } from '@shared/timeline/ducking'
 import type { MediaRef } from '@shared/project/schema'
@@ -111,6 +112,11 @@ const FIXED_LANES: { role: TrackRole; label: string; kind: TrackKind }[] = [
   { role: 'captions', label: 'Captions', kind: 'text' }
 ]
 const FIXED_ROLES = new Set<TrackRole>(FIXED_LANES.map((lane) => lane.role))
+
+// Main and the overlay lanes are video tracks, so they take footage drops.
+function isVideoRole(role: TrackRole): boolean {
+  return role === 'main' || role === 'overlay'
+}
 
 const ADD_TRACK_OPTIONS: { label: string; kind: TrackKind; role: TrackRole }[] = [
   { label: 'Overlay video', kind: 'video', role: 'overlay' },
@@ -198,9 +204,9 @@ export function TimelinePane({
   const [selection, setSelection] = useState<Selection>(NO_SELECTION)
   const selectedIds = selection.clipIds
   const [drag, setDrag] = useState<DragPreview | null>(null)
-  // True while footage is dragged over the pane. Placing footage is not available yet, so the pane
-  // shows a placeholder instead of an insert point.
-  const [footageHover, setFootageHover] = useState(false)
+  // Where footage dragged over a video lane would land: the lane and the time of the insert point.
+  // It drives the insertion line and is cleared when the drag leaves the lane or drops.
+  const [footageDrop, setFootageDrop] = useState<{ trackId: string; startMs: number } | null>(null)
   const [trim, setTrim] = useState<TrimPreview | null>(null)
   const [fadeDrag, setFadeDrag] = useState<FadePreview | null>(null)
   const newTrackId = newId ?? (() => crypto.randomUUID())
@@ -311,21 +317,18 @@ export function TimelinePane({
     onEdit('Add track', (current) => addTrack(current, track))
   }
 
-  // The Music lane takes audio footage dropped from the media panel. Other drops fall through to the
-  // pane, which holds footage until it can be placed.
+  // The Music lane takes audio footage dropped from the media panel.
   function onMusicDragOver(event: DragEvent<HTMLDivElement>) {
     if (!carriesFootage(event.dataTransfer.types)) return
     event.stopPropagation()
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
-    setFootageHover(false)
   }
 
   function onMusicDrop(event: DragEvent<HTMLDivElement>, track: Track) {
     if (!carriesFootage(event.dataTransfer.types)) return
     event.stopPropagation()
     event.preventDefault()
-    setFootageHover(false)
     const payload = decodeDragPayload(event.dataTransfer.getData(DRAG_MIME))
     if (payload === null) return
     if (track.locked) {
@@ -340,6 +343,55 @@ export function TimelinePane({
     }
     const clip = result.clip
     onEdit('Add music clip', (current) => insertClip(current, track.id, clip, clip.startMs))
+  }
+
+  // A video lane (Main or an overlay) takes video footage from the media panel or the source viewer.
+  // While dragging, the insert point shows; on drop the clip is added as one edit.
+  function onVideoDragOver(event: DragEvent<HTMLDivElement>, track: Track) {
+    if (!carriesFootage(event.dataTransfer.types)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    const x = event.clientX - event.currentTarget.getBoundingClientRect().left
+    const startMs = footageInsertMs(track, xToTime(x, pxPerMs))
+    setFootageDrop((current) =>
+      current?.trackId === track.id && current.startMs === startMs
+        ? current
+        : { trackId: track.id, startMs }
+    )
+  }
+
+  function onVideoDragLeave(event: DragEvent<HTMLDivElement>, track: Track) {
+    const next = event.relatedTarget
+    if (next instanceof Node && event.currentTarget.contains(next)) return
+    setFootageDrop((current) => (current?.trackId === track.id ? null : current))
+  }
+
+  function onVideoDrop(event: DragEvent<HTMLDivElement>, track: Track) {
+    if (!carriesFootage(event.dataTransfer.types)) return
+    event.preventDefault()
+    setFootageDrop(null)
+    const payload = decodeDragPayload(event.dataTransfer.getData(DRAG_MIME))
+    if (payload === null) return
+    if (track.locked) {
+      toast.info({ title: 'Track is locked', description: 'Unlock it to add a clip.' })
+      return
+    }
+    const x = event.clientX - event.currentTarget.getBoundingClientRect().left
+    const result = footageClipForDrop(
+      payload,
+      media?.items ?? [],
+      track,
+      newTrackId(),
+      xToTime(x, pxPerMs)
+    )
+    if (!result.ok) {
+      toast.info({ title: 'Cannot add this clip', description: result.reason })
+      return
+    }
+    const clip = result.clip
+    onEdit(clip.momentId ? 'Add moment clip' : 'Add clip', (current) =>
+      insertClip(current, track.id, clip, clip.startMs)
+    )
   }
 
   // Loop to fill repeats the one selected music clip to the short's length, as one history entry.
@@ -1047,10 +1099,31 @@ export function TimelinePane({
           style={{ width: widthPx }}
           data-role={role}
           data-track-id={track?.id}
-          onDragOver={role === 'music' && track ? onMusicDragOver : undefined}
-          onDrop={role === 'music' && track ? (event) => onMusicDrop(event, track) : undefined}
+          onDragOver={
+            track && role === 'music'
+              ? onMusicDragOver
+              : track && isVideoRole(role)
+                ? (event) => onVideoDragOver(event, track)
+                : undefined
+          }
+          onDragLeave={
+            track && isVideoRole(role) ? (event) => onVideoDragLeave(event, track) : undefined
+          }
+          onDrop={
+            track && role === 'music'
+              ? (event) => onMusicDrop(event, track)
+              : track && isVideoRole(role)
+                ? (event) => onVideoDrop(event, track)
+                : undefined
+          }
         >
           {track ? laneClips(track) : null}
+          {track && footageDrop?.trackId === track.id ? (
+            <div
+              className={styles.dropLine}
+              style={{ left: timeToX(footageDrop.startMs, pxPerMs) }}
+            />
+          ) : null}
           {track?.role === 'main' ? gapElements(track.id) : null}
           {track?.role === 'main' ? transitionElements(track.id) : null}
           {track && trim && trimmedClip && trim.trackId === track.id
@@ -1062,36 +1135,7 @@ export function TimelinePane({
   }
 
   return (
-    <div
-      className={styles.pane}
-      onDragOver={(event) => {
-        if (!carriesFootage(event.dataTransfer.types)) return
-        event.preventDefault()
-        event.dataTransfer.dropEffect = 'copy'
-        setFootageHover(true)
-      }}
-      onDragLeave={(event) => {
-        const next = event.relatedTarget
-        if (next instanceof Node && event.currentTarget.contains(next)) return
-        setFootageHover(false)
-      }}
-      onDrop={(event) => {
-        if (!carriesFootage(event.dataTransfer.types)) return
-        event.preventDefault()
-        setFootageHover(false)
-        if (decodeDragPayload(event.dataTransfer.getData(DRAG_MIME)) !== null) {
-          toast.info({
-            title: 'Footage cannot be placed on the timeline yet',
-            description: 'Dropping footage here will add it to the short in a later update.'
-          })
-        }
-      }}
-    >
-      {footageHover ? (
-        <div className={styles.footageHint} role="status">
-          Drop to add footage. Placing clips on the timeline is not available yet.
-        </div>
-      ) : null}
+    <div className={styles.pane}>
       <div className={styles.toolbar}>
         <DropdownMenu
           trigger={<Button variant="secondary">Add track</Button>}
