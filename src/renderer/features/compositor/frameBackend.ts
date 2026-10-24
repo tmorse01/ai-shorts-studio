@@ -25,6 +25,8 @@ export interface FrameBackend {
     // Alpha from 0 to 1 over what is already drawn. Default 1.
     opacity?: number
   ): void
+  // Draws a rasterised layer, such as a text overlay, at its placement. Alpha as for drawVideo.
+  drawBitmap(bitmap: HTMLCanvasElement, placement: Placement, opacity?: number): void
   dispose(): void
 }
 

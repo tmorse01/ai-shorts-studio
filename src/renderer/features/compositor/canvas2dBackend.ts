@@ -42,6 +42,21 @@ export function createCanvas2DBackend(canvas: HTMLCanvasElement): FrameBackend {
       }
       context.restore()
     },
+    drawBitmap(bitmap, placement, opacity = 1) {
+      if (!context) return
+      context.save()
+      context.globalAlpha = opacity
+      context.translate(placement.centerX, placement.centerY)
+      context.rotate((placement.rotationDeg * Math.PI) / 180)
+      context.drawImage(
+        bitmap,
+        -placement.width / 2,
+        -placement.height / 2,
+        placement.width,
+        placement.height
+      )
+      context.restore()
+    },
     dispose() {}
   }
 }

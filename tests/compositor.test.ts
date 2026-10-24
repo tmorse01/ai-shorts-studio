@@ -30,6 +30,7 @@ function fakeBackend() {
     kind: '2d',
     clear: () => log.push('clear'),
     drawVideo: (element) => log.push(`draw:${(element as unknown as { name: string }).name}`),
+    drawBitmap: () => log.push('bitmap'),
     dispose: () => undefined
   }
   return { backend, log }
