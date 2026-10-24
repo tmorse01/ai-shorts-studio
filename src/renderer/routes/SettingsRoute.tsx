@@ -1,7 +1,8 @@
 import type { JSX } from 'react'
 import { createRoute } from '@tanstack/react-router'
+import { AiSettingsSection } from '@renderer/features/ai/AiSettingsSection'
 import { rootRoute } from './rootRoute'
-import { RoutePlaceholder } from './RoutePlaceholder'
+import styles from './SettingsRoute.module.css'
 
 export const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -9,11 +10,11 @@ export const settingsRoute = createRoute({
   component: SettingsPage
 })
 
+// Settings are added one section at a time. Cloud AI comes first.
 function SettingsPage(): JSX.Element {
   return (
-    <RoutePlaceholder
-      title="Settings"
-      description="Settings arrive with their own epic. This page is a placeholder."
-    />
+    <main className={styles.page}>
+      <AiSettingsSection />
+    </main>
   )
 }

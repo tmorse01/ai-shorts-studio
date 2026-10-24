@@ -55,6 +55,19 @@ export async function setAnalyzeAutomatically(
   applyResult(folderPath, result, 'Could not change the analysis setting')
 }
 
+/** The user's answer to the cost question before a project's first vision pass. */
+export async function decideVisionPass(
+  api: RendererInvokeApi,
+  folderPath: string,
+  decision: 'confirmed' | 'skipped'
+): Promise<void> {
+  const result = await api.invoke('analysis:visionDecision', {
+    projectFolder: folderPath,
+    decision
+  })
+  applyResult(folderPath, result, 'Could not update the vision pass')
+}
+
 export async function reanalyzeMedia(
   api: RendererInvokeApi,
   folderPath: string,

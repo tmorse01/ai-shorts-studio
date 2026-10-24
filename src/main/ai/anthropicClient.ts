@@ -22,7 +22,8 @@ export interface AnthropicClient {
 }
 
 export const MESSAGES_URL = 'https://api.anthropic.com/v1/messages'
-export const ANTHROPIC_VERSION = '2026-10-21'
+// The stable Messages API version header. Anthropic keeps this value for all current models.
+export const ANTHROPIC_VERSION = '2023-06-01'
 const REQUEST_TIMEOUT_MS = 60000
 
 const messageResponseSchema = z.object({
@@ -74,13 +75,10 @@ export function createAnthropicClient({
         throw new UserFacingError('Anthropic is limiting requests right now. Try again shortly.')
       }
       if (!response.ok) {
-        throw new UserFacingError(
-          'Anthropic returned an error.',
-          `HTTP ${response.status}`
-        )
+        throw new UserFacingError('Anthropic returned an error.', `HTTP ${response.status}`)
       }
 
-      const parsed = messageResponseSchema.safeParse(await response.json())
+      const parsed = messageResponseSchema.safeParse(await response.json().catch(() => null))
       if (!parsed.success) {
         throw new UserFacingError('Anthropic sent a reply the app could not read.')
       }

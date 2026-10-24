@@ -9,8 +9,10 @@ import { makeProxy } from './proxies'
 import { UserFacingError } from '../errors'
 import { analysisExecutor, liveStageRunners } from '../analysis/stageRunners'
 import { realShotTools } from '../analysis/shotDetection'
+import type { AiService } from '../ai/aiService'
+import { visionStageRunner } from '../ai/visionStage'
 
-export function createMediaJobs(): JobQueue {
+export function createMediaJobs(ai: AiService): JobQueue {
   const location: BinaryLocation = {
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
@@ -39,13 +41,15 @@ export function createMediaJobs(): JobQueue {
         onProgress: reportProgress
       })
     },
-    // Shots run for real. Transcript and vision are still skipped until their providers land.
+    // Shots run for real. Transcript is still skipped until its provider lands. Vision is gated by the
+    // key, the cap and the project's cost answer, and has no describer yet, so it is skipped.
     analysis: analysisExecutor(
       liveStageRunners(
         realShotTools({
           ffmpeg: () => resolveBinary('ffmpeg', location),
           ffprobe: () => resolveBinary('ffprobe', location)
-        })
+        }),
+        visionStageRunner(ai)
       )
     ),
     filmstrip: ({ path, outDir, durationSec }, { signal }) => {

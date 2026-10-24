@@ -24,7 +24,7 @@ export const MODEL_PRICE_PER_MTOK: Record<VisionModel, { input: number; output: 
 // each request is computed from the token counts the API reports, never from these.
 export const ESTIMATED_TOKENS_PER_SHOT = { input: 1500, output: 200 } as const
 
-const MAX_CAP_USD = 100000
+export const MAX_CAP_USD = 100000
 
 export const aiSettingsSchema = z.object({
   visionModel: visionModelSchema,
@@ -46,6 +46,20 @@ export const usageRecordSchema = z.object({
   costUsd: z.number().nonnegative()
 })
 export type UsageRecord = z.infer<typeof usageRecordSchema>
+
+// What is kept on disk for AI: the settings and the usage records. The key is in the secret store.
+export const aiStateFileSchema = z.object({
+  settings: aiSettingsSchema,
+  usage: z.array(usageRecordSchema)
+})
+export type AiStateFile = z.infer<typeof aiStateFileSchema>
+
+export function emptyAiStateFile(): AiStateFile {
+  return { settings: defaultAiSettings(), usage: [] }
+}
+
+// Why vision can or cannot run right now. 'ready' is the only one that lets a request go out.
+export type VisionAvailability = 'ready' | 'no-key' | 'capped'
 
 export interface TokenUsage {
   inputTokens: number
@@ -108,6 +122,12 @@ export function remainingUnderCap(spentUsd: number, capUsd: number | null): numb
 export function formatUsd(amount: number): string {
   if (amount > 0 && amount < 0.01) return '<$0.01'
   return `$${amount.toFixed(2)}`
+}
+
+/** Vision is ready only with a saved key and a cap that is not yet reached. The key check comes first. */
+export function visionAvailabilityFor(hasKey: boolean, capNow: CapStatus): VisionAvailability {
+  if (!hasKey) return 'no-key'
+  return capNow === 'reached' ? 'capped' : 'ready'
 }
 
 export const aiStatusSchema = z.object({

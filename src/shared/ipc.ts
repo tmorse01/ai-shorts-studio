@@ -9,8 +9,13 @@ import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
-import { analysisFileSchema } from './analysis/analysis'
-import { aiStatusSchema, visionEstimateSchema, visionModelSchema } from './ai/aiSettings'
+import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
+import {
+  aiStatusSchema,
+  MAX_CAP_USD,
+  visionEstimateSchema,
+  visionModelSchema
+} from './ai/aiSettings'
 
 const analysisItemSchema = z.object({
   id: z.string().min(1),
@@ -282,6 +287,15 @@ export const ipcChannels = {
     }),
     output: z.object({ file: analysisFileSchema })
   },
+  // The user's answer to the cost question before a project's first vision pass. Confirm starts the
+  // vision stages that were waiting; skip marks them skipped for this project.
+  'analysis:visionDecision': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      decision: visionDecisionSchema
+    }),
+    output: z.object({ file: analysisFileSchema })
+  },
   // Tells main that playback started or stopped. Analysis pauses while playback runs.
   'analysis:playback': {
     input: z.object({ playing: z.boolean() }),
@@ -295,7 +309,7 @@ export const ipcChannels = {
   'ai:settings:update': {
     input: z.object({
       visionModel: visionModelSchema.optional(),
-      monthlySpendCapUsd: z.number().positive().max(100000).nullable().optional()
+      monthlySpendCapUsd: z.number().positive().max(MAX_CAP_USD).nullable().optional()
     }),
     output: aiStatusSchema
   },
@@ -339,7 +353,9 @@ export const ipcEvents = {
   // Sent whenever a project's analysis records change.
   'analysis:changed': {
     payload: z.object({ projectFolder: z.string().min(1), file: analysisFileSchema })
-  }
+  },
+  // Sent whenever the AI settings, key state or monthly usage change.
+  'ai:changed': { payload: z.object({ status: aiStatusSchema }) }
 } satisfies Record<string, { payload: z.ZodType }>
 
 export type IpcEventName = keyof typeof ipcEvents

@@ -25,6 +25,10 @@ import {
   type AnalysisChange
 } from '../analysis/analysisService'
 import { loadAnalysisFile, saveAnalysisFile } from '../analysis/analysisFile'
+import { AiService } from '../ai/aiService'
+import { memoryAiStateStorage } from '../ai/aiStateFile'
+import { unavailableSecretStore } from '../ai/secretStore'
+import { createAnthropicClient } from '../ai/anthropicClient'
 
 // Operating-system features the handlers need. The app passes Electron versions; tests pass fakes,
 // so this module never imports Electron.
@@ -60,6 +64,11 @@ export interface IpcHandlerOptions {
   onAnalysisChanged?: (change: AnalysisChange) => void
   /** Where media:sources records each item's files for the media protocol. Shared with the protocol. */
   mediaSources?: MediaSourceRegistry
+  /**
+   * Cloud AI state: key, settings, usage. The app passes one it has loaded and shares with the job
+   * queue. The default keeps nothing on disk and has no key, so tests never reach the network.
+   */
+  ai?: AiService
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -70,12 +79,18 @@ export function createIpcHandlers({
   system = {},
   analysisStorage = { load: loadAnalysisFile, save: saveAnalysisFile },
   onAnalysisChanged,
-  mediaSources = new MediaSourceRegistry()
+  mediaSources = new MediaSourceRegistry(),
+  ai = new AiService({
+    secrets: unavailableSecretStore,
+    state: memoryAiStateStorage(),
+    createClient: (apiKey) => createAnthropicClient({ apiKey })
+  })
 }: IpcHandlerOptions): IpcHandlers {
   const analysis = new AnalysisService({
     queue: jobs,
     storage: analysisStorage,
-    onChange: onAnalysisChanged
+    onChange: onAnalysisChanged,
+    vision: { availability: () => ai.visionAvailability() }
   })
   const actions: SystemActions = {
     pickFolder: system.pickFolder ?? unavailable,
@@ -168,10 +183,19 @@ export function createIpcHandlers({
     'analysis:reanalyze': async ({ projectFolder, item }) => ({
       file: await analysis.reanalyze(projectFolder, item)
     }),
+    'analysis:visionDecision': async ({ projectFolder, decision }) => ({
+      file: await analysis.setVisionDecision(projectFolder, decision)
+    }),
     'analysis:playback': ({ playing }) => {
       analysis.setPlaybackActive(playing)
       return { playing }
     },
+    'ai:status': () => ai.status(),
+    'ai:settings:update': (patch) => ai.updateSettings(patch),
+    'ai:key:save': ({ apiKey }) => ai.saveKey(apiKey),
+    'ai:key:clear': () => ai.clearKey(),
+    'ai:key:test': () => ai.testKey(),
+    'ai:vision:estimate': ({ shotCount }) => ai.estimateVision(shotCount),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })
