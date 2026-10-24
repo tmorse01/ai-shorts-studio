@@ -109,6 +109,11 @@ export function clampTransitionMs(requestedMs: number, limitMs: number): number 
   return Math.max(0, Math.min(Math.round(requestedMs), Math.floor(limitMs)))
 }
 
+// The transition with this id, or undefined when there is none.
+export function transitionById(timeline: Timeline, transitionId: string): Transition | undefined {
+  return (timeline.transitions ?? []).find((item) => item.id === transitionId)
+}
+
 export function findClip(
   timeline: Timeline,
   clipId: string

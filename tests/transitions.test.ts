@@ -4,6 +4,7 @@ import {
   deleteClip,
   moveClip,
   resizeCutTransition,
+  setTransitionKind,
   TimelineEditError
 } from '@shared/timeline/edits'
 import { resolveFrame, clipsAt } from '@shared/timeline/resolveFrame'
@@ -95,6 +96,25 @@ describe('transition limits', () => {
     expect(transitionLimitMs(from, clip('b', 1000, 1000, 500))).toBe(1001)
     // No incoming handle: only the single millisecond after the cut fits.
     expect(transitionLimitMs(from, clip('b', 1000, 1000, 0), 5000)).toBe(1)
+  })
+})
+
+describe('editing a transition', () => {
+  it('changes the kind and keeps the cut and length', () => {
+    const added = addCutTransition(cut(), 't1', 'b', 'crossfade', 300, () => 5000)
+    const dipped = setTransitionKind(added, 't1', 'dip-to-black')
+    expect(dipped.transitions).toEqual([
+      { id: 't1', fromClipId: 'a', toClipId: 'b', durationMs: 300, kind: 'dip-to-black' }
+    ])
+  })
+
+  it('returns the same timeline when the kind is unchanged, so no history entry is made', () => {
+    const added = addCutTransition(cut(), 't1', 'b', 'crossfade', 300, () => 5000)
+    expect(setTransitionKind(added, 't1', 'crossfade')).toBe(added)
+  })
+
+  it('refuses a transition that does not exist', () => {
+    expect(() => setTransitionKind(cut(), 'missing', 'dip-to-black')).toThrow(TimelineEditError)
   })
 })
 

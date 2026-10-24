@@ -103,4 +103,14 @@ describe('selectionTypeFor', () => {
   it('falls back to the short for a clip id it cannot find', () => {
     expect(selectionTypeFor(timeline, ['missing'], null)).toBe('short')
   })
+
+  it('is a transition when a transition on the timeline is selected', () => {
+    const withTransition: Timeline = {
+      ...timeline,
+      transitions: [{ id: 't1', fromClipId: 'c-video', toClipId: 'c-audio', durationMs: 300 }]
+    }
+    expect(selectionTypeFor(withTransition, [], null, 't1')).toBe('transition')
+    expect(selectionTypeFor(withTransition, [], null, 'missing')).toBe('short')
+    expect(selectionTypeFor(withTransition, [], null, null)).toBe('short')
+  })
 })
