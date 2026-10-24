@@ -2,7 +2,7 @@
 // clip boundary falls (used to preload decoders). Clips are active from startMs up to, not
 // including, startMs + durationMs. A transition extends the outgoing clip past its end and the
 // incoming clip before its start, for the length of its window (see ./transitions.ts).
-import { resolveFramingAt, type FramingMode, type FramingPose } from './framing'
+import { resolveFramingAt, type ClipFraming, type FramingMode, type FramingPose } from './framing'
 import {
   isCut,
   kindOf,
@@ -34,6 +34,8 @@ export type ResolvedLayer = {
   transform: Transform
   // The framing pose at this time, when the clip has framing (see ./framing.ts).
   framing?: { mode: FramingMode } & FramingPose
+  // The clip's stored framing, start and end poses included, for the canvas outlines.
+  clipFraming?: ClipFraming
   // Set while the layer is inside a transition window. Absent otherwise, so the layer draws as normal.
   fade?: TransitionFade
 }
@@ -144,6 +146,7 @@ export function resolveFrame(timeline: Timeline, tMs: number): ResolvedLayer[] {
       if (active.fade) layer.fade = active.fade
       if (clip.framing) {
         layer.framing = resolveFramingAt(clip.framing, clip.startMs, clip.durationMs, tMs)
+        layer.clipFraming = clip.framing
       }
       return layer
     })

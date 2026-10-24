@@ -3,6 +3,7 @@
 // its state whenever its selection type is shown again.
 import { createStore } from 'zustand'
 import type { ClipAudioChange } from '@shared/timeline/edits'
+import type { ClipFraming } from '@shared/timeline/framing'
 import type { Clip, Timeline } from '@shared/timeline/timeline'
 import { defaultTabFor, type InspectorTab, type SelectionType } from './inspectorModel'
 
@@ -25,12 +26,21 @@ export interface VideoClipTarget {
   apply: (label: string, edit: (timeline: Timeline) => Timeline, mergeKey?: string) => void
 }
 
+// The framing of the one selected fill-framed clip, for the pan section (Epic 09, #105). framing is the
+// stored framing, or a centred fill. apply runs an edit on that clip as one history entry.
+export interface FramingTarget {
+  clipId: string
+  framing: ClipFraming
+  apply: (label: string, edit: (framing: ClipFraming) => ClipFraming) => void
+}
+
 export interface InspectorState {
   selectionType: SelectionType
   tab: InspectorTab
   collapsed: Record<string, boolean>
   audioTarget: AudioTarget | null
   videoTarget: VideoClipTarget | null
+  framingTarget: FramingTarget | null
 }
 
 export interface InspectorActions {
@@ -40,6 +50,7 @@ export interface InspectorActions {
   toggleSection: (sectionId: string) => void
   setAudioTarget: (target: AudioTarget | null) => void
   setVideoTarget: (target: VideoClipTarget | null) => void
+  setFramingTarget: (target: FramingTarget | null) => void
 }
 
 export type InspectorStore = InspectorState & InspectorActions
@@ -51,8 +62,10 @@ export function createInspectorStore() {
     collapsed: {},
     audioTarget: null,
     videoTarget: null,
+    framingTarget: null,
     setAudioTarget: (audioTarget) => set({ audioTarget }),
     setVideoTarget: (videoTarget) => set({ videoTarget }),
+    setFramingTarget: (framingTarget) => set({ framingTarget }),
     setSelectionType: (selectionType) => {
       if (selectionType === get().selectionType) return
       set({ selectionType, tab: defaultTabFor(selectionType) })
