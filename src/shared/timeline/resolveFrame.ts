@@ -40,7 +40,7 @@ export type ResolvedLayer = {
   fade?: TransitionFade
 }
 
-interface TransitionRole {
+export interface TransitionRole {
   role: 'out' | 'in'
   kind: TransitionKind
   window: TransitionWindow
@@ -48,7 +48,7 @@ interface TransitionRole {
 
 // The transition windows that touch each clip, keyed by clip id. A transition only counts when its
 // two clips still meet at the cut on one track.
-function transitionRoles(timeline: Timeline): Map<string, TransitionRole[]> {
+export function transitionRoles(timeline: Timeline): Map<string, TransitionRole[]> {
   const roles = new Map<string, TransitionRole[]>()
   const clips = new Map<string, { trackId: string; clip: Clip }>()
   for (const track of timeline.tracks) {
@@ -72,7 +72,7 @@ function transitionRoles(timeline: Timeline): Map<string, TransitionRole[]> {
 }
 
 // The time span a clip is active over, widened by the windows of its transitions.
-function activeSpan(
+export function activeSpan(
   clip: Clip,
   roles: readonly TransitionRole[]
 ): { startMs: number; endMs: number } {

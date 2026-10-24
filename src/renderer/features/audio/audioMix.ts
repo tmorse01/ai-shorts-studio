@@ -6,6 +6,7 @@
 // timeline calls registerAudioSourceProvider with a function that returns AudioSource entries for a
 // time. Each entry is played through the same graph as clip sources, with the same gain and resync.
 import { crossfadeGains } from '@shared/timeline/crossfade'
+import { isSoundingClip } from '@shared/timeline/audioRules'
 import { clipsAt } from '@shared/timeline/resolveFrame'
 import { duckEnvelope, duckingFor, envelopeGainAt, narrationRanges } from '@shared/timeline/ducking'
 import type { Clip, Timeline } from '@shared/timeline/timeline'
@@ -52,9 +53,7 @@ export function clipAudioSources(
   const duck = envelopeGainAt(duckEnvelope(narrationRanges(timeline), duckingFor(timeline)), tMs)
   for (const active of clipsAt(timeline, tMs)) {
     const { clip, trackKind, trackMuted, trackIndex } = active
-    if (trackMuted || clip.muted || !clip.mediaId || !hasAudio(clip.mediaId)) continue
-    if (trackKind !== 'audio' && trackKind !== 'video') continue
-    if (trackKind === 'video' && clip.linkedAudio) continue
+    if (!clip.mediaId || !isSoundingClip(clip, trackKind, trackMuted, hasAudio)) continue
     const ducked = timeline.tracks[trackIndex]?.role === 'music' ? duck : 1
     sources.push({
       key: clip.id,

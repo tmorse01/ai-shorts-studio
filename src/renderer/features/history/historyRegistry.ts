@@ -20,6 +20,8 @@ export interface HistoryRegistry<S extends object> {
   // Drops an id's history, for example when a short is deleted. Clears the selection if it was active.
   remove: (id: string) => void
   ids: () => string[]
+  // Drops every id's history and clears the selection. Used when a different project opens.
+  clear: () => void
   // Store that holds which id is active. Components subscribe to it through selectors.
   selection: StoreApi<ActiveHistorySelection>
   // History of the active id, or null when nothing is active.
@@ -54,6 +56,10 @@ export function createHistoryRegistry<S extends object>(
       if (selection.getState().activeId === id) selection.getState().setActive(null)
     },
     ids: () => [...histories.keys()],
+    clear: () => {
+      histories.clear()
+      selection.getState().setActive(null)
+    },
     selection,
     active: () => {
       const id = selection.getState().activeId

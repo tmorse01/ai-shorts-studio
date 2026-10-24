@@ -29,6 +29,8 @@ export interface SourceActions {
   // Opens the name prompt for the marked range. Does nothing unless both marks are set.
   startNamingMoment: () => void
   cancelNamingMoment: () => void
+  // Back to the short view with no clip open and no marks, for example when another project opens.
+  reset: () => void
 }
 
 export type SourceStore = SourceState & SourceActions
@@ -68,6 +70,7 @@ export const sourceStore = createStore<SourceStore>()((set, get) => {
       if (!canMark() || markedRange(get()) === null) return
       set({ naming: true })
     },
-    cancelNamingMoment: () => set({ naming: false })
+    cancelNamingMoment: () => set({ naming: false }),
+    reset: () => set({ mode: 'short', sourceId: null, naming: false, ...NO_MARKS })
   }
 })
