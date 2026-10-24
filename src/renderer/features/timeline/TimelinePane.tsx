@@ -14,6 +14,7 @@ import {
   addTrack,
   detachAudio,
   insertClip,
+  loopFillClip,
   placeClips,
   removeTransition,
   setClipAudio,
@@ -306,6 +307,22 @@ export function TimelinePane({
     }
     const clip = result.clip
     onEdit('Add music clip', (current) => insertClip(current, track.id, clip, clip.startMs))
+  }
+
+  // Loop to fill repeats the one selected music clip to the short's length, as one history entry.
+  function loopSelectedClip() {
+    const clipId = selectedIds[0]
+    if (clipId === undefined) return
+    const untilMs = timelineDurationMs(timeline)
+    const done = runEdit('Loop to fill', (current) =>
+      loopFillClip(current, clipId, untilMs, newTrackId)
+    )
+    if (!done) {
+      toast.info({
+        title: 'Cannot loop this clip',
+        description: 'It already reaches the end of the short, or it is too short to repeat.'
+      })
+    }
   }
 
   function selectClips(update: (ids: string[]) => string[]) {
@@ -752,6 +769,11 @@ export function TimelinePane({
       })
   }
 
+  // Loop to fill needs exactly one clip selected, on an unlocked Music lane.
+  const selectedLoopTrack =
+    selectedIds.length === 1 ? findClip(timeline, selectedIds[0])?.track : undefined
+  const loopable = selectedLoopTrack?.role === 'music' && !selectedLoopTrack.locked
+
   function laneRow(track: Track | undefined, label: string, kind: TrackKind, role: TrackRole) {
     return (
       <div
@@ -858,6 +880,14 @@ export function TimelinePane({
               })
           }))}
         />
+        <Button
+          variant="secondary"
+          disabled={!loopable}
+          title="Repeat the selected music clip to the length of the short"
+          onClick={loopSelectedClip}
+        >
+          Loop to fill
+        </Button>
         <SetPosterButton />
         <Button
           variant="ghost"

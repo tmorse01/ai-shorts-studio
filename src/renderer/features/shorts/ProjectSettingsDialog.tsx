@@ -8,6 +8,7 @@ import { Switch } from '@renderer/ui/Switch'
 import { projectStore } from '../project/projectStore'
 import { useProjectStore } from '../project/useProjectStore'
 import { updateProjectDefaultsCommand, validateTargetLength } from './projectDefaultsCommands'
+import { PLATFORM_OPTIONS } from './platformOptions'
 import formStyles from '../dashboard/CreateProjectDialog.module.css'
 import styles from './ProjectSettingsDialog.module.css'
 
@@ -15,13 +16,6 @@ export interface ProjectSettingsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
-
-const PLATFORM_OPTIONS: { value: ShortPlatform; label: string }[] = [
-  { value: 'youtube', label: 'YouTube Shorts' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'reels', label: 'Reels' },
-  { value: 'generic', label: 'Generic' }
-]
 
 // Edits the defaults that new shorts copy. Existing shorts keep their overrides. Radix unmounts the
 // content when the dialog closes, so each opening starts from the current defaults.

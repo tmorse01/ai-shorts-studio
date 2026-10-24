@@ -17,6 +17,9 @@ export interface Command<S extends object> {
   produce: (draft: Draft<S>) => void
   // Consecutive commands with the same key, recorded within the merge window, become one entry.
   mergeKey?: string
+  // Overrides the history's merge window for this command. A gesture that can pause, such as a drag,
+  // passes Infinity so the whole gesture stays one step however long it holds.
+  mergeWindowMs?: number
 }
 
 export interface HistoryEntry {
@@ -102,7 +105,7 @@ export function createHistoryStore<S extends object>(
         command.mergeKey !== undefined &&
         last !== undefined &&
         last.mergeKey === command.mergeKey &&
-        at - last.recordedAt <= mergeWindowMs
+        at - last.recordedAt <= (command.mergeWindowMs ?? mergeWindowMs)
 
       const nextPast = canMerge
         ? [
