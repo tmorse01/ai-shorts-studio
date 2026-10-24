@@ -1,7 +1,7 @@
 // The render description for one frame of a short (Epic 06, #78). Pure data: which layers draw at a
 // time, in draw order, and where each one sits on the 1080x1920 canvas. The preview draws it, and
 // export (Epic 17) can draw the same description. No DOM, no store.
-import type { FramingMode } from '../timeline/framing'
+import { framingCropRect, type FramingMode, type FramingPose } from '../timeline/framing'
 import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
 import type { Timeline, Transform } from '../timeline/timeline'
 
@@ -47,6 +47,31 @@ export type LayerRender =
 export interface FrameLayer extends ResolvedLayer {
   placement: Placement
   render: LayerRender
+  // The pixel size of the layer's source, when it is known. The canvas gizmo needs it to turn a drag
+  // into a framing change.
+  source?: SourceSize
+}
+
+// Places a fill-mode framed video: the crop of the source (see framingCropRect) is scaled to cover the
+// canvas, and the transform is applied on top of that. Without a known source size, the layer fills the
+// canvas as before.
+export function placeFramed(
+  transform: Transform,
+  framing: { mode: FramingMode } & FramingPose,
+  source: SourceSize
+): Placement {
+  const crop = framingCropRect(source.width, source.height, CANVAS_WIDTH, CANVAS_HEIGHT, framing)
+  const perSource = CANVAS_WIDTH / crop.width
+  // Where the source centre falls, so that the crop centre lands on the canvas centre.
+  const offsetX = (source.width / 2 - (crop.x + crop.width / 2)) * perSource
+  const offsetY = (source.height / 2 - (crop.y + crop.height / 2)) * perSource
+  return {
+    centerX: CANVAS_WIDTH / 2 + offsetX + transform.x,
+    centerY: CANVAS_HEIGHT / 2 + offsetY + transform.y,
+    width: source.width * perSource * transform.scale,
+    height: source.height * perSource * transform.scale * (transform.stretch ?? 1),
+    rotationDeg: transform.rotationDeg
+  }
 }
 
 export interface FrameDescription {
@@ -125,15 +150,16 @@ export function describeFrame(
 ): FrameDescription {
   const layers = resolveFrame(timeline, tMs).map((layer) => {
     const source = layer.mediaId ? sizeOf(layer.mediaId) : null
-    const placement = placeTransform(layer.transform, source)
+    const framing = layer.trackKind === 'video' ? layer.framing : undefined
+    const placement =
+      framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
+        ? placeFramed(layer.transform, framing, source)
+        : placeTransform(layer.transform, source)
     return {
       ...layer,
       placement,
-      render: describeLayerRender(
-        placement,
-        layer.trackKind === 'video' ? layer.framing : undefined,
-        source
-      )
+      render: describeLayerRender(placement, framing, source),
+      ...(source && source.width > 0 && source.height > 0 ? { source } : {})
     }
   })
   return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, tMs, layers }

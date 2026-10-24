@@ -1,0 +1,89 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--color-text);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.labelLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+
+.label {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+}
+
+.overridden {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-primary);
+}
+
+.marker {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.targetGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.targetRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dash,
+.unit {
+  color: var(--color-text-2);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-destructive);
+}
+
+.readout {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  color: var(--color-text-2);
+}
+
+.readout[data-tone='within'] {
+  color: var(--color-success);
+}
+
+.readout[data-tone='over'] {
+  color: var(--color-destructive);
+}

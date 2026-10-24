@@ -12,11 +12,13 @@ export function timelineCommand(
   label: string,
   now: string,
   edit: (timeline: Timeline) => Timeline,
-  mergeKey?: string
+  mergeKey?: string,
+  mergeWindowMs?: number
 ): Command<Project> {
   return {
     label,
     mergeKey,
+    mergeWindowMs,
     produce: (draft) => {
       const short = draft.shorts.find((item) => item.id === shortId)
       if (!short) throw new Error(`No short with id ${shortId}`)

@@ -134,3 +134,46 @@ export function resolveFramingAt(
   const pose = interpolatePose(start, end, clipProgress(startMs, durationMs, tMs))
   return { mode: framing.mode, ...pose }
 }
+
+// The framing a clip starts with when it has none: a centred fill at the cover crop.
+export const CENTRED_FILL: ClipFraming = { mode: 'fill', x: 0, y: 0, scale: MIN_FRAMING_SCALE }
+
+// The framing for a new cut from a source: the last framing used on that source, or a centred fill
+// when none was used yet. The copy keeps the pan, so a new cut matches the last one exactly.
+export function framingForNewCut(last: ClipFraming | undefined): ClipFraming {
+  return last ? { ...last, panTo: last.panTo ? { ...last.panTo } : undefined } : { ...CENTRED_FILL }
+}
+
+// A gesture on the canvas, as the gizmo measures it: how far the layer moved in canvas pixels, and
+// how much it scaled (1 is no change).
+export interface FramingGesture {
+  dxCanvas: number
+  dyCanvas: number
+  scaleFactor: number
+}
+
+// The framing pose after a gesture on a fill-mode clip. Moving the layer right moves the crop left,
+// so the crop follows the content. Scaling up zooms in. The result is clamped to the source: the
+// crop never leaves it, and the zoom stays within its limits. Pure, so a drag computes from the
+// pose it started with.
+export function framingAfterGesture(
+  start: FramingPose,
+  gesture: FramingGesture,
+  source: { width: number; height: number },
+  out: { width: number; height: number }
+): FramingPose {
+  const scale = clampFramingScale(start.scale)
+  const cover = coverCropSize(source.width, source.height, out.width, out.height)
+  const cropWidth = cover.width / scale
+  // Canvas pixels per source pixel in the framed view.
+  const perSource = out.width / cropWidth
+  const roomX = (source.width - cropWidth) / 2
+  const roomY = (source.height - cover.height / scale) / 2
+  const moveX = roomX > 0 ? -gesture.dxCanvas / perSource / roomX : 0
+  const moveY = roomY > 0 ? -gesture.dyCanvas / perSource / roomY : 0
+  return {
+    x: clampUnit(start.x + moveX),
+    y: clampUnit(start.y + moveY),
+    scale: clampFramingScale(scale * gesture.scaleFactor)
+  }
+}
