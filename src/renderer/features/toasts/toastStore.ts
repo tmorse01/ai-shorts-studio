@@ -3,6 +3,12 @@ import { createStore } from 'zustand/vanilla'
 
 export type ToastTone = 'info' | 'success' | 'ai' | 'error'
 
+export interface ToastAction {
+  label: string
+  /** Runs when the button is pressed. The toast closes afterwards. */
+  run: () => void
+}
+
 export interface ToastItem {
   id: string
   tone: ToastTone
@@ -10,6 +16,8 @@ export interface ToastItem {
   description?: string
   /** Technical detail for the Details dialog. Only error toasts carry one. */
   details?: string
+  /** A button such as Undo. It takes the place of Details when both are set. */
+  action?: ToastAction
   /** Milliseconds before the toast closes itself. null means it stays until the user dismisses it. */
   dismissAfterMs: number | null
 }
