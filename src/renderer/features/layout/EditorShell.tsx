@@ -1,3 +1,7 @@
+import { useEffect } from 'react'
+import { registerEditorShortcuts } from '@renderer/features/shortcuts/editorShortcuts'
+import { ShortcutsDialog } from '@renderer/features/shortcuts/ShortcutsDialog'
+import { shortcutRegistry } from '@renderer/features/shortcuts/shortcutRegistry'
 import { LEFT_TOOL_DEFINITIONS } from './leftTools'
 import { EditorToolbar } from './EditorToolbar'
 import { EmptyState } from './EmptyState'
@@ -14,6 +18,8 @@ export function EditorShell() {
   const leftTool = useUiStore((s) => s.leftTool)
   const toolDef = LEFT_TOOL_DEFINITIONS[leftTool]
   useEditorLayoutPersistence()
+
+  useEffect(() => registerEditorShortcuts(shortcutRegistry), [])
 
   return (
     <div className={styles.shell}>
@@ -43,6 +49,7 @@ export function EditorShell() {
           />
         </PaneFrame>
       </div>
+      <ShortcutsDialog />
     </div>
   )
 }
