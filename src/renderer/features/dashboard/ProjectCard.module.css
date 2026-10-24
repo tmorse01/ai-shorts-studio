@@ -41,6 +41,20 @@
   background: var(--art-panel);
 }
 
+.badge {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-void-black);
+  color: var(--color-galactic-white);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  letter-spacing: var(--type-mono-tracking);
+}
+
 .ornament {
   display: block;
   width: 56px;

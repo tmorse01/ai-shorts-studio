@@ -4,6 +4,7 @@ import type { RecentProject } from '@shared/project/recentProjects'
 import { Button } from '@renderer/ui/Button'
 import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
+import { formatDuration } from './formatDuration'
 import { formatRelativeTime } from './relativeTime'
 import styles from './ProjectCard.module.css'
 
@@ -28,14 +29,16 @@ export function ProjectCard({
   onDelete,
   onLocate
 }: ProjectCardProps): JSX.Element {
-  const shorts = `${project.shortCount} ${project.shortCount === 1 ? 'short' : 'shorts'}`
-  const meta = `${shorts} · opened ${formatRelativeTime(project.lastOpened, new Date())}`
+  const duration = project.durationMs === undefined ? undefined : formatDuration(project.durationMs)
+  const opened = `opened ${formatRelativeTime(project.lastOpened, new Date())}`
+  const meta = [duration, project.ratio, opened].filter(Boolean).join(' · ')
 
   return (
     <article className={styles.card}>
       <button type="button" className={styles.open} disabled={project.missing} onClick={onOpen}>
         <span className={styles.thumb} aria-hidden="true">
           <span className={styles.ornament} />
+          {duration && <span className={styles.badge}>{duration}</span>}
         </span>
         <span className={styles.title}>{project.name}</span>
         <span className={styles.meta}>{project.missing ? 'Folder not found' : meta}</span>
