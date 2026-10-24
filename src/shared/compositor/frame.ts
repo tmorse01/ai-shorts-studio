@@ -1,7 +1,13 @@
 // The render description for one frame of a short (Epic 06, #78). Pure data: which layers draw at a
 // time, in draw order, and where each one sits on the 1080x1920 canvas. The preview draws it, and
 // export (Epic 17) can draw the same description. No DOM, no store.
-import { framingCropRect, type FramingMode, type FramingPose } from '../timeline/framing'
+import {
+  framingCropRect,
+  poseOf,
+  type ClipFraming,
+  type FramingMode,
+  type FramingPose
+} from '../timeline/framing'
 import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
 import type { Timeline, Transform } from '../timeline/timeline'
 
@@ -72,6 +78,41 @@ export function placeFramed(
     height: source.height * perSource * transform.scale * (transform.stretch ?? 1),
     rotationDeg: transform.rotationDeg
   }
+}
+
+// The outline of a fill crop on the canvas, for the start and end poses of a pan. The crop is drawn over
+// the source as it fits the canvas with no framing (base), so the outline does not move with the crop.
+// The outline turns with the layer's rotation. It is null for a clip that is not fill-framed or has no
+// known source size.
+export function framingOutlines(
+  source: SourceSize,
+  base: Placement,
+  framing: ClipFraming
+): { start: Placement; end: Placement | null } | null {
+  if (framing.mode !== 'fill' || source.width <= 0 || source.height <= 0) return null
+  const outline = (pose: FramingPose): Placement => {
+    const crop = framingCropRect(source.width, source.height, CANVAS_WIDTH, CANVAS_HEIGHT, {
+      mode: 'fill',
+      ...pose
+    })
+    const kx = base.width / source.width
+    const ky = base.height / source.height
+    // Offset of the crop centre from the source centre, in canvas pixels before rotation.
+    const dx = (crop.x + crop.width / 2 - source.width / 2) * kx
+    const dy = (crop.y + crop.height / 2 - source.height / 2) * ky
+    const radians = (base.rotationDeg * Math.PI) / 180
+    const cos = Math.cos(radians)
+    const sin = Math.sin(radians)
+    return {
+      centerX: base.centerX + dx * cos - dy * sin,
+      centerY: base.centerY + dx * sin + dy * cos,
+      width: crop.width * kx,
+      height: crop.height * ky,
+      rotationDeg: base.rotationDeg
+    }
+  }
+  const start = outline(poseOf(framing, 'start'))
+  return { start, end: framing.panTo ? outline(poseOf(framing, 'end')) : null }
 }
 
 export interface FrameDescription {
