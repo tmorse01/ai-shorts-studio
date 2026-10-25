@@ -20,7 +20,7 @@ import { resolveBinary, type BinaryLocation } from './media/binaries'
 import type { EncoderInfo } from '@shared/export/exportSettings'
 import { isE2eMode, isolatedProfile, readDialogPicks } from './e2e/e2eMode'
 import { withForcedHardwareEncoder } from './e2e/forcedEncoderFailure'
-import { createFakeAnthropicClient } from './e2e/fakes'
+import { createFakeAnthropicClient, createFakeSecretStore } from './e2e/fakes'
 
 // A test can give the app its own profile and documents folder through AISS_USER_DATA. This must run
 // before anything reads those paths.
@@ -63,7 +63,10 @@ void app.whenReady().then(async () => {
   // The AI state is loaded before any request is served, so the vision gate can answer at once. The
   // key is encrypted by safeStorage (the OS keychain) and stays in user data, never in a project.
   const ai = new AiService({
-    secrets: createSafeStorageSecretStore(join(app.getPath('userData'), 'ai-key.bin'), safeStorage),
+    // E2E runs keep the key in memory: the CI runner has no OS keychain for safeStorage.
+    secrets: isE2eMode()
+      ? createFakeSecretStore()
+      : createSafeStorageSecretStore(join(app.getPath('userData'), 'ai-key.bin'), safeStorage),
     // The text-to-speech key is encrypted the same way, in its own file.
     speechSecrets: createSafeStorageSecretStore(
       join(app.getPath('userData'), 'speech-key.bin'),
