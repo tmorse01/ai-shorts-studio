@@ -10,6 +10,7 @@ import {
 import { playbackStore } from '@renderer/features/playback/playbackStore'
 import { watchBatches } from '@renderer/features/batch/batchSync'
 import { importScriptDrafts } from '@renderer/features/scripts/importScriptDrafts'
+import { reportAssemblyBatch } from '@renderer/features/assembly/assemblyQueueStore'
 import { watchRenderQueue } from '@renderer/features/export/renderQueueSync'
 import { renderQueueStore } from '@renderer/features/export/renderQueueStore'
 import { watchSearchIndex } from '@renderer/features/search/searchSync'
@@ -32,7 +33,7 @@ if (window.api) {
   watchAnalysisRecords(window.api)
   watchPlaybackForAnalysis(window.api, playbackStore)
   // Batches come from main. The open project keeps them current so its saves do not drop them.
-  watchBatches(window.api, projectStore, importScriptDrafts)
+  watchBatches(window.api, projectStore, importScriptDrafts, reportAssemblyBatch)
   // Exports come from main's render queue. The open project records each finished short as Exported.
   watchRenderQueue(window.api, projectStore)
   void renderQueueStore.getState().refresh()

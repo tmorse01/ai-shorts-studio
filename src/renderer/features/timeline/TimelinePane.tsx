@@ -90,6 +90,7 @@ import { CaptionBlocks } from '../captions/CaptionBlocks'
 import { closeGapEdit, timelineShortcuts, type TimelineShortcutContext } from './timelineShortcuts'
 import { shortcutRegistry } from '../shortcuts/shortcutRegistry'
 import { RecordNarrationButton } from '../narration/RecordNarrationButton'
+import { narrationClipFor } from '../narration/narrationClipEdits'
 import styles from './TimelinePane.module.css'
 
 export type TimelineEdit = (timeline: Timeline) => Timeline
@@ -596,6 +597,25 @@ export function TimelinePane({
     })
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setImageTarget(null), [])
+
+  // The narration section edits the one selected narration clip: its script line, voice and text. Each change
+  // is one history entry. Publish it, or nothing. Regenerating the audio is a project command, run from the
+  // section with the short id.
+  useEffect(() => {
+    const clip = selectedIds.length === 1 ? narrationClipFor(timeline, selectedIds[0]) : null
+    if (!clip || !shortId) {
+      inspectorStore.getState().setNarrationTarget(null)
+      return
+    }
+    inspectorStore.getState().setNarrationTarget({
+      shortId,
+      clip,
+      apply: (label, edit, mergeKey) => {
+        runEdit(label, edit, mergeKey)
+      }
+    })
+  }, [timeline, selectedIds, runEdit, shortId])
+  useEffect(() => () => inspectorStore.getState().setNarrationTarget(null), [])
 
   // The transition section edits the one selected transition: its kind, its length (clamped to the
   // handles on its cut) and removal. Each is one history entry. Publish it, or nothing.

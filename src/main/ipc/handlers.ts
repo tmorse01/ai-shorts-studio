@@ -297,8 +297,8 @@ export function createIpcHandlers({
     'media:probe': ({ path }) => jobs.enqueue('probe', path).done,
     'media:job:list': () => ({ jobs: jobs.list() }),
     'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) }),
-    'batch:run': async ({ projectFolder, stage, items }) => ({
-      batch: await batches.start({ projectFolder, stage, items })
+    'batch:run': async ({ projectFolder, stage, kind, reuseFootage, items }) => ({
+      batch: await batches.start({ projectFolder, stage, kind, reuseFootage, items })
     }),
     'batch:cancel': async ({ projectFolder, batchId, itemId }) =>
       batches.cancel(projectFolder, batchId, itemId),

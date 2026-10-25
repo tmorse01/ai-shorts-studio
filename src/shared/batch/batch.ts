@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { analysisStageSchema, type AnalysisStage } from '../analysis/analysis'
 import { generatedScriptSchema } from '../ai/scriptGeneration'
+import { footageMatchResultSchema } from '../assembly/footageMatchRequest'
 
 const nonEmptyString = z.string().trim().min(1)
 
@@ -15,8 +16,9 @@ export type BatchStatus = z.infer<typeof batchStatusSchema>
 
 export const MAX_BATCH_ITEMS = 500
 
-// Unset means an analysis batch, which is what every batch was before script drafting (#145).
-export const batchKindSchema = z.enum(['analysis', 'script'])
+// Unset means an analysis batch, which is what every batch was before script drafting (#145). An
+// assembly batch matches footage for approved scripts (#146).
+export const batchKindSchema = z.enum(['analysis', 'script', 'assembly'])
 export type BatchKind = z.infer<typeof batchKindSchema>
 
 export const batchItemSchema = z.object({
@@ -34,7 +36,9 @@ export const batchItemSchema = z.object({
     })
     .optional(),
   // The scripts a script item drafted, once it is done. Unset on analysis items.
-  scripts: z.array(generatedScriptSchema).optional()
+  scripts: z.array(generatedScriptSchema).optional(),
+  // The footage plan an assembly item matched, once it is done. The item id is the script id.
+  plan: footageMatchResultSchema.optional()
 })
 export type BatchItem = z.infer<typeof batchItemSchema>
 
@@ -69,9 +73,11 @@ export function batchStatusOf(items: readonly BatchItem[]): BatchStatus {
 
 export function createBatch(input: {
   id: string
-  /** Set for an analysis batch. Leave out for a script batch. */
+  /** Set for an analysis batch. Leave out for a script or assembly batch. */
   stage?: AnalysisStage
-  /** The item ids: media ids for an analysis batch, any unique ids for a script batch. */
+  /** Set for an assembly batch. Leave out for a script batch, or an analysis batch with a stage. */
+  kind?: 'assembly'
+  /** The item ids: media ids for an analysis batch, any unique ids for the other kinds. */
   mediaIds: readonly string[]
   createdAt: string
 }): Batch {
@@ -88,7 +94,7 @@ export function createBatch(input: {
   }))
   return batchSchema.parse({
     id: input.id,
-    kind: input.stage === undefined ? 'script' : 'analysis',
+    kind: input.kind ?? (input.stage === undefined ? 'script' : 'analysis'),
     ...(input.stage === undefined ? {} : { stage: input.stage }),
     status: batchStatusOf(items),
     createdAt: input.createdAt,

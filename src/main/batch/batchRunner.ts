@@ -5,6 +5,10 @@
 import { randomUUID } from 'node:crypto'
 import type { AnalysisStage } from '@shared/analysis/analysis'
 import type { GeneratedScript, ScriptRunInput } from '@shared/ai/scriptGeneration'
+import type {
+  FootageMatchRequest,
+  FootageMatchResultData
+} from '@shared/assembly/footageMatchRequest'
 import {
   cancelBatchItem,
   createBatch,
@@ -29,6 +33,8 @@ export interface BatchItemInput {
   path?: string
   /** The draft request a script item runs. Script items only. */
   request?: ScriptRunInput
+  /** The footage match an assembly item runs. Assembly items only. */
+  footage?: FootageMatchRequest
 }
 
 export interface BatchRunnerOptions {
@@ -58,6 +64,10 @@ interface Run {
   paths: Map<string, string>
   /** The draft request per script item, used when an item is retried. */
   requests: Map<string, ScriptRunInput>
+  /** The footage match per assembly item, used when an item is retried. */
+  footages: Map<string, FootageMatchRequest>
+  /** Whether assembly items may reuse footage that another item in the batch already uses. */
+  reuse: boolean
   /** The queue job each item is running as, while it is queued or running. */
   jobs: Map<string, string>
 }
@@ -78,11 +88,16 @@ export class BatchRunner {
   async start(input: {
     projectFolder: string
     stage?: AnalysisStage
+    /** 'assembly' for a footage match batch (#146). Leave out for analysis or script batches. */
+    kind?: 'assembly'
+    /** Assembly batches only. Off by default, so later items avoid footage earlier items used. */
+    reuseFootage?: boolean
     items: BatchItemInput[]
   }): Promise<Batch> {
     const batch = createBatch({
       id: `batch-${(this.options.newId ?? randomUUID)()}`,
       stage: input.stage,
+      kind: input.kind,
       mediaIds: input.items.map((item) => item.id),
       createdAt: (this.options.now ?? (() => new Date().toISOString()))()
     })
@@ -95,6 +110,10 @@ export class BatchRunner {
       requests: new Map(
         input.items.flatMap((item) => (item.request === undefined ? [] : [[item.id, item.request]]))
       ),
+      footages: new Map(
+        input.items.flatMap((item) => (item.footage === undefined ? [] : [[item.id, item.footage]]))
+      ),
+      reuse: input.reuseFootage === true,
       jobs: new Map()
     }
     if (!batch.items.every((item) => hasInput(run, item.id))) {
@@ -135,6 +154,7 @@ export class BatchRunner {
       if (!findBatchItem(run.batch, item.id)) continue
       if (item.path !== undefined) run.paths.set(item.id, item.path)
       if (item.request !== undefined) run.requests.set(item.id, item.request)
+      if (item.footage !== undefined) run.footages.set(item.id, item.footage)
     }
     const retried = items
       .map((item) => findBatchItem(run.batch, item.id))
@@ -142,11 +162,7 @@ export class BatchRunner {
       .map((item) => item.id)
     const missingInput = retried.find((id) => !hasInput(run, id))
     if (missingInput !== undefined) {
-      throw new UserFacingError(
-        run.batch.kind === 'script'
-          ? 'Retrying an item needs its draft request.'
-          : 'Retrying an item needs its current file path.'
-      )
+      throw new UserFacingError(retryInputMessage(run.batch.kind))
     }
     if (retried.length === 0) return { retried, batch: run.batch }
     this.commit(run, resetBatchItemsForRetry(run.batch, retried), true)
@@ -159,7 +175,9 @@ export class BatchRunner {
     const job =
       run.batch.kind === 'script'
         ? this.enqueueScript(run, itemId)
-        : this.enqueueAnalysis(run, itemId)
+        : run.batch.kind === 'assembly'
+          ? this.enqueueAssembly(run, itemId)
+          : this.enqueueAnalysis(run, itemId)
     run.jobs.set(itemId, job.id)
     this.linkedItems.set(job.id, { batchId: run.batch.id, itemId })
     const attempts = requireItem(run.batch, itemId).attempts + 1
@@ -202,6 +220,14 @@ export class BatchRunner {
     return this.options.queue.enqueue('script', run.projectFolder, { scriptRequest: request })
   }
 
+  private enqueueAssembly(run: Run, itemId: string) {
+    const footage = run.footages.get(itemId)
+    if (!footage) throw new Error('An assembly item has no footage.')
+    return this.options.queue.enqueue('assembly', run.projectFolder, {
+      assembly: { batchId: run.batch.id, reuse: run.reuse, footage }
+    })
+  }
+
   private settle(
     run: Run,
     itemId: string,
@@ -219,12 +245,14 @@ export class BatchRunner {
 
     if (status === 'done') {
       const drafts = run.batch.kind === 'script' ? (scripts as GeneratedScript[]) : undefined
+      const plan = run.batch.kind === 'assembly' ? (scripts as FootageMatchResultData) : undefined
       this.commit(
         run,
         updateBatchItem(run.batch, itemId, {
           status,
           progress: 1,
-          ...(drafts ? { scripts: drafts } : {})
+          ...(drafts ? { scripts: drafts } : {}),
+          ...(plan ? { plan } : {})
         }),
         true
       )
@@ -282,6 +310,9 @@ export class BatchRunner {
       batch,
       paths: new Map(),
       requests: new Map(),
+      footages: new Map(),
+      // A batch saved before a restart keeps no reuse setting, so its retries avoid used footage.
+      reuse: false,
       jobs: new Map()
     }
     this.runs.set(batchId, run)
@@ -289,9 +320,18 @@ export class BatchRunner {
   }
 }
 
-// Script items run from their request, analysis items from their file path.
+// Script items run from their request, assembly items from their footage match, analysis items from
+// their file path.
 function hasInput(run: Run, itemId: string): boolean {
-  return run.batch.kind === 'script' ? run.requests.has(itemId) : run.paths.has(itemId)
+  if (run.batch.kind === 'script') return run.requests.has(itemId)
+  if (run.batch.kind === 'assembly') return run.footages.has(itemId)
+  return run.paths.has(itemId)
+}
+
+function retryInputMessage(kind: Batch['kind']): string {
+  if (kind === 'script') return 'Retrying an item needs its draft request.'
+  if (kind === 'assembly') return 'Retrying an item needs its footage request.'
+  return 'Retrying an item needs its current file path.'
 }
 
 function requireItem(batch: Batch, itemId: string): BatchItem {

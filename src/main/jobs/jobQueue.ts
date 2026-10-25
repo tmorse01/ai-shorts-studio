@@ -7,6 +7,10 @@ import type { MediaKind } from '@shared/project/schema'
 import type { ProbeResult } from '@shared/media/probe'
 import type { AnalysisStage, StageResult } from '@shared/analysis/analysis'
 import type { GeneratedScript, ScriptRunInput } from '@shared/ai/scriptGeneration'
+import type {
+  FootageMatchRequest,
+  FootageMatchResultData
+} from '@shared/assembly/footageMatchRequest'
 import { UserFacingError } from '../errors'
 import type { ExportJobInput } from '../export/exportJob'
 
@@ -28,8 +32,18 @@ export interface JobInput {
   resultFile?: string
   /** The script draft request a script job runs. Set for script jobs only. */
   scriptRequest?: ScriptRunInput
+  /** The footage match an assembly job runs, with its batch and whether footage may be reused. Assembly only. */
+  assembly?: AssemblyJobInput
   /** What an export job renders: the short, its footage and the encoder settings. Set for export jobs. */
   export?: ExportJobInput
+}
+
+export interface AssemblyJobInput {
+  /** The batch the item belongs to. Matches in one batch run one after another, so they can share footage state. */
+  batchId: string
+  /** Whether this match may use footage an earlier item in the batch already used. */
+  reuse: boolean
+  footage: FootageMatchRequest
 }
 
 export interface JobContext {
@@ -48,6 +62,7 @@ export interface JobResults {
   poster: void
   analysis: StageResult
   script: GeneratedScript[]
+  assembly: FootageMatchResultData
   /** The file the export wrote, after it was renamed into place. */
   export: { outPath: string }
 }
@@ -66,6 +81,7 @@ export const JOB_PRIORITY: Record<JobKind, number> = {
   poster: 1,
   analysis: 4,
   script: 4,
+  assembly: 4,
   // Exports are user-started and long. They run after probing and thumbnails, ahead of analysis.
   export: 3
 }
@@ -78,6 +94,7 @@ const JOB_TITLES: Record<JobKind, string> = {
   poster: 'Making a poster frame',
   analysis: 'Analyzing the footage',
   script: 'Drafting a script',
+  assembly: 'Matching footage',
   export: 'Exporting the short'
 }
 
@@ -300,6 +317,7 @@ export function unavailableExecutors(): JobExecutors {
     poster: unavailable('poster'),
     analysis: unavailable('analysis'),
     script: unavailable('script'),
+    assembly: unavailable('assembly'),
     export: unavailable('export')
   }
 }
