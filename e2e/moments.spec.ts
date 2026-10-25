@@ -155,13 +155,15 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
   })
 
   await test.step('the timeline label follows a renamed moment', async () => {
-    await page
-      .getByRole('list', { name: 'Moments' })
+    await openMomentList(page)
+    const moments = page.getByRole('list', { name: 'Moments' })
+    await expect(moments).toBeVisible()
+    await moments
       .getByRole('listitem')
       .first()
       .getByRole('button', { name: 'Rename moment' })
       .click()
-    await page.getByRole('list', { name: 'Moments' }).getByLabel('Moment name').fill('Jump renamed')
+    await moments.getByLabel('Moment name').fill('Jump renamed')
     await page.keyboard.press('Enter')
     await expect(page.locator('[aria-label^="Jump renamed"]').first()).toBeVisible()
   })
