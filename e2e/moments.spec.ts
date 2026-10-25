@@ -40,6 +40,13 @@ async function seekTo(page: Page, ms: number): Promise<void> {
   }, ms)
 }
 
+// The moments of a clip are folded behind a "N moment" toggle in the Media panel. Opens it when closed.
+// The panel remounts when another left tool is shown, so this runs again after switching back.
+async function openMomentList(page: Page): Promise<void> {
+  const toggle = page.getByRole('button', { name: '1 moment' })
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+}
+
 async function findProjectFiles(dir: string): Promise<string[]> {
   const found: string[] = []
   for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
@@ -77,9 +84,7 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
     await page.keyboard.press('m')
     await page.getByLabel('Moment name').fill(MOMENT)
     await page.keyboard.press('Enter')
-    // The moments of a clip are folded behind a "1 moment" toggle in the Media panel. Open it.
-    const toggle = page.getByRole('button', { name: '1 moment' })
-    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+    await openMomentList(page)
     await expect(page.getByRole('list', { name: 'Moments' })).toContainText(MOMENT)
   })
 
@@ -96,6 +101,7 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
 
   await test.step('drag the moment onto the timeline', async () => {
     await page.getByRole('button', { name: 'Media', exact: true }).click()
+    await openMomentList(page)
     const momentRow = page.getByRole('list', { name: 'Moments' }).getByRole('listitem').first()
     await momentRow.dragTo(page.locator('[data-track-id]').first(), {
       targetPosition: { x: 600, y: 20 }
