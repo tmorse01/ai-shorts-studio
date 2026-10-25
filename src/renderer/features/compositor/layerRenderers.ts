@@ -59,8 +59,8 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
         {
           centerX: text.centerX,
           centerY: text.centerY,
-          width: bitmap.width,
-          height: bitmap.height,
+          width: bitmap.width * text.motionScale,
+          height: bitmap.height * text.motionScale,
           rotationDeg: 0
         },
         text.alpha

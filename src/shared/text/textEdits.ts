@@ -2,6 +2,7 @@
 // scales a text item as a fraction of the frame, and the nudge keys step it. No DOM, no store.
 import type { TextItem } from './textItem'
 import type { TextColorName } from './textStyles'
+import { MAX_TEXT_MOTION_MS, MIN_TEXT_MOTION_MS } from './textMotion'
 
 // The text scale range. The schema allows up to 4; the lower bound keeps the text legible on the frame.
 export const MIN_TEXT_SCALE = 0.25
@@ -50,6 +51,12 @@ export function withColor(item: TextItem, color: TextColorName | undefined): Tex
   if (color === undefined) delete next.color
   else next.color = color
   return next
+}
+
+// The item with its motion length set, kept inside the motion range and rounded to whole ms.
+export function withMotionMs(item: TextItem, ms: number): TextItem {
+  const clamped = Math.round(Math.min(Math.max(ms, MIN_TEXT_MOTION_MS), MAX_TEXT_MOTION_MS))
+  return { ...item, motionMs: clamped }
 }
 
 // The item with its backdrop set, or with no backdrop when backdrop is undefined.

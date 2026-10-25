@@ -4,6 +4,7 @@ import { createAiStateFile } from './ai/aiStateFile'
 import { createSafeStorageSecretStore } from './ai/secretStore'
 import { createAnthropicClient } from './ai/anthropicClient'
 import { join } from 'node:path'
+import { writeFile } from 'node:fs/promises'
 import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
 import { MEDIA_SCHEME } from '@shared/media/previewSource'
@@ -113,6 +114,15 @@ void app.whenReady().then(async () => {
             ]
           })
           return result.canceled ? [] : result.filePaths
+        },
+        saveSrtFile: async ({ suggestedName, text }) => {
+          const result = await dialog.showSaveDialog({
+            defaultPath: join(app.getPath('documents'), suggestedName),
+            filters: [{ name: 'SubRip subtitles', extensions: ['srt'] }]
+          })
+          if (result.canceled || !result.filePath) return null
+          await writeFile(result.filePath, text, 'utf8')
+          return result.filePath
         }
       }
     })

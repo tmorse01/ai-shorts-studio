@@ -6,13 +6,20 @@ import {
   type TextColorName,
   type TextStyleId
 } from '@shared/text/textStyles'
+import { TEXT_MOTIONS, type TextMotion } from '@shared/text/textItem'
 import {
   MAX_TEXT_SCALE,
   MIN_TEXT_SCALE,
   scaleTextItem,
   withBackdrop,
-  withColor
+  withColor,
+  withMotionMs
 } from '@shared/text/textEdits'
+import {
+  MAX_TEXT_MOTION_MS,
+  MIN_TEXT_MOTION_MS,
+  TEXT_MOTION_DEFAULT_MS
+} from '@shared/text/textMotion'
 import {
   TEXT_PRESETS,
   applyTextPresetLook,
@@ -24,7 +31,7 @@ import { Select } from '@renderer/ui/Select'
 import { SliderNumberField } from '@renderer/ui/SliderNumberField'
 import { useInspectorStore } from '../inspector/useInspectorStore'
 import type { TextClipTarget } from '../inspector/inspectorStore'
-import { TEXT_COLOUR_LABELS } from './textOptions'
+import { TEXT_COLOUR_LABELS, TEXT_MOTION_LABELS } from './textOptions'
 import styles from './TextSection.module.css'
 
 // The inspector's text section (Epic 13, #127), in the Video tab. It edits the one selected text overlay: its
@@ -56,6 +63,7 @@ function TextForm({ target }: TextFormProps): JSX.Element {
     { value: 'none', label: 'None' },
     ...TEXT_COLOR_NAMES.map((name) => ({ value: name, label: TEXT_COLOUR_LABELS[name] }))
   ]
+  const motionOptions = TEXT_MOTIONS.map((id) => ({ value: id, label: TEXT_MOTION_LABELS[id] }))
   const presetOptions = [
     ...TEXT_PRESETS.map((preset) => ({ value: preset.id, label: preset.label })),
     { value: 'custom', label: 'Custom', disabled: true }
@@ -127,6 +135,45 @@ function TextForm({ target }: TextFormProps): JSX.Element {
           }
         />
       </Field>
+      <Field label="In">
+        <Select
+          aria-label="Text entry motion"
+          value={item.enter ?? 'none'}
+          options={motionOptions}
+          onValueChange={(value) =>
+            apply('Change text entry', (current) => ({
+              ...current,
+              enter: value as TextMotion
+            }))
+          }
+        />
+      </Field>
+      <Field label="Out">
+        <Select
+          aria-label="Text exit motion"
+          value={item.exit ?? 'none'}
+          options={motionOptions}
+          onValueChange={(value) =>
+            apply('Change text exit', (current) => ({ ...current, exit: value as TextMotion }))
+          }
+        />
+      </Field>
+      <SliderNumberField
+        label="Motion length"
+        value={item.motionMs ?? TEXT_MOTION_DEFAULT_MS}
+        min={MIN_TEXT_MOTION_MS}
+        max={MAX_TEXT_MOTION_MS}
+        step={50}
+        format={(value) => `${Math.round(value)} ms`}
+        parse={parseMilliseconds}
+        onChange={(value) =>
+          apply(
+            'Change motion length',
+            (current) => withMotionMs(current, value),
+            `motion:${clip.id}`
+          )
+        }
+      />
       <Field label="Preset">
         <Select
           aria-label="Text preset"
@@ -141,6 +188,12 @@ function TextForm({ target }: TextFormProps): JSX.Element {
       </Field>
     </div>
   )
+}
+
+// Reads a length typed in ms ("400" or "400 ms"). Null when the text is not a number.
+function parseMilliseconds(text: string): number | null {
+  const number = Number.parseFloat(text.replace('ms', '').trim())
+  return Number.isFinite(number) ? number : null
 }
 
 // Reads a size typed as a percentage ("150" or "150%"), as a scale. Null when the text is not a number.

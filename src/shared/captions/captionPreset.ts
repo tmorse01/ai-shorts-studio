@@ -10,6 +10,22 @@ const nonEmptyString = z.string().trim().min(1)
 const colorNames = Object.keys(TEXT_PALETTE) as [TextColorName, ...TextColorName[]]
 export const captionColorSchema = z.enum(colorNames)
 
+export const CAPTION_POSITIONS = ['top', 'middle', 'bottom'] as const
+export const captionPositionSchema = z.enum(CAPTION_POSITIONS)
+export type CaptionPosition = z.infer<typeof captionPositionSchema>
+
+export const MIN_WORDS_PER_CAPTION = 1
+export const MAX_WORDS_PER_CAPTION = 12
+export const DEFAULT_WORDS_PER_CAPTION = 4
+
+// The vertical centre of a caption as a fraction of the canvas height, per position. Bottom is the
+// lower third the captions have always used.
+export const CAPTION_POSITION_ANCHOR: Record<CaptionPosition, number> = {
+  top: 0.2,
+  middle: 0.5,
+  bottom: 0.72
+}
+
 export const captionPresetSchema = z.object({
   id: nonEmptyString,
   label: nonEmptyString,
@@ -24,9 +40,21 @@ export const captionPresetSchema = z.object({
   highlight: captionColorSchema,
   stroke: z.object({ color: captionColorSchema, widthPx: z.number().nonnegative() }).optional(),
   highlightWords: z.boolean(),
-  popIn: z.boolean()
+  popIn: z.boolean(),
+  // Where the captions sit on the frame. Unset means the lower third (bottom). Schema 17.
+  position: captionPositionSchema.optional(),
+  // The most words in one caption, used when captions are generated. Unset means 4. Schema 17.
+  wordsPerCaption: z.number().int().min(MIN_WORDS_PER_CAPTION).max(MAX_WORDS_PER_CAPTION).optional()
 })
 export type CaptionPreset = z.infer<typeof captionPresetSchema>
+
+export function captionAnchorOf(preset: CaptionPreset): number {
+  return CAPTION_POSITION_ANCHOR[preset.position ?? 'bottom']
+}
+
+export function wordsPerCaptionOf(preset: CaptionPreset | undefined): number {
+  return preset?.wordsPerCaption ?? DEFAULT_WORDS_PER_CAPTION
+}
 
 export const DEFAULT_CAPTION_PRESETS: readonly CaptionPreset[] = [
   {

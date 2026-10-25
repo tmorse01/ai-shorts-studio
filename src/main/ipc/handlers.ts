@@ -68,6 +68,8 @@ export interface SystemActions {
   documentsDir: () => string
   /** Shows the native multi-select picker for media files. Resolves an empty list on cancel. */
   pickMediaFiles: () => Promise<string[]>
+  /** Shows the save dialog for an SRT file and writes the text. Resolves the saved path, or null on cancel. */
+  saveSrtFile: (file: { suggestedName: string; text: string }) => Promise<string | null>
 }
 
 const unavailable = (): never => {
@@ -151,7 +153,8 @@ export function createIpcHandlers({
     revealFolder: system.revealFolder ?? unavailable,
     trashFolder: system.trashFolder ?? unavailable,
     documentsDir: system.documentsDir ?? unavailable,
-    pickMediaFiles: system.pickMediaFiles ?? unavailable
+    pickMediaFiles: system.pickMediaFiles ?? unavailable,
+    saveSrtFile: system.saveSrtFile ?? unavailable
   }
   // Poster frames queued and not yet settled, so repeated requests do not queue one frame twice.
   const pendingPosters = new Set<string>()
@@ -256,6 +259,9 @@ export function createIpcHandlers({
       readMediaTranscript(projectFolder, mediaId),
     'captions:transcribe': async ({ projectFolder, items }) => ({
       transcripts: await transcribeMediaItems(projectFolder, items, jobs)
+    }),
+    'captions:exportSrt': async ({ suggestedName, srt }) => ({
+      savedPath: await actions.saveSrtFile({ suggestedName, text: srt })
     }),
     'analysis:vision:read': ({ projectFolder, mediaId }) => readMediaVision(projectFolder, mediaId),
     'analysis:suggestions:read': ({ projectFolder, mediaId }) =>
