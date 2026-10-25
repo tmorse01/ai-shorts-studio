@@ -1,6 +1,8 @@
 // Tutorial section 3: analyse footage, read the transcript, and work through Clip Finder. The fakes give a
 // fixed transcript ("Welcome to the lantern market. Today we follow the river bridges.") and two fixed
 // moment suggestions, so every step can be checked against known text.
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { AppSession } from './launchApp'
 import { FIXTURES } from './generateFixtures'
 import { expect, test } from './test'
@@ -8,15 +10,46 @@ import { expect, test } from './test'
 const DRAFT_A = 'Lantern market welcome'
 const DRAFT_B = 'River bridges'
 
+// Attaches every analysis.json the app wrote under the test profile, so a failed wait shows each stage's state.
+async function attachAnalysisFiles(profileDir: string): Promise<void> {
+  const walk = async (dir: string): Promise<string[]> => {
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+    const found: string[] = []
+    for (const entry of entries) {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) found.push(...(await walk(path)))
+      else if (entry.name === 'analysis.json') found.push(path)
+    }
+    return found
+  }
+  for (const file of await walk(profileDir)) {
+    const body = await readFile(file, 'utf8').catch(() => '(unreadable)')
+    await test.info().attach(`analysis.json ${file.slice(profileDir.length)}`, {
+      body,
+      contentType: 'application/json'
+    })
+  }
+}
+
+// Waits for the clip's status to read Analyzed. On a timeout, the analysis files are attached first.
+async function expectAnalyzed(session: AppSession): Promise<void> {
+  try {
+    await expect(session.page.getByText('Analyzed', { exact: true }).first()).toBeVisible({
+      timeout: 180_000
+    })
+  } catch (error) {
+    await attachAnalysisFiles(session.profileDir)
+    throw error
+  }
+}
+
 // Imports clip A, selects it, and runs analysis. A plain click on the clip also opens it in Source view.
 async function analyseClip(session: AppSession): Promise<void> {
   const { page } = session
   await session.importMedia([FIXTURES.clipA])
   await page.getByRole('button', { name: /^clip-a\.mp4/ }).click()
   await page.getByRole('button', { name: 'Analyse selected' }).click()
-  await expect(page.getByText('Analyzed', { exact: true }).first()).toBeVisible({
-    timeout: 180_000
-  })
+  await expectAnalyzed(session)
 }
 
 // The Clip Finder row whose title matches, so a test acts on one candidate.
@@ -39,9 +72,7 @@ test('analyses a clip: the stages complete and the status shows in the media pan
 
   // The status moves from waiting or analyzing to analyzed. It must not end in a failure.
   await expect(page.getByText('Analysis failed')).toHaveCount(0)
-  await expect(page.getByText('Analyzed', { exact: true }).first()).toBeVisible({
-    timeout: 180_000
-  })
+  await expectAnalyzed(session)
 })
 
 test('the Transcript tab lists the fake lines, and clicking a word seeks the source', async ({
