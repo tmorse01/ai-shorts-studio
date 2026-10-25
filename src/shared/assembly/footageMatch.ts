@@ -14,6 +14,7 @@ import {
   type SearchKind
 } from '../search/searchIndex'
 import type { AssemblyPlan, AssemblyLine } from './assemblyPlan'
+import { spreadCandidates, type UsedRange } from './footageSpread'
 
 export const CUT_MIN_MS = 3000
 export const CUT_MAX_MS = 6000
@@ -83,6 +84,8 @@ export interface FootageSources {
 
 export interface FootageMatchInput extends FootageSources {
   lines: readonly FootageMatchLine[]
+  /** Footage an earlier script in the batch already uses. Empty when reuse is allowed. */
+  usedRanges?: readonly UsedRange[]
   /** The script's target length, or null when the user left it open. */
   targetMs: number | null
 }
@@ -145,7 +148,8 @@ export interface FootageMatchResult {
 export function candidatesForLine(
   index: SearchIndex,
   text: string,
-  limit = CANDIDATES_PER_LINE
+  limit = CANDIDATES_PER_LINE,
+  used: readonly UsedRange[] = []
 ): SearchHit[] {
   const terms = queryTermsOf(text)
     .filter((term) => term.length >= MIN_TERM_LENGTH && !STOP_WORDS.has(term))
@@ -163,9 +167,10 @@ export function candidatesForLine(
   if (best.size < limit) {
     for (const term of terms) keep(index.search(term, limit))
   }
-  return [...best.values()]
-    .sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-    .slice(0, limit)
+  const ranked = [...best.values()].sort(
+    (a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  )
+  return spreadCandidates(ranked, used).slice(0, limit)
 }
 
 /** Shot boundaries of one media item in milliseconds, sorted, with the start and the end included. */
@@ -263,18 +268,20 @@ export function prepareFootageMatch(input: FootageMatchInput): PreparedFootageMa
   const lines: MatchLine[] = input.lines.map((line) => ({
     lineId: line.lineId,
     text: line.text,
-    candidates: candidatesForLine(input.index, line.text).map((hit) => {
-      counter += 1
-      return {
-        id: `c${counter}`,
-        mediaId: hit.mediaId,
-        mediaName: input.mediaNames[hit.mediaId] ?? 'unknown clip',
-        kind: hit.kind,
-        text: clipText(hit.text),
-        startMs: hit.startMs,
-        endMs: hit.endMs
+    candidates: candidatesForLine(input.index, line.text, undefined, input.usedRanges).map(
+      (hit) => {
+        counter += 1
+        return {
+          id: `c${counter}`,
+          mediaId: hit.mediaId,
+          mediaName: input.mediaNames[hit.mediaId] ?? 'unknown clip',
+          kind: hit.kind,
+          text: clipText(hit.text),
+          startMs: hit.startMs,
+          endMs: hit.endMs
+        }
       }
-    })
+    )
   }))
   const request: FootageMatchRequest = { lines, targetMs: input.targetMs }
   const withCandidates = lines.filter((line) => line.candidates.length > 0)

@@ -18,7 +18,8 @@ function analysisRunner() {
     })
   const executors = {
     analysis: run as JobExecutors['analysis'],
-    script: run as JobExecutors['script']
+    script: run as JobExecutors['script'],
+    assembly: run as JobExecutors['assembly']
   } as unknown as JobExecutors
   return { executors, started }
 }
@@ -66,6 +67,12 @@ describe('JobQueue hold', () => {
         poster: async () => undefined,
         analysis: () => new Promise<never>(() => undefined),
         script: async () => [],
+        assembly: async () => ({
+          plan: { lines: [] },
+          unmatchedLineIds: [],
+          totalMs: 0,
+          targetHit: null
+        }),
         export: async () => ({ outPath: 'clip.mp4' })
       } as JobExecutors,
       2

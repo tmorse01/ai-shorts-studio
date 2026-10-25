@@ -13,6 +13,7 @@ import {
   type FootageMatchResult
 } from '@shared/assembly/footageMatch'
 import { SearchIndex, type SearchDoc } from '@shared/search/searchIndex'
+import type { UsedRange } from '@shared/assembly/footageSpread'
 import type { FootageMatchRequest } from '@shared/assembly/footageMatchRequest'
 import { UserFacingError } from '../errors'
 import type { AiService } from './aiService'
@@ -89,7 +90,8 @@ export async function matchFootage(
  */
 export async function matchFootageRequest(
   ai: AiService,
-  request: FootageMatchRequest
+  request: FootageMatchRequest,
+  usedRanges: readonly UsedRange[] = []
 ): Promise<FootageMatchResult> {
   const index = new SearchIndex()
   const byMedia = new Map<string, SearchDoc[]>()
@@ -105,6 +107,7 @@ export async function matchFootageRequest(
     index,
     mediaNames: request.mediaNames,
     shots: request.shots,
-    durationsMs: request.durationsMs
+    durationsMs: request.durationsMs,
+    usedRanges
   })
 }

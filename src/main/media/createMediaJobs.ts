@@ -19,6 +19,25 @@ import { transcriptStageRunner } from '../transcription/transcriptStage'
 import { realTranscriptTools } from '../transcription/transcriptTools'
 import { generateScripts } from '../ai/scriptGenerator'
 import { readScriptFootage } from '../ai/scriptFootage'
+import { matchFootageRequest } from '../ai/footageMatcher'
+import { usedRangesOfPlan, type UsedRange } from '@shared/assembly/footageSpread'
+
+// The footage a batch has already used, and the queue of its matches. Held in memory, so a restart
+// starts the spread again; the batch's saved plans are not read back for it.
+interface AssemblySpread {
+  chain: Promise<unknown>
+  used: UsedRange[]
+}
+const assemblySpreads = new Map<string, AssemblySpread>()
+
+function spreadFor(batchId: string): AssemblySpread {
+  let spread = assemblySpreads.get(batchId)
+  if (!spread) {
+    spread = { chain: Promise.resolve(), used: [] }
+    assemblySpreads.set(batchId, spread)
+  }
+  return spread
+}
 
 export function createMediaJobs(ai: AiService): JobQueue {
   const location: BinaryLocation = {
@@ -79,6 +98,23 @@ export function createMediaJobs(ai: AiService): JobQueue {
     script: (input) => {
       if (!input.scriptRequest) throw new UserFacingError('The script job lost its request.')
       return generateScripts(ai, readScriptFootage, input.scriptRequest)
+    },
+    assembly: ({ assembly }, { signal }) => {
+      if (!assembly) throw new UserFacingError('The footage job lost its request.')
+      const spread = spreadFor(assembly.batchId)
+      // Each match waits for the ones before it in the batch, so it sees the cuts they chose.
+      const run = spread.chain.then(async () => {
+        if (signal.aborted) throw new UserFacingError('Footage matching was cancelled.')
+        const result = await matchFootageRequest(
+          ai,
+          assembly.footage,
+          assembly.reuse ? [] : spread.used
+        )
+        spread.used = [...spread.used, ...usedRangesOfPlan(result.plan)]
+        return result
+      })
+      spread.chain = run.catch(() => undefined)
+      return run
     },
     // Renders a short to its MP4. The encode runs in FFmpeg, and the render queue records the result.
     export: ({ export: request }, { signal, reportProgress }) => {

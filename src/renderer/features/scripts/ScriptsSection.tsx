@@ -3,9 +3,9 @@ import type { Script } from '@shared/project/schema'
 import { Button } from '@renderer/ui/Button'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { useProjectStore } from '../project/useProjectStore'
-import { toast } from '../toasts/toast'
+import { Switch } from '@renderer/ui/Switch'
 import { assemblyStatusLabel } from '../assembly/assemblyQueue'
-import { queueFootageMatching, useAssemblyQueueStore } from '../assembly/assemblyQueueStore'
+import { startAssemblyBatch, useAssemblyQueueStore } from '../assembly/assemblyQueueStore'
 import { GenerateScriptsDialog } from './GenerateScriptsDialog'
 import { NewScriptDialog } from './NewScriptDialog'
 import { ScriptEditor } from './ScriptEditor'
@@ -21,19 +21,15 @@ export function ScriptsSection(): JSX.Element {
   const plans = useAssemblyQueueStore((state) => state.plans)
   const [creating, setCreating] = useState(false)
   const [drafting, setDrafting] = useState(false)
+  // Off by default: a script's footage avoids cuts the earlier scripts in the same batch already use.
+  const [reuseFootage, setReuseFootage] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const approvedIds = scripts.filter((script) => script.approval === 'approved').map((s) => s.id)
 
-  // Queues footage matching for every approved script. Nothing reaches a short until it is reviewed.
+  // Starts one batch that matches footage for every approved script. Nothing reaches a short until its plan
+  // is reviewed and applied in the script's review panel.
   function assembleApproved() {
-    queueFootageMatching(approvedIds)
-    toast.info({
-      title:
-        approvedIds.length === 1
-          ? 'Queued footage matching for 1 script'
-          : `Queued footage matching for ${approvedIds.length} scripts`,
-      description: 'Review each one in its script before it is applied to a short.'
-    })
+    void startAssemblyBatch(approvedIds, reuseFootage)
   }
 
   return (
@@ -41,6 +37,9 @@ export function ScriptsSection(): JSX.Element {
       <div className={styles.toolbar}>
         <h2 className={styles.heading}>Scripts</h2>
         <div className={styles.actions}>
+          <Switch checked={reuseFootage} onCheckedChange={setReuseFootage}>
+            Reuse footage
+          </Switch>
           <Button
             variant="secondary"
             disabled={approvedIds.length === 0}

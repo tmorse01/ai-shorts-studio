@@ -32,6 +32,7 @@ function manualExecutors() {
     poster: run as JobExecutors['poster'],
     analysis: run as JobExecutors['analysis'],
     script: run as JobExecutors['script'],
+    assembly: run as JobExecutors['assembly'],
     export: run as JobExecutors['export']
   }
   return { executors, started }

@@ -5,7 +5,7 @@ import type { JobSnapshot } from '@shared/media/jobs'
 import type { FootageMatchResultData } from '@shared/assembly/footageMatchRequest'
 import { BatchRunner, type BatchQueue } from '../src/main/batch/batchRunner'
 import { newlyFinishedScriptDrafts } from '@renderer/features/batch/batchSync'
-import { assemblyStatusLabel, runAssemblyQueue } from '@renderer/features/assembly/assemblyQueue'
+import { assemblyPlanStates, assemblyStatusLabel } from '@renderer/features/assembly/assemblyQueue'
 
 const NOW = '2026-10-24T12:00:00.000Z'
 
@@ -150,36 +150,28 @@ describe('assemble approved queue (#145)', () => {
     totalMs: 0,
     targetHit: null
   } as FootageMatchResultData
-  const matchRequest = {
-    lines: [{ lineId: 'l1', text: 'Line' }],
-    targetMs: null,
-    docs: [],
-    mediaNames: {},
-    shots: {},
-    durationsMs: {}
-  }
 
-  it('runs matches one script at a time and reports each state, in order', async () => {
-    const reports: string[] = []
-    await runAssemblyQueue(['s1', 's2', 's3'], {
-      requestFor: (id) => (id === 's2' ? null : matchRequest),
-      match: async () => result,
-      report: (id, state) => reports.push(`${id}:${state.status}`)
+  it('maps each assembly item to its plan state, with the saved plan when it is ready', () => {
+    const batch = createBatch({
+      id: 'b1',
+      kind: 'assembly',
+      mediaIds: ['s1', 's2', 's3'],
+      createdAt: NOW
     })
-    expect(reports).toEqual(['s1:running', 's1:ready', 's2:failed', 's3:running', 's3:ready'])
-  })
-
-  it('marks a script failed when the match returns nothing or throws', async () => {
-    const reports: string[] = []
-    await runAssemblyQueue(['s1', 's2'], {
-      requestFor: () => matchRequest,
-      match: async (request) => {
-        if (request.lines.length === 0) return result
-        throw new Error('network')
-      },
-      report: (id, state) => reports.push(`${id}:${state.status}`)
+    const ready = updateBatchItem(batch, 's1', { status: 'done', progress: 1, plan: result })
+    const failed = updateBatchItem(ready, 's2', {
+      status: 'failed',
+      progress: 0,
+      error: { message: 'Network down' }
     })
-    expect(reports).toEqual(['s1:running', 's1:failed', 's2:running', 's2:failed'])
+    const states = assemblyPlanStates(
+      updateBatchItem(failed, 's3', { status: 'running', progress: 0.5 })
+    )
+    expect(states).toEqual({
+      s1: { status: 'ready', result },
+      s2: { status: 'failed', message: 'Network down' },
+      s3: { status: 'running' }
+    })
   })
 
   it('labels the row for each plan state, and shows nothing when nothing is queued', () => {

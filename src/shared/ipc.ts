@@ -48,8 +48,21 @@ const analysisItemSchema = z.object({
 const batchItemInputSchema = z.object({
   id: z.string().min(1),
   path: z.string().trim().min(1).optional(),
-  request: scriptRunInputSchema.optional()
+  request: scriptRunInputSchema.optional(),
+  // The footage match an assembly item runs (#146). Only assembly batches read it.
+  footage: footageMatchRequestSchema.optional()
 })
+
+// Which input each batch item needs: a path for analysis, a request for script drafting, footage for
+// assembly. Analysis is the default, as it was before script drafting.
+function batchItemHasInput(
+  item: z.infer<typeof batchItemInputSchema>,
+  input: { stage?: unknown; kind?: 'assembly' }
+): boolean {
+  if (input.stage !== undefined) return item.path !== undefined
+  if (input.kind === 'assembly') return item.footage !== undefined
+  return item.request !== undefined
+}
 import { THUMB_READ_FILES } from './media/thumbs'
 import { mediaSourceInfoSchema, mediaSourceRefSchema } from './media/mediaSources'
 
@@ -261,18 +274,21 @@ export const ipcChannels = {
       .object({
         projectFolder: z.string().trim().min(1),
         stage: analysisStageSchema.optional(),
+        // Set to 'assembly' to match footage for approved scripts (#146). Leave out otherwise.
+        kind: z.literal('assembly').optional(),
+        // Reuse footage across the batch's items. Off by default, so later items avoid used cuts.
+        reuseFootage: z.boolean().optional(),
         items: z.array(batchItemInputSchema).min(1).max(MAX_BATCH_ITEMS)
       })
       .refine((input) => new Set(input.items.map((item) => item.id)).size === input.items.length, {
         message: 'An item can be in a batch only once.'
       })
-      .refine(
-        (input) =>
-          input.items.every((item) =>
-            input.stage === undefined ? item.request !== undefined : item.path !== undefined
-          ),
-        { message: 'Each batch item needs the input for its kind of batch.' }
-      ),
+      .refine((input) => !(input.stage !== undefined && input.kind !== undefined), {
+        message: 'A batch is either an analysis batch or an assembly batch.'
+      })
+      .refine((input) => input.items.every((item) => batchItemHasInput(item, input)), {
+        message: 'Each batch item needs the input for its kind of batch.'
+      }),
     output: z.object({ batch: batchSchema })
   },
   // Cancels one queued or running item of a batch.
