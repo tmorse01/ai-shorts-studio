@@ -6,7 +6,7 @@ import { captionPresetSchema } from '../captions/captionPreset'
 import { batchSchema } from '../batch/batch'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 19
+export const CURRENT_SCHEMA_VERSION = 20
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()

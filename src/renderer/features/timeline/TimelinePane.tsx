@@ -125,6 +125,11 @@ function isVideoRole(role: TrackRole): boolean {
   return role === 'main' || role === 'overlay'
 }
 
+// The Music and Narration lanes are audio lanes: they take audio footage drops.
+function isAudioLane(role: TrackRole): boolean {
+  return role === 'music' || role === 'narration'
+}
+
 const ADD_TRACK_OPTIONS: { label: string; kind: TrackKind; role: TrackRole }[] = [
   { label: 'Overlay video', kind: 'video', role: 'overlay' },
   { label: 'Text', kind: 'text', role: 'text' },
@@ -324,32 +329,40 @@ export function TimelinePane({
     onEdit('Add track', (current) => addTrack(current, track))
   }
 
-  // The Music lane takes audio footage dropped from the media panel.
-  function onMusicDragOver(event: DragEvent<HTMLDivElement>) {
+  // The Music and Narration lanes take audio footage dropped from the media panel.
+  function onAudioLaneDragOver(event: DragEvent<HTMLDivElement>) {
     if (!carriesFootage(event.dataTransfer.types)) return
     event.stopPropagation()
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
   }
 
-  function onMusicDrop(event: DragEvent<HTMLDivElement>, track: Track) {
+  function onAudioLaneDrop(event: DragEvent<HTMLDivElement>, track: Track) {
     if (!carriesFootage(event.dataTransfer.types)) return
     event.stopPropagation()
     event.preventDefault()
     const payload = decodeDragPayload(event.dataTransfer.getData(DRAG_MIME))
     if (payload === null) return
+    const lane = track.role === 'narration' ? 'narration' : 'music'
+    const laneName = lane === 'narration' ? 'Narration' : 'Music'
     if (track.locked) {
-      toast.info({ title: 'Music lane is locked', description: 'Unlock it to add a clip.' })
+      toast.info({ title: `${laneName} lane is locked`, description: 'Unlock it to add a clip.' })
       return
     }
     const x = event.clientX - event.currentTarget.getBoundingClientRect().left
-    const result = audioClipForDrop(payload, media?.items ?? [], newTrackId(), xToTime(x, pxPerMs))
+    const result = audioClipForDrop(
+      payload,
+      media?.items ?? [],
+      newTrackId(),
+      xToTime(x, pxPerMs),
+      lane
+    )
     if (!result.ok) {
-      toast.info({ title: 'Cannot add to Music', description: result.reason })
+      toast.info({ title: `Cannot add to ${laneName}`, description: result.reason })
       return
     }
     const clip = result.clip
-    onEdit('Add music clip', (current) => insertClip(current, track.id, clip, clip.startMs))
+    onEdit(`Add ${lane} clip`, (current) => insertClip(current, track.id, clip, clip.startMs))
   }
 
   // A video lane (Main or an overlay) takes video footage from the media panel or the source viewer.
@@ -1159,8 +1172,8 @@ export function TimelinePane({
           data-role={role}
           data-track-id={track?.id}
           onDragOver={
-            track && role === 'music'
-              ? onMusicDragOver
+            track && isAudioLane(role)
+              ? onAudioLaneDragOver
               : track && isVideoRole(role)
                 ? (event) => onVideoDragOver(event, track)
                 : undefined
@@ -1169,8 +1182,8 @@ export function TimelinePane({
             track && isVideoRole(role) ? (event) => onVideoDragLeave(event, track) : undefined
           }
           onDrop={
-            track && role === 'music'
-              ? (event) => onMusicDrop(event, track)
+            track && isAudioLane(role)
+              ? (event) => onAudioLaneDrop(event, track)
               : track && isVideoRole(role)
                 ? (event) => onVideoDrop(event, track)
                 : undefined
