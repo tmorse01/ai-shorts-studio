@@ -83,6 +83,12 @@
   font-size: var(--type-small-size);
   line-height: var(--type-small-line);
   color: var(--color-text-2);
+  font-variant-numeric: lining-nums;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .approved {
