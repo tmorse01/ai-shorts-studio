@@ -5,6 +5,8 @@ import { ShortcutsDialog } from '@renderer/features/shortcuts/ShortcutsDialog'
 import { shortcutRegistry } from '@renderer/features/shortcuts/shortcutRegistry'
 import { Inspector } from '@renderer/features/inspector/Inspector'
 import { useMediaDrop } from '@renderer/features/media/useMediaDrop'
+import { EMPTY_TIMELINE } from '@renderer/features/preview/previewFrame'
+import { EditorTimeline } from '@renderer/features/timeline/EditorTimeline'
 import { LEFT_TOOL_DEFINITIONS } from './leftTools'
 import { LEFT_PANELS } from './leftPanels'
 import { EditorToolbar } from './EditorToolbar'
@@ -56,10 +58,14 @@ export function EditorShell({ timeline, shortId }: EditorShellProps) {
           </PaneFrame>
         </div>
         <PaneFrame pane="bottom" title="Timeline">
-          <EmptyState
-            title="No timeline yet"
-            description="Clips, captions and music will sit on tracks here once a short has footage."
-          />
+          {shortId ? (
+            <EditorTimeline timeline={timeline ?? EMPTY_TIMELINE} shortId={shortId} />
+          ) : (
+            <EmptyState
+              title="No timeline yet"
+              description="Open a short to edit its clips, captions and music."
+            />
+          )}
         </PaneFrame>
       </div>
       <ShortcutsDialog />
