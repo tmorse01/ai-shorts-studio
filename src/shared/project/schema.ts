@@ -6,7 +6,7 @@ import { captionPresetSchema } from '../captions/captionPreset'
 import { batchSchema } from '../batch/batch'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 22
+export const CURRENT_SCHEMA_VERSION = 23
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -118,6 +118,9 @@ export const shortSchema = z.object({
   posterMs: z.number().int().nonnegative().optional(),
   // The script this short is written from. Unset until one is attached (schema 8).
   scriptId: nonEmptyString.optional(),
+  // Set on a short created when a batch footage plan was applied, until the user keeps it (schema 23).
+  // Unset means the short is not a batch draft.
+  batchDraft: z.boolean().optional(),
   // The caption preset this short uses by default. Unset means the project's default preset (schema 14).
   captionPresetId: nonEmptyString.optional(),
   exportedAt: isoTimestamp.optional(),

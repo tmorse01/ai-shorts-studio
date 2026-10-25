@@ -18,7 +18,11 @@ export interface ApplyFootagePlanInput {
    * Set when the script has no short yet (#146). The draft short is created from the script in the same
    * step, with a main video track for the footage, so one undo removes both.
    */
-  createFromScript?: { scriptId: string }
+  createFromScript?: {
+    scriptId: string
+    /** Set when the plan came from an assembly batch. The new short then waits for review (#148). */
+    batchDraft?: boolean
+  }
 }
 
 export function applyFootagePlanCommand(input: ApplyFootagePlanInput): Command<Project> {
@@ -27,18 +31,16 @@ export function applyFootagePlanCommand(input: ApplyFootagePlanInput): Command<P
   const apply = timelineCommand(input.shortId, label, input.now, (timeline) =>
     applyAssemblyPlan(timeline, input.plan, { trackId: input.trackId, newId: input.newId })
   )
-  if (!input.createFromScript) return apply
-  const create = createShortFromScriptCommand(
-    input.shortId,
-    input.createFromScript.scriptId,
-    input.now
-  )
+  const fromScript = input.createFromScript
+  if (!fromScript) return apply
+  const create = createShortFromScriptCommand(input.shortId, fromScript.scriptId, input.now)
   return {
     label,
     produce: (draft) => {
       create.produce(draft)
       const short = draft.shorts.find((item) => item.id === input.shortId)
       if (!short) throw new Error('The short could not be created.')
+      if (fromScript.batchDraft) short.batchDraft = true
       // A new short has no tracks, so the footage gets its main video track first.
       const empty: Timeline = { tracks: [] }
       const withTrack = addTrack(empty, {

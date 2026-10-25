@@ -55,6 +55,8 @@ function ReviewBody({ scriptId, onDone }: { scriptId: string; onDone: () => void
   const queued = useAssemblyQueueStore((state) => state.plans[scriptId])
   const queuedResult = queued?.status === 'ready' ? queued.result : null
   const [result, setResult] = useState<FootageMatchResultData | null>(queuedResult)
+  // True while the plan on screen came from an assembly batch, not from a match run here (#148).
+  const [fromBatch, setFromBatch] = useState(queuedResult !== null)
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(
     () => new Set(queuedResult ? queuedResult.plan.lines.map((line) => line.lineId) : [])
   )
@@ -88,6 +90,7 @@ function ReviewBody({ scriptId, onDone }: { scriptId: string; onDone: () => void
     setBusy(false)
     if (data) {
       setResult(data)
+      setFromBatch(false)
       setAccepted(new Set(data.plan.lines.map((line) => line.lineId)))
     }
   }
@@ -112,7 +115,7 @@ function ReviewBody({ scriptId, onDone }: { scriptId: string; onDone: () => void
           plan: acceptedPlan(result.plan, accepted),
           now: new Date().toISOString(),
           newId: () => crypto.randomUUID(),
-          ...(short ? {} : { createFromScript: { scriptId } })
+          ...(short ? {} : { createFromScript: { scriptId, batchDraft: fromBatch } })
         })
       )
       toast.success({
