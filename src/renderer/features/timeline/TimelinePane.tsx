@@ -89,6 +89,7 @@ import { SetPosterButton } from '../shorts/SetPosterButton'
 import { CaptionBlocks } from '../captions/CaptionBlocks'
 import { closeGapEdit, timelineShortcuts, type TimelineShortcutContext } from './timelineShortcuts'
 import { shortcutRegistry } from '../shortcuts/shortcutRegistry'
+import { RecordNarrationButton } from '../narration/RecordNarrationButton'
 import styles from './TimelinePane.module.css'
 
 export type TimelineEdit = (timeline: Timeline) => Timeline
@@ -108,6 +109,8 @@ export interface TimelinePaneProps {
   // Each edit goes to the caller, which runs it as a command. A drag passes a mergeKey.
   onEdit: (label: string, edit: TimelineEdit, mergeKey?: string) => void
   newId?: () => string
+  // The short the pane edits. When set, the Narration lane offers Record narration.
+  shortId?: string
   media?: TimelineMedia
 }
 
@@ -200,6 +203,7 @@ export function TimelinePane({
   target,
   onEdit,
   newId,
+  shortId,
   media
 }: TimelinePaneProps): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1136,6 +1140,7 @@ export function TimelinePane({
           <span className={styles.name}>{label}</span>
           {track ? (
             <>
+              {role === 'narration' && shortId ? <RecordNarrationButton shortId={shortId} /> : null}
               <IconButton
                 icon={track.muted ? VolumeX : Volume2}
                 label={track.muted ? `Unmute ${label}` : `Mute ${label}`}
