@@ -12,6 +12,7 @@ import {
   type Project
 } from '@shared/project/schema'
 import { loadProjectText, type LoadedProject, type ProjectError } from '@shared/project/loadProject'
+import { recoverInterruptedBatch, type Batch } from '@shared/batch/batch'
 import { UserFacingError } from '../errors'
 import { offlineMediaIds } from '../media/mediaPaths'
 
@@ -97,14 +98,58 @@ export async function openProject(folderPath: string): Promise<OpenedProject> {
   )
 }
 
+// Reads one batch as it was saved. Unlike openProject, it does not mark interrupted items.
+export async function readProjectBatch(
+  folderPath: string,
+  batchId: string
+): Promise<Batch | undefined> {
+  const dir = resolve(folderPath)
+  const primary = await readProjectFile(join(dir, PROJECT_FILE))
+  if (primary.kind !== 'loaded') {
+    throw new UserFacingError('The project could not be read to find the batch.', dir)
+  }
+  return primary.loaded.project.batches?.find((batch) => batch.id === batchId)
+}
+
+// Writes one batch into project.json, replacing the saved copy with the same id. The rest of the
+// project is kept as it was saved.
+export async function saveProjectBatch(folderPath: string, batch: Batch): Promise<void> {
+  const dir = resolve(folderPath)
+  const primary = await readProjectFile(join(dir, PROJECT_FILE))
+  if (primary.kind !== 'loaded') {
+    throw new UserFacingError('The project could not be opened to save the batch.', dir)
+  }
+  const project = primary.loaded.project
+  const others = (project.batches ?? []).filter((item) => item.id !== batch.id)
+  // Windows can refuse the rename while another read of project.json is open. A short retry covers that.
+  await retryOnLockedFile(() => saveProject(dir, { ...project, batches: [...others, batch] }))
+}
+
+async function retryOnLockedFile<T>(action: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await action()
+    } catch (error) {
+      const locked = isErrorCode(error, 'EPERM') || isErrorCode(error, 'EBUSY')
+      if (!locked || attempt >= 5) throw error
+      await new Promise((resolve) => setTimeout(resolve, 40 * attempt))
+    }
+  }
+}
+
 async function describeOpened(
   dir: string,
   project: Project,
   warning?: string
 ): Promise<OpenedProject> {
+  // Batch items still queued or running belong to a run that ended with the last session.
+  const opened =
+    project.batches === undefined
+      ? project
+      : { ...project, batches: project.batches.map(recoverInterruptedBatch) }
   return {
     folderPath: dir,
-    project,
+    project: opened,
     offlineMediaIds: await offlineMediaIds(dir, project.media),
     warning
   }

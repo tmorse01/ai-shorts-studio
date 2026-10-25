@@ -202,6 +202,12 @@ export function migrateV17ToV18(data: unknown): unknown {
   return { ...data, schemaVersion: 18 }
 }
 
+// Schema 19 adds batches. They are optional and read as none when unset, so only the version changes.
+export function migrateV18ToV19(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 19 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -230,7 +236,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 14, to: 15, up: migrateV14ToV15 },
   { from: 15, to: 16, up: migrateV15ToV16 },
   { from: 16, to: 17, up: migrateV16ToV17 },
-  { from: 17, to: 18, up: migrateV17ToV18 }
+  { from: 17, to: 18, up: migrateV17ToV18 },
+  { from: 18, to: 19, up: migrateV18ToV19 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
