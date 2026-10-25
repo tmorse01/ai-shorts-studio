@@ -134,6 +134,8 @@ test('narration, captions, music and text render, and the preview plays with sou
     await session.openShort(SHORT_NAME)
     await expect(page.getByRole('navigation', { name: 'Editor tools' })).toBeVisible()
 
+    // The Media panel is closed on a fresh editor, so the tool opens it before the drag.
+    await toolButton(session, 'Media').click()
     await page.getByTestId('lane-add-narration').click()
     const narrationLane = page.locator('[data-role="narration"]')
     await page
@@ -176,7 +178,7 @@ test('narration, captions, music and text render, and the preview plays with sou
     await musicClips.first().click()
     await page.getByTestId('timeline-loop-fill').click()
     await expect.poll(() => musicClips.count()).toBeGreaterThan(1)
-    await toolButton(session, 'Audio').click()
+    await page.getByRole('tab', { name: 'Audio', exact: true }).click()
     await page.getByRole('switch', { name: 'Duck under narration' }).click()
     await expect(page.getByTestId('timeline-gain-line').first()).toBeVisible()
 
