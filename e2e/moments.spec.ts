@@ -114,9 +114,12 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
     await page.keyboard.press('i')
     await seekTo(page, 8000)
     await page.keyboard.press('o')
+    // Drop at the far end of the main lane, past the clips already there, so the range does not overlap.
+    const lane = page.locator('[data-track-id]').first()
+    const width = (await lane.boundingBox())?.width ?? 0
     await page
       .getByRole('button', { name: 'Drag the marked range to the timeline' })
-      .dragTo(page.locator('[data-track-id]').first(), { targetPosition: { x: 900, y: 20 } })
+      .dragTo(lane, { targetPosition: { x: Math.max(0, width - 20), y: 20 } })
     await expect(page.locator(`[aria-label^="${MOMENT}"]`)).toHaveCount(3)
   })
 
