@@ -742,3 +742,62 @@ export function loopFillClip(
   const next = replaceTrack(timeline, { ...track, clips: [...track.clips, ...copies] })
   return { ...next, transitions: [...(timeline.transitions ?? []), ...transitions] }
 }
+
+// Swaps a clip to one of its alternative takes (Epic 15, #141). The clip plays the take from its start
+// and keeps its slot length where the take is long enough; a shorter take shortens the clip. The clip's
+// current take takes the alternative's place in the list, so swapping back is one more swap. Linked audio
+// moves to the same source. Refused when the clip has no alternative at that index, and on a locked track.
+export function swapClipAlternative(timeline: Timeline, clipId: string, index: number): Timeline {
+  refuseLinked(timeline, clipId)
+  const { track, clip } = locate(timeline, clipId)
+  const assembly = clip.assembly
+  const take = assembly?.alternatives[index]
+  if (!assembly || !take || !Number.isInteger(index)) {
+    throw new TimelineEditError(`Clip "${clipId}" has no alternative take ${index + 1}.`)
+  }
+  if (clip.mediaId === undefined) throw new TimelineEditError(`Clip "${clipId}" has no footage.`)
+
+  const current = {
+    sourceId: clip.mediaId,
+    inMs: clip.sourceInMs,
+    outMs: clip.sourceInMs + clip.durationMs
+  }
+  const swapped: Clip = {
+    ...clip,
+    mediaId: take.sourceId,
+    sourceInMs: take.inMs,
+    durationMs: Math.min(clip.durationMs, take.outMs - take.inMs),
+    assembly: {
+      lineId: assembly.lineId,
+      alternatives: assembly.alternatives.map((item, position) =>
+        position === index ? current : { ...item }
+      )
+    }
+  }
+  let next = replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? swapped : item))
+  })
+  if (clip.linkedAudio) {
+    const audioTrack = trackHolding(next, clip.linkedAudio)
+    if (audioTrack) {
+      next = replaceTrack(next, {
+        ...audioTrack,
+        clips: audioTrack.clips.map((item) =>
+          item.id === clip.linkedAudio ? { ...item, mediaId: take.sourceId } : item
+        )
+      })
+    }
+  }
+  return settle(next)
+}
+
+// Locks or unlocks one clip (Epic 15, #141). A locked clip keeps its place when an assembly plan is applied
+// again. Refused on a locked track, like every clip edit.
+export function setClipLocked(timeline: Timeline, clipId: string, locked: boolean): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? { ...item, locked } : item))
+  })
+}
