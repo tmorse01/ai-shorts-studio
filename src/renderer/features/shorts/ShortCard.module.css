@@ -8,34 +8,32 @@
   background: var(--color-surface);
 }
 
-.poster {
+.posterArea {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   aspect-ratio: 9 / 16;
-  border: 0;
   border-radius: var(--radius);
   background: var(--color-void-black);
+}
+
+/* The open control fills the poster and sits under the poster frame, which lets clicks through. */
+.openButton {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
   cursor: pointer;
 }
 
-.poster:focus-visible {
+.openButton:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
 
-.image {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius);
-  object-fit: cover;
-}
-
 .emptyFrame {
+  pointer-events: none;
   position: absolute;
   inset: 0;
   display: flex;
@@ -63,6 +61,7 @@
 }
 
 .dot {
+  pointer-events: none;
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);

@@ -1,10 +1,9 @@
 // Queues the poster frame for each short whose frame is not cached yet. Run whenever the project home
 // asks, so a cleared cache is rendered again the next time the shorts are shown.
-import { access } from 'node:fs/promises'
 import { resolveMediaPath } from './mediaPaths'
 import type { PathKind } from '@shared/project/schema'
 import type { PosterFrameRef } from '@shared/shorts/poster'
-import { posterFramePath } from './posters'
+import { hasFrame, posterFramePath } from './posters'
 
 export interface PosterItem extends PosterFrameRef {
   // The footage file, as stored on its media ref.
@@ -27,15 +26,6 @@ export interface PosterQueue {
   ) => { done: Promise<unknown> }
 }
 
-async function exists(file: string): Promise<boolean> {
-  try {
-    await access(file)
-    return true
-  } catch {
-    return false
-  }
-}
-
 // `pending` holds the output paths of posters already queued, so repeated requests while a frame
 // renders do not queue it twice. A path leaves the set when its job settles, either way.
 export async function ensureShortPosters(
@@ -43,7 +33,7 @@ export async function ensureShortPosters(
   items: readonly PosterItem[],
   queue: PosterQueue,
   pending: Set<string>,
-  fileExists: (file: string) => Promise<boolean> = exists
+  fileExists: (file: string) => Promise<boolean> = hasFrame
 ): Promise<PosterCounts> {
   const counts: PosterCounts = { queued: 0, cached: 0 }
   for (const item of items) {

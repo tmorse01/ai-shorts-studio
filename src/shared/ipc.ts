@@ -365,14 +365,14 @@ export const ipcChannels = {
       cached: z.number().int().nonnegative()
     })
   },
-  // Reads one short's cached poster frame as a data URL. dataUrl is null while the frame is not
-  // rendered yet.
+  // Says whether one short's poster frame is rendered and readable. The image itself loads through the
+  // aism-media protocol (see shared/media/posterSource), so this only answers whether it is ready.
   'media:poster:read': {
     input: z.object({
       projectFolder: z.string().trim().min(1),
       frame: posterFrameRefSchema
     }),
-    output: z.object({ dataUrl: z.string().nullable() })
+    output: z.object({ rendered: z.boolean() })
   },
   // Queues a 720p proxy for each video that needs one and has no file on disk. Items that do not
   // need one are skipped; the renderer sends the probe's video info so main can decide.
