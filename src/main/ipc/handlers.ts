@@ -26,7 +26,7 @@ import { statMediaFiles } from '../media/statMedia'
 import { ensureMediaThumbs } from '../media/ensureThumbs'
 import { readThumbDataUrl } from '../media/readThumb'
 import { ensureShortPosters } from '../media/ensurePosters'
-import { readPosterDataUrl } from '../media/posters'
+import { posterRendered } from '../media/posters'
 import { ensureMediaProxies } from '../media/ensureProxies'
 import { MediaSourceRegistry, describeMediaSources } from '../media/mediaSources'
 import type { IpcHandlers } from './dispatch'
@@ -312,9 +312,14 @@ export function createIpcHandlers({
     'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs),
     'media:thumb:read': ({ projectFolder, mediaId, file }) =>
       readThumbDataUrl(projectFolder, mediaId, file),
-    'media:posters': ({ projectFolder, items }) =>
-      ensureShortPosters(projectFolder, items, jobs, pendingPosters),
-    'media:poster:read': ({ projectFolder, frame }) => readPosterDataUrl(projectFolder, frame),
+    'media:posters': ({ projectFolder, items }) => {
+      for (const item of items) mediaSources.setPosterFolder(item.shortId, projectFolder)
+      return ensureShortPosters(projectFolder, items, jobs, pendingPosters)
+    },
+    'media:poster:read': ({ projectFolder, frame }) => {
+      mediaSources.setPosterFolder(frame.shortId, projectFolder)
+      return posterRendered(projectFolder, frame)
+    },
     'media:proxy': ({ projectFolder, items }) => ensureMediaProxies(projectFolder, items, jobs),
     'analysis:sync': async ({ projectFolder, items }) => ({
       file: await analysis.sync(projectFolder, items)

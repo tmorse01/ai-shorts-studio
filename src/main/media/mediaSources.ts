@@ -14,6 +14,7 @@ export interface MediaSourcePaths {
 
 export class MediaSourceRegistry {
   private readonly entries = new Map<string, MediaSourcePaths>()
+  private readonly posterFolders = new Map<string, string>()
 
   set(mediaId: string, paths: MediaSourcePaths): void {
     this.entries.set(mediaId, paths)
@@ -21,6 +22,16 @@ export class MediaSourceRegistry {
 
   get(mediaId: string): MediaSourcePaths | undefined {
     return this.entries.get(mediaId)
+  }
+
+  // The project folder a short's poster frames live in. The renderer asks for posters by short id, so
+  // the protocol needs the folder the frames were written to.
+  setPosterFolder(shortId: string, projectFolder: string): void {
+    this.posterFolders.set(shortId, resolve(projectFolder))
+  }
+
+  posterFolder(shortId: string): string | undefined {
+    return this.posterFolders.get(shortId)
   }
 }
 

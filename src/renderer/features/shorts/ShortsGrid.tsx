@@ -225,7 +225,7 @@ export function ShortsGrid(): JSX.Element | null {
               key={short.id}
               short={short}
               target={effectiveShortSettings(defaults, short.overrides)}
-              posterSrc={posters[short.id]}
+              posterView={posters[short.id]}
               renaming={renamingId === short.id}
               draggable={dragEnabled}
               onOpen={() => openShort(short.id)}

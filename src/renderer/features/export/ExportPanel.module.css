@@ -22,18 +22,6 @@
   overflow: hidden;
 }
 
-.poster {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.noPoster {
-  margin: 0;
-  color: var(--color-text-2);
-  font-size: var(--type-small-size);
-}
-
 .editThumb {
   position: absolute;
   right: var(--space-2);

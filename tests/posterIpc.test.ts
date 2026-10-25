@@ -19,7 +19,7 @@ function bridgeFor(folder: string) {
 const frame = { shortId: 'short1', mediaId: 'vid1', sourceTimeMs: 2000 }
 
 describe('media:poster:read round trip', () => {
-  it('returns a data URL for a cached poster frame', async () => {
+  it('reports a cached poster frame as rendered', async () => {
     const folder = mkdtempSync(join(tmpdir(), 'poster-read-'))
     const dir = join(folder, 'cache', 'posters', 'short1')
     mkdirSync(dir, { recursive: true })
@@ -30,18 +30,24 @@ describe('media:poster:read round trip', () => {
       frame
     })
 
-    expect(result).toEqual({
-      ok: true,
-      data: { dataUrl: `data:image/jpeg;base64,${Buffer.from([1, 2, 3]).toString('base64')}` }
-    })
+    expect(result).toEqual({ ok: true, data: { rendered: true } })
   })
 
-  it('returns null while the frame is not rendered, and rejects path-like ids', async () => {
+  it('reports an empty file as not rendered, and a missing frame too; rejects path-like ids', async () => {
     const folder = mkdtempSync(join(tmpdir(), 'poster-read-miss-'))
+    const dir = join(folder, 'cache', 'posters', 'short1')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'vid1-2000.jpg'), Buffer.alloc(0))
     const api = bridgeFor(folder)
 
-    const missing = await api.invoke('media:poster:read', { projectFolder: folder, frame })
-    expect(missing).toEqual({ ok: true, data: { dataUrl: null } })
+    const empty = await api.invoke('media:poster:read', { projectFolder: folder, frame })
+    expect(empty).toEqual({ ok: true, data: { rendered: false } })
+
+    const missing = await api.invoke('media:poster:read', {
+      projectFolder: folder,
+      frame: { ...frame, sourceTimeMs: 9000 }
+    })
+    expect(missing).toEqual({ ok: true, data: { rendered: false } })
 
     const traversal = await api.invoke('media:poster:read', {
       projectFolder: folder,
