@@ -68,6 +68,15 @@ export interface ImageClipTarget {
   apply: (label: string, edit: (item: ImageItem) => ImageItem, mergeKey?: string) => void
 }
 
+// The one selected narration clip, for the narration section (Epic 10, #116). The timeline pane publishes it.
+// shortId is the short the clip belongs to. apply runs a field edit on the clip as one history entry; calls
+// with the same mergeKey fold into one entry.
+export interface NarrationClipTarget {
+  shortId: string
+  clip: Clip
+  apply: (label: string, edit: (timeline: Timeline) => Timeline, mergeKey?: string) => void
+}
+
 // The one selected transition, for the transition section (Epic 08, #98). The timeline pane publishes
 // it. limitMs is the longest length the handles on its cut allow. Each change is one history entry, and
 // calls with the same mergeKey fold into one entry.
@@ -92,6 +101,7 @@ export interface InspectorState {
   transitionTarget: TransitionTarget | null
   textTarget: TextClipTarget | null
   imageTarget: ImageClipTarget | null
+  narrationTarget: NarrationClipTarget | null
 }
 
 export interface InspectorActions {
@@ -107,6 +117,7 @@ export interface InspectorActions {
   setTransitionTarget: (target: TransitionTarget | null) => void
   setTextTarget: (target: TextClipTarget | null) => void
   setImageTarget: (target: ImageClipTarget | null) => void
+  setNarrationTarget: (target: NarrationClipTarget | null) => void
 }
 
 export type InspectorStore = InspectorState & InspectorActions
@@ -124,6 +135,8 @@ export function createInspectorStore() {
     transitionTarget: null,
     textTarget: null,
     imageTarget: null,
+    narrationTarget: null,
+    setNarrationTarget: (narrationTarget) => set({ narrationTarget }),
     setImageTarget: (imageTarget) => set({ imageTarget }),
     setTextTarget: (textTarget) => set({ textTarget }),
     setTransitionTarget: (transitionTarget) => set({ transitionTarget }),
