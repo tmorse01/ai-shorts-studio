@@ -179,6 +179,13 @@ function scriptLineOrNone(scriptId: string, value: unknown, index: number): unkn
   return []
 }
 
+// v13 had no caption presets and no per-short caption preset. Both keys are optional and read as their
+// defaults when unset, so only the version changes.
+export function migrateV13ToV14(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 14 }
+}
+
 // The ordered list the app ships with. Append new migrations here; never edit an old one.
 export const projectMigrations: readonly ProjectMigration[] = [
   { from: 1, to: 2, up: migrateV1ToV2 },
@@ -192,7 +199,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 9, to: 10, up: migrateV9ToV10 },
   { from: 10, to: 11, up: migrateV10ToV11 },
   { from: 11, to: 12, up: migrateV11ToV12 },
-  { from: 12, to: 13, up: migrateV12ToV13 }
+  { from: 12, to: 13, up: migrateV12ToV13 },
+  { from: 13, to: 14, up: migrateV13ToV14 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

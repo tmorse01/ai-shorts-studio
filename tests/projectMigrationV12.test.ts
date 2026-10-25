@@ -14,6 +14,6 @@ describe('migrateV11ToV12', () => {
 
   it('is registered as the 11 to 12 step, and the current version is 13', () => {
     expect(projectMigrations).toContainEqual(expect.objectContaining({ from: 11, to: 12 }))
-    expect(CURRENT_SCHEMA_VERSION).toBe(13)
+    expect(CURRENT_SCHEMA_VERSION).toBe(14)
   })
 })

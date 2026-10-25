@@ -9,8 +9,14 @@ import {
   type FramingPose
 } from '../timeline/framing'
 import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
-import type { Timeline, Transform } from '../timeline/timeline'
+import { IDENTITY_TRANSFORM, type Timeline, type Transform } from '../timeline/timeline'
 import { describeText, type TextRender } from '../text/textRender'
+import {
+  describeCaptions,
+  type CaptionOptions,
+  type CaptionRender
+} from '../captions/captionLayout'
+import { DEFAULT_CAPTION_PRESETS } from '../captions/captionPreset'
 
 export const CANVAS_WIDTH = 1080
 export const CANVAS_HEIGHT = 1920
@@ -59,6 +65,15 @@ export interface FrameLayer extends ResolvedLayer {
   source?: SourceSize
   // The text overlay to draw, for a text layer with a textItem. Opacity includes any transition fade.
   text?: TextRender
+  // The caption block to draw, for a caption layer. Set only on the layers made from caption blocks,
+  // which have trackKind 'text' and no clip. Their placement is unused: the caption sizes itself.
+  captions?: CaptionRender
+}
+
+// Caption defaults for a frame when the caller gives none: the shipped presets, safe zones on.
+const DEFAULT_CAPTION_OPTIONS: CaptionOptions = {
+  presets: DEFAULT_CAPTION_PRESETS,
+  safeZones: true
 }
 
 // Places a fill-mode framed video: the crop of the source (see framingCropRect) is scaled to cover the
@@ -197,11 +212,13 @@ function describeLayerText(layer: ResolvedLayer, canvas: SourceSize): TextRender
 }
 
 // What is on the canvas at tMs. `sizeOf` gives the pixel size of a media item once it is known, so
-// video fits at its own aspect ratio. Until then the layer fills the canvas.
+// video fits at its own aspect ratio. Until then the layer fills the canvas. Caption blocks on captions
+// tracks draw last, over everything else, with the given caption options.
 export function describeFrame(
   timeline: Timeline,
   tMs: number,
-  sizeOf: (mediaId: string) => SourceSize | null = () => null
+  sizeOf: (mediaId: string) => SourceSize | null = () => null,
+  captionOptions: CaptionOptions = DEFAULT_CAPTION_OPTIONS
 ): FrameDescription {
   const layers = resolveFrame(timeline, tMs).map((layer) => {
     const source = layer.mediaId ? sizeOf(layer.mediaId) : null
@@ -220,6 +237,29 @@ export function describeFrame(
     if (text) description.text = text
     return description
   })
+  for (const caption of describeCaptions(
+    timeline,
+    tMs,
+    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    captionOptions
+  )) {
+    layers.push({
+      trackId: caption.trackId,
+      trackKind: 'text',
+      clipId: caption.block.id,
+      sourceTimeMs: tMs,
+      transform: { ...IDENTITY_TRANSFORM },
+      placement: {
+        centerX: caption.render.centerX,
+        centerY: caption.render.centerY,
+        width: 0,
+        height: 0,
+        rotationDeg: 0
+      },
+      render: { mode: 'direct' },
+      captions: caption.render
+    })
+  }
   return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, tMs, layers }
 }
 
