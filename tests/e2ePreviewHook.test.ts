@@ -60,12 +60,7 @@ describe('E2E preview hook', () => {
       {},
       {
         captions: {
-          lines: [
-            [
-              { text: 'Hello', highlighted: false },
-              { text: 'there', highlighted: true }
-            ]
-          ]
+          lines: [[{ text: 'Hello' }, { text: 'there' }]]
         }
       }
     ])

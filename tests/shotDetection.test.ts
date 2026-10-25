@@ -155,6 +155,24 @@ describe('shot detection stage', () => {
     expect(written[5]).toBe(join(outDir, 'shot-0001-2.jpg'))
   })
 
+  it('skips the shots stage for an audio-only file instead of failing', async () => {
+    const outDir = mkdtempSync(join(tmpdir(), 'shot-runner-'))
+    const { tools, frames } = fakeTools(12, [4, 8])
+    let askedForCuts = false
+    const audioOnly: ShotTools = {
+      ...tools,
+      hasVideo: async () => false,
+      sceneCuts: async () => {
+        askedForCuts = true
+        return []
+      }
+    }
+    const result = await shotStageRunner(audioOnly)('narration.wav', ctx(), outDir)
+    expect(result).toEqual({ outcome: 'skipped' })
+    expect(askedForCuts).toBe(false)
+    expect(frames).toHaveLength(0)
+  })
+
   it('returns the shots and reports progress through the job context', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'shot-runner-'))
     const { tools } = fakeTools(12, [4, 8])
