@@ -7,7 +7,7 @@ import {
   type Script,
   type Short
 } from '@shared/project/schema'
-import { migrateV19ToV20 } from '@shared/project/migrations'
+import { migrateV20ToV21 } from '@shared/project/migrations'
 import {
   discardScriptCommand,
   replaceScriptDraftCommand,
@@ -119,9 +119,9 @@ describe('script approval commands', () => {
 })
 
 describe('script approval schema', () => {
-  it('migrates schema 19 to 20 with only the version changed', () => {
-    const migrated = migrateV19ToV20({ schemaVersion: 19, id: 'p' }) as Record<string, unknown>
-    expect(migrated).toEqual({ schemaVersion: 20, id: 'p' })
+  it('migrates schema 20 to 21 with only the version changed', () => {
+    const migrated = migrateV20ToV21({ schemaVersion: 20, id: 'p' }) as Record<string, unknown>
+    expect(migrated).toEqual({ schemaVersion: 21, id: 'p' })
   })
 
   it('accepts scripts with and without an approval state', () => {

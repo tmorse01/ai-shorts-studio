@@ -57,6 +57,11 @@ void app.whenReady().then(async () => {
   // key is encrypted by safeStorage (the OS keychain) and stays in user data, never in a project.
   const ai = new AiService({
     secrets: createSafeStorageSecretStore(join(app.getPath('userData'), 'ai-key.bin'), safeStorage),
+    // The text-to-speech key is encrypted the same way, in its own file.
+    speechSecrets: createSafeStorageSecretStore(
+      join(app.getPath('userData'), 'speech-key.bin'),
+      safeStorage
+    ),
     state: createAiStateFile(join(app.getPath('userData'), 'ai-state.json')),
     createClient: (apiKey) => createAnthropicClient({ apiKey }),
     onChange: (status) => emitIpcEvent('ai:changed', { status })

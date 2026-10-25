@@ -8,6 +8,7 @@ import { textItemSchema } from '../text/textItem'
 import { imageItemSchema } from '../image/imageItem'
 import { captionBlockSchema } from '../captions/captionBlock'
 import { clipAssemblySchema } from './clipAssembly'
+import { narrationSchema } from './narration'
 
 const nonEmptyString = z.string().trim().min(1)
 
@@ -72,7 +73,10 @@ export const clipSchema = z.object({
   locked: z.boolean().optional(),
   // The script line this clip was assembled for, and the takes it could swap to (see ./clipAssembly.ts).
   // Unset for clips not placed by an assembly plan. Schema 14 added this key.
-  assembly: clipAssemblySchema.optional()
+  assembly: clipAssemblySchema.optional(),
+  // Set on a clip on the Narration lane (see ./narration.ts). Unset for every other clip. Schema 20
+  // added this key.
+  narration: narrationSchema.optional()
 })
 export type Clip = z.infer<typeof clipSchema>
 
