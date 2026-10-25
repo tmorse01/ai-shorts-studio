@@ -81,6 +81,31 @@ export async function reanalyzeMedia(
   applyResult(folderPath, result, 'Could not re-analyze the clip')
 }
 
+/** Stops the stage running for one clip. The stage is marked failed, so Retry starts it again. */
+export async function cancelAnalysis(
+  api: RendererInvokeApi,
+  folderPath: string,
+  ref: MediaRef
+): Promise<void> {
+  const [item] = analysisItems(folderPath, [ref])
+  const result = await api.invoke('analysis:cancel', { projectFolder: folderPath, item })
+  applyResult(folderPath, result, 'Could not cancel the analysis')
+}
+
+/** Loads the analysis jobs already on the queue, so progress shows after a reload. */
+export async function loadAnalysisJobs(api: RendererInvokeApi): Promise<void> {
+  const result = await api.invoke('media:job:list', {})
+  if (!result.ok) return
+  for (const job of result.data.jobs) analysisStore.getState().setJob(job)
+}
+
+/** Keeps the analysis jobs in step with the queue. */
+export function watchAnalysisJobs(api: Pick<RendererApi, 'on'>): Unsubscribe {
+  return api.on('media:job:changed', (job) => {
+    analysisStore.getState().setJob(job)
+  })
+}
+
 /** Applies the records main pushes after every change. */
 export function watchAnalysisRecords(api: Pick<RendererApi, 'on'>): Unsubscribe {
   return api.on('analysis:changed', ({ projectFolder, file }) => {

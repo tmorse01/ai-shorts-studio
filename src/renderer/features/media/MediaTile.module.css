@@ -143,6 +143,10 @@
   cursor: help;
 }
 
+.analysed {
+  color: var(--color-success);
+}
+
 .spin {
   animation: spin 900ms linear infinite;
 }

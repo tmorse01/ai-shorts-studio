@@ -11,6 +11,7 @@ export interface ToastInput {
   description?: string
   details?: string
   action?: ToastAction
+  actions?: ToastAction[]
 }
 
 let sequence = 0
@@ -25,6 +26,7 @@ function show(tone: ToastTone, input: ToastInput): string {
     description: input.description,
     details: input.details,
     action: input.action,
+    actions: input.actions,
     dismissAfterMs: tone === 'error' ? null : AUTO_DISMISS_MS
   }
   toastStore.getState().add(item)

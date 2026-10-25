@@ -1,9 +1,10 @@
 // One media file in the Media grid: a fixed-size tile with a 16:9 thumbnail, a one-line name and a
 // duration badge. Status sits top-left, and usage and moments badges appear on hover or focus.
 // MediaTile is presentational; LoadedMediaTile reads the cached thumbnail for it.
-import type { ButtonHTMLAttributes, JSX, ReactNode } from 'react'
+import { useId, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   ChevronRight,
   Film,
@@ -62,7 +63,13 @@ export function MediaTile({
   momentRows
 }: MediaTileProps): JSX.Element {
   const Icon = KIND_ICON[kind]
-  const tooltip = [fileName, tagNames.length > 0 ? `Tags: ${tagNames.join(', ')}` : null]
+  // The button is named by its file name alone, so the duration is not read as part of the name.
+  const nameId = useId()
+  const tooltip = [
+    fileName,
+    status.kind === 'busy' ? status.label : null,
+    tagNames.length > 0 ? `Tags: ${tagNames.join(', ')}` : null
+  ]
     .filter(Boolean)
     .join('\n')
 
@@ -77,6 +84,7 @@ export function MediaTile({
         <button
           type="button"
           aria-pressed={selected}
+          aria-labelledby={nameId}
           title={tooltip}
           className={styles.item}
           {...itemProps}
@@ -96,7 +104,9 @@ export function MediaTile({
             )}
             <span className={styles.duration}>{formatDuration(durationMs)}</span>
           </span>
-          <span className={styles.name}>{fileName}</span>
+          <span id={nameId} className={styles.name}>
+            {fileName}
+          </span>
           {tagNames.length > 0 ? <span className={styles.tags}>{tagNames.join(', ')}</span> : null}
         </button>
 
@@ -135,6 +145,18 @@ export function MediaTile({
 // The status icon in the thumbnail's top-left corner. Text never appears in the tile itself.
 function TileStatusIcon({ status }: { status: TileStatus }): JSX.Element | null {
   if (status.kind === 'none') return null
+  if (status.kind === 'analysed') {
+    return (
+      <span
+        className={`${styles.status} ${styles.analysed}`}
+        role="img"
+        aria-label="Analysed"
+        title="Analysed"
+      >
+        <Check size={12} strokeWidth={2.25} aria-hidden="true" />
+      </span>
+    )
+  }
   if (status.kind === 'busy') {
     return (
       <span className={styles.status} role="img" aria-label={status.label} title={status.label}>
