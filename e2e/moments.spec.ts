@@ -3,6 +3,7 @@
 // label, renaming, and the ways to start a short from Project home.
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { Page } from '@playwright/test'
 import { expect, test } from './test'
 import { FIXTURES } from './generateFixtures'
 
@@ -26,6 +27,17 @@ function collectClips(
     Object.values(record).forEach((value) => collectClips(value, out))
   }
   return out
+}
+
+// Moves the playhead by setting the range input and firing the input event React listens to. A plain
+// fill is refused when the slider is not reported visible.
+async function seekTo(page: Page, ms: number): Promise<void> {
+  await page.getByLabel('Playhead').evaluate((element, value) => {
+    const input = element as HTMLInputElement
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    setValue?.call(input, String(value))
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }, ms)
 }
 
 async function findProjectFiles(dir: string): Promise<string[]> {
@@ -58,9 +70,9 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
   })
 
   await test.step('mark In=5s and Out=8s and save the moment', async () => {
-    await page.getByLabel('Playhead').fill('5000')
+    await seekTo(page, 5000)
     await page.keyboard.press('i')
-    await page.getByLabel('Playhead').fill('8000')
+    await seekTo(page, 8000)
     await page.keyboard.press('o')
     await page.keyboard.press('m')
     await page.getByLabel('Moment name').fill(MOMENT)
@@ -87,9 +99,9 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
   })
 
   await test.step('drag the marked range onto the timeline', async () => {
-    await page.getByLabel('Playhead').fill('5000')
+    await seekTo(page, 5000)
     await page.keyboard.press('i')
-    await page.getByLabel('Playhead').fill('8000')
+    await seekTo(page, 8000)
     await page.keyboard.press('o')
     await page
       .getByRole('button', { name: 'Drag the marked range to the timeline' })
