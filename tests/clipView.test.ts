@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { filmstripPlan } from '../src/shared/media/thumbs'
+import type { Moment } from '../src/shared/project/schema'
 import type { Clip } from '../src/shared/timeline/timeline'
 import {
   clipBox,
@@ -46,12 +47,37 @@ describe('visibleLaneRange and clipsInRange', () => {
 })
 
 describe('clipLabel', () => {
-  it('prefers the moment name, then text, then the media file name', () => {
-    const base = clip({ id: 'a', startMs: 0, durationMs: 1000, mediaId: 'm1' })
-    expect(clipLabel({ ...base, label: 'Hook' }, 'take1.mp4')).toBe('Hook')
-    expect(clipLabel({ ...base, text: 'Subscribe' }, 'take1.mp4')).toBe('Subscribe')
-    expect(clipLabel(base, 'take1.mp4')).toBe('take1.mp4')
+  const base = clip({ id: 'a', startMs: 0, durationMs: 1000, mediaId: 'm1' })
+  const moment = (name: string): Moment => ({
+    id: 'mom1',
+    mediaId: 'm1',
+    name,
+    inMs: 0,
+    outMs: 1000,
+    tags: [],
+    createdBy: 'user'
+  })
+
+  it('prefers the manual label, then the moment name, then text, then the media file name', () => {
+    const fromMoment = { ...base, momentId: 'mom1' }
+    const moments = [moment('Hook')]
+    expect(clipLabel({ ...fromMoment, label: 'Manual' }, 'take1.mp4', moments)).toBe('Manual')
+    expect(clipLabel({ ...fromMoment, text: 'Subscribe' }, 'take1.mp4', moments)).toBe('Hook')
+    expect(clipLabel({ ...base, text: 'Subscribe' }, 'take1.mp4', moments)).toBe('Subscribe')
+    expect(clipLabel(base, 'take1.mp4', moments)).toBe('take1.mp4')
     expect(clipLabel(base)).toBe('Clip')
+  })
+
+  it('looks the moment name up live, so a rename shows on the clip', () => {
+    const fromMoment = { ...base, momentId: 'mom1' }
+    expect(clipLabel(fromMoment, 'take1.mp4', [moment('Hook')])).toBe('Hook')
+    expect(clipLabel(fromMoment, 'take1.mp4', [moment('Punchline')])).toBe('Punchline')
+  })
+
+  it('falls back to text when the clip points at a moment that is gone', () => {
+    const orphan = { ...base, momentId: 'missing', text: 'Subscribe' }
+    expect(clipLabel(orphan, 'take1.mp4', [moment('Hook')])).toBe('Subscribe')
+    expect(clipLabel({ ...base, momentId: 'missing' }, 'take1.mp4', [])).toBe('take1.mp4')
   })
 })
 
