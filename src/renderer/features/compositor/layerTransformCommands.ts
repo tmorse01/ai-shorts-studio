@@ -4,7 +4,14 @@
 import type { Project } from '@shared/project/schema'
 import type { ClipFraming } from '@shared/timeline/framing'
 import type { Transform } from '@shared/timeline/timeline'
-import { updateClipFraming, updateClipTransform } from '@shared/timeline/edits'
+import type { TextItem } from '@shared/text/textItem'
+import type { ImageItem } from '@shared/image/imageItem'
+import {
+  updateClipFraming,
+  updateClipImageItem,
+  updateClipTextItem,
+  updateClipTransform
+} from '@shared/timeline/edits'
 import type { Command } from '../history/historyStore'
 import { applyProjectCommand } from '../shorts/shortActions'
 import { timelineCommand } from '../timeline/timelineCommands'
@@ -74,5 +81,74 @@ export function applyFramingEdit(
 ): void {
   applyProjectCommand(
     framingCommand(shortId, clipId, label, mergeKey, framing, undefined, mergeWindowMs)
+  )
+}
+
+// Text overlay edits (Epic 13, #127): the gizmo moves and scales a text item, the arrow keys nudge it, and
+// the text editor and inspector change its words and look. Each is one history entry, and a run with the same
+// mergeKey folds into one.
+export function textItemCommand(
+  shortId: string,
+  clipId: string,
+  label: string,
+  mergeKey: string,
+  edit: (item: TextItem) => TextItem,
+  now: string = new Date().toISOString(),
+  mergeWindowMs?: number
+): Command<Project> {
+  return timelineCommand(
+    shortId,
+    label,
+    now,
+    (timeline) => updateClipTextItem(timeline, clipId, edit),
+    mergeKey,
+    mergeWindowMs
+  )
+}
+
+export function applyTextItemEdit(
+  shortId: string,
+  clipId: string,
+  label: string,
+  mergeKey: string,
+  edit: (item: TextItem) => TextItem,
+  mergeWindowMs?: number
+): void {
+  applyProjectCommand(
+    textItemCommand(shortId, clipId, label, mergeKey, edit, undefined, mergeWindowMs)
+  )
+}
+
+// Image overlay edits (Epic 13, #129): the inspector changes an image overlay's opacity and motion. Each change is
+// one history entry, and calls with the same mergeKey fold into one.
+export function imageItemCommand(
+  shortId: string,
+  clipId: string,
+  label: string,
+  mergeKey: string,
+  edit: (item: ImageItem) => ImageItem,
+  now: string = new Date().toISOString(),
+  mergeWindowMs?: number
+): Command<Project> {
+  return timelineCommand(
+    shortId,
+    label,
+    now,
+    (timeline) => updateClipImageItem(timeline, clipId, edit),
+    mergeKey,
+    mergeWindowMs
+  )
+}
+
+export function applyImageItemEdit(
+  shortId: string,
+  clipId: string,
+  label: string,
+  mergeKey: string,
+  edit: (item: ImageItem) => ImageItem,
+  mergeWindowMs?: number
+): void {
+  applyProjectCommand(
+    imageItemCommand(shortId, clipId, label, mergeKey, edit, undefined, mergeWindowMs)
   )
 }

@@ -7,6 +7,7 @@
 import type {} from '../../api'
 import { createStore } from 'zustand/vanilla'
 import { produce, type Draft } from 'immer'
+import type { Batch } from '@shared/batch/batch'
 import type { Project } from '@shared/project/schema'
 import { SaveError, createAutosaver, type SaveStatus } from './autosave'
 
@@ -34,6 +35,9 @@ export interface ProjectActions {
   close: () => Promise<boolean>
   // Writes pending changes now.
   flush: () => Promise<void>
+  // Keeps a batch that main changed in the open project's copy, so a later autosave does not write
+  // the old batch back. Does not schedule a save: main has already written the batch.
+  applyBatch: (folderPath: string, batch: Batch) => void
 }
 
 export type ProjectStore = ProjectState & ProjectActions
@@ -82,7 +86,15 @@ export function createProjectStore(saveOpened: (opened: OpenProject) => Promise<
       return true
     },
 
-    flush: () => autosaver.flush()
+    flush: () => autosaver.flush(),
+
+    applyBatch: (folderPath, batch) => {
+      const { current } = get()
+      if (!current || current.folderPath !== folderPath) return
+      const others = (current.project.batches ?? []).filter((item) => item.id !== batch.id)
+      const project = { ...current.project, batches: [...others, batch] }
+      set({ current: { folderPath, project } })
+    }
   }))
 
   return store

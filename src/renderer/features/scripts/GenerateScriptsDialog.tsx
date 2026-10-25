@@ -4,6 +4,7 @@
 import { useState, type FormEvent, type JSX } from 'react'
 import { formatUsd, VISION_MODEL_LABELS } from '@shared/ai/aiSettings'
 import {
+  estimateScriptSeconds,
   SCRIPT_MAX_COUNT,
   type ScriptEstimate,
   type ScriptRequest,
@@ -12,6 +13,7 @@ import {
 import { Button } from '@renderer/ui/Button'
 import { Dialog } from '@renderer/ui/Dialog'
 import { Input } from '@renderer/ui/Input'
+import { Switch } from '@renderer/ui/Switch'
 import { applyProjectCommand } from '../shorts/shortActions'
 import { toast } from '../toasts/toast'
 import { useProjectStore } from '../project/useProjectStore'
@@ -52,6 +54,7 @@ function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
   const [seconds, setSeconds] = useState('')
   const [tone, setTone] = useState('')
   const [notes, setNotes] = useState('')
+  const [reuseFootage, setReuseFootage] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [estimated, setEstimated] = useState<Estimated | null>(null)
   const [busy, setBusy] = useState(false)
@@ -70,7 +73,7 @@ function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
       }
       targetSeconds = value
     }
-    return { topic, count: countValue, targetSeconds, tone, notes }
+    return { topic, count: countValue, targetSeconds, tone, notes, reuseFootage }
   }
 
   async function review(event: FormEvent) {
@@ -122,6 +125,9 @@ function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
               ? 'No monthly cap is set.'
               : `${formatUsd(estimate.remainingUsd)} is left under this month's cap.`
           }`}
+        </p>
+        <p className={styles.text}>
+          {`Estimated time: about ${estimateScriptSeconds(estimated.input.request.count)} seconds.`}
         </p>
         <p className={styles.note}>
           Grounded in {estimate.transcriptUsed}{' '}
@@ -193,6 +199,9 @@ function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
         <span className={styles.label}>Tone</span>
         <Input value={tone} maxLength={80} onChange={(event) => setTone(event.target.value)} />
       </label>
+      <Switch checked={reuseFootage} onCheckedChange={setReuseFootage}>
+        Allow the same footage in more than one script
+      </Switch>
       <label className={styles.field}>
         <span className={styles.label}>Notes</span>
         <textarea

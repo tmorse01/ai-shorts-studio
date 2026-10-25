@@ -1,4 +1,14 @@
-import { useEffect, useRef, useState, type CSSProperties, type JSX, type PointerEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type JSX,
+  type PointerEvent
+} from 'react'
+import { captionPresetsOf } from '@shared/captions/captionPreset'
+import type { CaptionOptions } from '@shared/captions/captionLayout'
 import { useStore } from 'zustand'
 import { hasClips } from '@shared/compositor/frame'
 import { DEFAULT_SHORT_DEFAULTS } from '@shared/project/schema'
@@ -30,6 +40,7 @@ import { previewSettingsStore, usePreviewSettings } from '../preview/previewSett
 import { useFullscreen } from '../preview/useFullscreen'
 import { useMediaSourceSync } from '../preview/useMediaSourceSync'
 import { useVideoPreview } from '../preview/useVideoPreview'
+import { TextEditor } from '../text/TextEditor'
 import { SourceViewer } from '../source/SourceViewer'
 import { ViewModeToggle } from '../source/ViewModeToggle'
 import { sourceStore } from '../source/sourceStore'
@@ -66,7 +77,21 @@ export function PreviewCanvas({
   const inShort = mode === 'short'
   const shortTimeline = inShort ? timeline : EMPTY_TIMELINE
   useMediaSourceSync()
-  const { offline, droppedFrames } = useVideoPreview(canvasRef, shortTimeline)
+  // The project's caption presets and the short's preset, so the preview draws captions as the project
+  // styles them. Safe zones stay on, as the export keeps them.
+  const projectPresets = useProjectStore((state) => state.current?.project.captionPresets)
+  const shortPresetId = useProjectStore(
+    (state) => state.current?.project.shorts.find((item) => item.id === shortId)?.captionPresetId
+  )
+  const captionOptions = useMemo<CaptionOptions>(
+    () => ({
+      presets: captionPresetsOf(projectPresets),
+      shortPresetId,
+      safeZones: true
+    }),
+    [projectPresets, shortPresetId]
+  )
+  const { offline, droppedFrames } = useVideoPreview(canvasRef, shortTimeline, captionOptions)
   useAudioPreview(shortTimeline, inShort)
   const playing = usePlaybackStore((state) => state.playing)
   const { guides, handlers } = useCanvasGizmo({
@@ -168,6 +193,7 @@ export function PreviewCanvas({
         onPointerMove={onFramePointerMove}
         onPointerUp={onFramePointerUp}
         onKeyDown={handlers.onKeyDown}
+        onDoubleClick={handlers.onDoubleClick}
       >
         <span className={styles.mark} aria-hidden="true" />
         <span className={styles.ratio} aria-hidden="true">
@@ -176,6 +202,7 @@ export function PreviewCanvas({
         <canvas ref={canvasRef} className={styles.video} aria-hidden="true" />
         {showSafeZones ? <SafeZoneOverlay platform={settings.platform} /> : null}
         {inShort && !playing ? <CanvasGizmo guides={guides} /> : null}
+        {inShort && !playing && shortId ? <TextEditor shortId={shortId} /> : null}
         {inShort && !hasClips(timeline) ? (
           <div className={styles.overlay}>
             <EmptyState

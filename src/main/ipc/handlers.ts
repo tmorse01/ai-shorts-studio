@@ -1,7 +1,16 @@
 import { readLayoutFile, writeLayoutFile } from '../layoutFile'
 import { readExportSettingsFile, writeExportSettingsFile } from '../export/exportSettingsFile'
 import type { EncoderInfo, ExportSettings } from '@shared/export/exportSettings'
-import { createProject, openProject, saveProject } from '../project/projectStorage'
+import {
+  createProject,
+  openProject,
+  readProjectBatch,
+  saveProject,
+  saveProjectBatch
+} from '../project/projectStorage'
+import { BatchRunner } from '../batch/batchRunner'
+import { recoverInterruptedBatch, type Batch } from '@shared/batch/batch'
+import { analysisFramesDir } from '../analysis/frameCache'
 import {
   listRecentProjects,
   locateRecentProject,
@@ -28,7 +37,7 @@ import {
   type AnalysisStorage,
   type AnalysisChange
 } from '../analysis/analysisService'
-import { loadAnalysisFile, saveAnalysisFile } from '../analysis/analysisFile'
+import { loadAnalysisFile, saveAnalysisFile, visionResultPath } from '../analysis/analysisFile'
 import { readMediaTranscript } from '../analysis/transcriptRead'
 import { transcribeMediaItems } from '../captions/transcribeMedia'
 import { readMediaVision } from '../analysis/visionRead'
@@ -38,6 +47,7 @@ import { unavailableSecretStore } from '../ai/secretStore'
 import { createAnthropicClient } from '../ai/anthropicClient'
 import { estimateScriptRun, generateScripts } from '../ai/scriptGenerator'
 import { rewriteScriptLine } from '../ai/lineRewriter'
+import { matchFootageRequest } from '../ai/footageMatcher'
 import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage'
 import {
   dismissSuggestions,
@@ -60,6 +70,8 @@ export interface SystemActions {
   documentsDir: () => string
   /** Shows the native multi-select picker for media files. Resolves an empty list on cancel. */
   pickMediaFiles: () => Promise<string[]>
+  /** Shows the save dialog for an SRT file and writes the text. Resolves the saved path, or null on cancel. */
+  saveSrtFile: (file: { suggestedName: string; text: string }) => Promise<string | null>
 }
 
 const unavailable = (): never => {
@@ -94,6 +106,8 @@ export interface IpcHandlerOptions {
   scriptFootage?: ScriptFootageSource
   /** Reads the transcript, shots and descriptions that clip suggestions are based on. Tests pass a fake. */
   suggestionFootage?: SuggestionFootageSource
+  /** Told whenever a batch changes. The app forwards it to the renderer. */
+  onBatchChanged?: (projectFolder: string, batch: Batch) => void
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -113,7 +127,8 @@ export function createIpcHandlers({
     createClient: (apiKey) => createAnthropicClient({ apiKey })
   }),
   scriptFootage = readScriptFootage,
-  suggestionFootage = readSuggestionFootage
+  suggestionFootage = readSuggestionFootage,
+  onBatchChanged
 }: IpcHandlerOptions): IpcHandlers {
   const analysis = new AnalysisService({
     queue: jobs,
@@ -121,12 +136,33 @@ export function createIpcHandlers({
     onChange: onAnalysisChanged,
     vision: { availability: () => ai.visionAvailability() }
   })
+  // Batch runs keep their live state here. Saved batches are read from and written to project.json.
+  const batches = new BatchRunner({
+    queue: jobs,
+    jobExtras: (folder, stage, mediaId) => ({
+      outDir: analysisFramesDir(folder, mediaId),
+      resultFile: stage === 'vision' ? visionResultPath(folder, mediaId) : undefined
+    }),
+    load: async (folder, batchId) => {
+      const batch = await readProjectBatch(folder, batchId)
+      return batch && recoverInterruptedBatch(batch)
+    },
+    save: saveProjectBatch,
+    onChange: onBatchChanged,
+    onSaveError: (error) =>
+      logError({
+        occurredAt: new Date().toISOString(),
+        source: 'main',
+        summary: `Saving a batch failed: ${String(error)}`
+      })
+  })
   const actions: SystemActions = {
     pickFolder: system.pickFolder ?? unavailable,
     revealFolder: system.revealFolder ?? unavailable,
     trashFolder: system.trashFolder ?? unavailable,
     documentsDir: system.documentsDir ?? unavailable,
-    pickMediaFiles: system.pickMediaFiles ?? unavailable
+    pickMediaFiles: system.pickMediaFiles ?? unavailable,
+    saveSrtFile: system.saveSrtFile ?? unavailable
   }
   // Poster frames queued and not yet settled, so repeated requests do not queue one frame twice.
   const pendingPosters = new Set<string>()
@@ -212,6 +248,13 @@ export function createIpcHandlers({
     'media:probe': ({ path }) => jobs.enqueue('probe', path).done,
     'media:job:list': () => ({ jobs: jobs.list() }),
     'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) }),
+    'batch:run': async ({ projectFolder, stage, items }) => ({
+      batch: await batches.start({ projectFolder, stage, items })
+    }),
+    'batch:cancel': async ({ projectFolder, batchId, itemId }) =>
+      batches.cancel(projectFolder, batchId, itemId),
+    'batch:retry': async ({ projectFolder, batchId, items }) =>
+      batches.retry(projectFolder, batchId, items),
     'media:pick': async () => ({ paths: await actions.pickMediaFiles() }),
     'media:stat': ({ paths }) => statMediaFiles(paths),
     'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs),
@@ -238,6 +281,9 @@ export function createIpcHandlers({
     'captions:transcribe': async ({ projectFolder, items }) => ({
       transcripts: await transcribeMediaItems(projectFolder, items, jobs)
     }),
+    'captions:exportSrt': async ({ suggestedName, srt }) => ({
+      savedPath: await actions.saveSrtFile({ suggestedName, text: srt })
+    }),
     'analysis:vision:read': ({ projectFolder, mediaId }) => readMediaVision(projectFolder, mediaId),
     'analysis:suggestions:read': ({ projectFolder, mediaId }) =>
       readSuggestions(projectFolder, mediaId, suggestionFootage),
@@ -260,6 +306,7 @@ export function createIpcHandlers({
       scripts: await generateScripts(ai, scriptFootage, input)
     }),
     'ai:scripts:rewriteLine': (input) => rewriteScriptLine(ai, input),
+    'ai:footage:match': (input) => matchFootageRequest(ai, input),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })

@@ -1,0 +1,25 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--color-text);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+}
