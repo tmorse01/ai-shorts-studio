@@ -121,6 +121,8 @@ test('edits a short on the timeline, undoes and redoes every step, and survives 
   }
 
   // Every edit records the saved timeline after it lands. Undo and redo check against these.
+  // The new short is saved before the first snapshot, so it is the start state.
+  await expect.poll(() => savedShort(session.profileDir)).toMatch(/^\{"tracks"/)
   const states: string[] = [await savedShort(session.profileDir)]
   async function recordEdit(): Promise<void> {
     const previous = states[states.length - 1]
