@@ -31,6 +31,8 @@ function createPreviewVideo(): HTMLVideoElement {
   video.muted = true
   video.preload = 'auto'
   video.playsInline = true
+  // Set before any src is assigned, so frames drawn to the WebGL texture are not cross-origin tainted.
+  video.crossOrigin = 'anonymous'
   return video
 }
 
@@ -181,6 +183,8 @@ export class PreviewRenderer {
     const known = this.images.get(mediaId)
     if (known) return known
     const image = new Image()
+    // Set before src, so the drawn frame does not taint the WebGL texture.
+    image.crossOrigin = 'anonymous'
     image.addEventListener('load', this.redraw)
     image.src = mediaUrl(mediaId, 'original')
     this.images.set(mediaId, image)

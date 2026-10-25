@@ -54,4 +54,26 @@ describe('serveMediaRequest', () => {
     const foreign = await serveMediaRequest(new Request('file:///etc/passwd'), registry)
     expect([unknown.status, noProxy.status, foreign.status]).toEqual([404, 404, 404])
   })
+
+  it('sends Access-Control-Allow-Origin on full, range, partial and error responses', async () => {
+    const full = await serveMediaRequest(new Request(mediaUrl('clip', 'original')), registry)
+    const range = await serveMediaRequest(
+      new Request(mediaUrl('clip', 'original'), { headers: { Range: 'bytes=2-4' } }),
+      registry
+    )
+    const partial = await serveMediaRequest(
+      new Request(mediaUrl('clip', 'original'), { headers: { Range: 'bytes=8-' } }),
+      registry
+    )
+    const unsatisfiable = await serveMediaRequest(
+      new Request(mediaUrl('clip', 'original'), { headers: { Range: 'bytes=50-' } }),
+      registry
+    )
+    const missing = await serveMediaRequest(new Request(mediaUrl('nope', 'original')), registry)
+    const responses = [full, range, partial, unsatisfiable, missing]
+    expect(responses.map((response) => response.status)).toEqual([200, 206, 206, 416, 404])
+    for (const response of responses) {
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    }
+  })
 })
