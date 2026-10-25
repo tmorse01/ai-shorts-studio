@@ -254,8 +254,9 @@ test('edits a short on the timeline, undoes and redoes every step, and survives 
     const transition = page.locator('[aria-label^="Transition: "]')
     await expect(transition).toHaveCount(1)
 
-    // Select the crossfade and set its length on the Transitions panel.
-    await transition.click()
+    // Select the crossfade and set its length on the Transitions panel. The crossfade is only a few
+    // pixels wide at this zoom and a clip edge covers it, so the press is sent to it directly.
+    await transition.dispatchEvent('pointerdown', { button: 0, bubbles: true })
     await page.getByRole('button', { name: 'Transitions' }).click()
     await page.getByLabel('Transition duration').fill('0:00.20')
     await page.getByLabel('Transition duration').press('Enter')
