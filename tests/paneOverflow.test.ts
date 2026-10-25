@@ -29,7 +29,10 @@ describe('no horizontal overflow in panes', () => {
 
   it('the tile name truncates with an ellipsis instead of wrapping', () => {
     const css = read('src/renderer/features/media/MediaTile.module.css')
-    const name = ruleBody(css, '.name,\n.tags')
+    // Whitespace-tolerant: the checkout may use CRLF or LF line endings.
+    const match = /\.name,\s*\.tags\s*\{([^}]*)\}/.exec(css)
+    expect(match, '.name, .tags rule exists').not.toBeNull()
+    const name = match?.[1] ?? ''
     expect(name).toMatch(/text-overflow:\s*ellipsis/)
     expect(name).toMatch(/white-space:\s*nowrap/)
   })
