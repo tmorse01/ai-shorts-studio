@@ -59,7 +59,9 @@ export const momentSchema = z
     createdBy: momentCreatorSchema,
     note: z.string().optional(),
     // The AI's 0-100 score, kept when an AI suggestion is accepted. Unset for moments the user marked.
-    score: z.number().int().min(0).max(100).optional()
+    score: z.number().int().min(0).max(100).optional(),
+    // The user's favourite mark in Clip Finder. Unset means not starred.
+    starred: z.boolean().optional()
   })
   .refine((moment) => moment.outMs > moment.inMs, {
     message: 'outMs must be greater than inMs'

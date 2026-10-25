@@ -9,12 +9,13 @@ import {
 import type { Moment } from '@shared/project/schema'
 import { formatDuration } from '../media/mediaView'
 
-export type ClipFinderFilter = 'all' | 'mine' | 'ai'
+export type ClipFinderFilter = 'all' | 'mine' | 'ai' | 'starred'
 
 export const CLIP_FINDER_FILTERS: readonly { value: ClipFinderFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'mine', label: 'Mine' },
-  { value: 'ai', label: 'AI suggested' }
+  { value: 'ai', label: 'AI suggested' },
+  { value: 'starred', label: 'Starred' }
 ]
 
 export type ClipFinderTab = 'suggested' | 'highlights' | 'topics'
@@ -38,6 +39,7 @@ export type ClipFinderItem =
       tagNames: string[]
       createdBy: 'user' | 'ai'
       score?: number
+      starred: boolean
     }
   | {
       // An open AI moment. It becomes a normal moment only when accepted.
@@ -106,7 +108,8 @@ export function clipFinderItems(source: ClipFinderSource): ClipFinderItem[] {
       .map((id) => source.tagNameOf(id))
       .filter((name): name is string => name !== undefined),
     createdBy: moment.createdBy,
-    ...(moment.score === undefined ? {} : { score: moment.score })
+    ...(moment.score === undefined ? {} : { score: moment.score }),
+    starred: moment.starred === true
   }))
   const drafts: ClipFinderItem[] = source.drafts.map((draft) => {
     const key = momentSuggestionKey(draft)
@@ -131,16 +134,24 @@ function rangeStart(item: ClipFinderItem): number {
   return item.kind === 'tag' ? 0 : item.inMs
 }
 
-/** All: everything. Mine: moments the user marked by hand. AI suggested: open drafts, open tags and AI moments. */
+/**
+ * All: everything. Mine: moments the user marked by hand. AI suggested: open drafts, open tags and AI moments.
+ * Starred: saved moments the user starred.
+ */
 export function filterClipFinderItems(
   items: readonly ClipFinderItem[],
   filter: ClipFinderFilter
 ): ClipFinderItem[] {
-  if (filter === 'all') return [...items]
-  if (filter === 'mine') {
-    return items.filter((item) => item.kind === 'moment' && item.createdBy === 'user')
+  switch (filter) {
+    case 'all':
+      return [...items]
+    case 'mine':
+      return items.filter((item) => item.kind === 'moment' && item.createdBy === 'user')
+    case 'ai':
+      return items.filter((item) => item.kind !== 'moment' || item.createdBy === 'ai')
+    case 'starred':
+      return items.filter((item) => item.kind === 'moment' && item.starred)
   }
-  return items.filter((item) => item.kind !== 'moment' || item.createdBy === 'ai')
 }
 
 /** The items a tab shows. Suggested is everything; the other tabs narrow it. */

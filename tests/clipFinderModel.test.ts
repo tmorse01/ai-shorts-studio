@@ -9,6 +9,7 @@ import {
   clipFinderItems,
   clipRowFacts,
   draftEditFromInput,
+  CLIP_FINDER_FILTERS,
   filterClipFinderItems,
   filterClipFinderTab,
   resolutionLabel,
@@ -95,6 +96,29 @@ describe('filter', () => {
       'Opening line',
       'Accepted hook',
       'Quiet tear'
+    ])
+  })
+
+  it('Starred shows only saved moments the user starred', () => {
+    const starred = clipFinderItems(
+      source({ moments: [{ ...userMoment, starred: true }, aiMoment] })
+    )
+    expect(names(filterClipFinderItems(starred, 'starred'))).toEqual(['Harbour laugh'])
+    expect(names(filterClipFinderItems(items, 'starred'))).toEqual([])
+  })
+
+  it('an unset star reads as not starred', () => {
+    expect(
+      items.filter((item) => item.kind === 'moment').every((item) => item.starred === false)
+    ).toBe(true)
+  })
+
+  it('offers Starred after AI suggested', () => {
+    expect(CLIP_FINDER_FILTERS.map((option) => option.value)).toEqual([
+      'all',
+      'mine',
+      'ai',
+      'starred'
     ])
   })
 })

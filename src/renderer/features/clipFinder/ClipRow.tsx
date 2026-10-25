@@ -2,6 +2,7 @@
 // source range and a score. Clicking the main part opens the range in the source viewer. The Clip Finder
 // list and the footage search results both use this row, so they look the same.
 import type { JSX, ReactNode } from 'react'
+import { Star } from 'lucide-react'
 import type { ThumbReadFile } from '@shared/media/thumbs'
 import { useThumb } from '../timeline/useThumb'
 import styles from './ClipRow.module.css'
@@ -25,6 +26,8 @@ export interface ClipRowProps {
   onOpen?: () => void
   /** Buttons for the row, such as Accept, Preview and Add to timeline. They sit outside the open button. */
   actions?: ReactNode
+  /** The favourite star. Absent for rows that cannot be starred. */
+  star?: { starred: boolean; onToggle: () => void }
 }
 
 export function ClipRow({
@@ -40,7 +43,8 @@ export function ClipRow({
   aiLabel,
   active = false,
   onOpen,
-  actions
+  actions,
+  star
 }: ClipRowProps): JSX.Element {
   const thumb = useThumb(projectFolder, mediaId, thumbFile)
   return (
@@ -82,6 +86,23 @@ export function ClipRow({
           ) : null}
         </span>
       </button>
+      {star ? (
+        <button
+          type="button"
+          className={styles.star}
+          aria-pressed={star.starred}
+          aria-label={star.starred ? 'Unstar clip' : 'Star clip'}
+          title={star.starred ? 'Unstar clip' : 'Star clip'}
+          onClick={star.onToggle}
+        >
+          <Star
+            size={14}
+            strokeWidth={1.75}
+            fill={star.starred ? 'currentColor' : 'none'}
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
       {actions ? <span className={styles.actions}>{actions}</span> : null}
     </div>
   )
