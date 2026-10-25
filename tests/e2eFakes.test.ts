@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { parseLineRewriteReply } from '@shared/ai/lineRewrite'
 import { parseScriptReply } from '@shared/ai/scriptGeneration'
 import { parseMatchReply, type FootageMatchRequest } from '@shared/assembly/footageMatch'
-import { FAKE_REWRITE, FAKE_SCRIPT_LINES, fakeReply } from '../src/main/e2e/fakes'
+import {
+  createFakeSecretStore,
+  FAKE_REWRITE,
+  FAKE_SCRIPT_LINES,
+  fakeReply
+} from '../src/main/e2e/fakes'
 
 const SCRIPT_PROMPT =
   'You write scripts for vertical short videos. Write 2 scripts about the topic below.\n' +
@@ -56,6 +61,16 @@ describe('fake AI replies (E2E mode)', () => {
     expect(JSON.parse(fakeReply(prompt))).toEqual({
       lines: [{ lineId: 'l2', candidateId: 'c4', inMs: 0, outMs: 4000, alternatives: ['c3'] }]
     })
+  })
+
+  it('keeps the E2E key in memory, where a saved key can be read back and cleared', async () => {
+    const store = createFakeSecretStore()
+    expect(store.isAvailable()).toBe(true)
+    expect(await store.read()).toBeNull()
+    await store.write('e2e-test-key')
+    expect(await store.read()).toBe('e2e-test-key')
+    await store.clear()
+    expect(await store.read()).toBeNull()
   })
 
   it('keeps the empty list for any other prompt, as before', () => {

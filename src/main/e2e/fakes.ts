@@ -4,6 +4,7 @@
 import type { RawSpeechResult } from '@shared/analysis/transcript'
 import type { TtsVoice } from '@shared/tts/speech'
 import type { AnthropicClient } from '../ai/anthropicClient'
+import type { SecretStore } from '../ai/secretStore'
 import type { SpeechEngineLoader } from '../transcription/speechEngine'
 import type { TranscriptTools } from '../transcription/transcriptStage'
 import type { SpeechProvider } from '../tts/speechProvider'
@@ -63,6 +64,24 @@ function fakeMatchReply(prompt: string): string {
     return [{ lineId, candidateId: primary, inMs: 0, outMs: 4000, alternatives }]
   })
   return JSON.stringify({ lines })
+}
+
+/**
+ * Holds the API key in memory for one run. The CI runner has no OS keychain, so safeStorage cannot save
+ * the key there. Nothing is written to disk, and the key is never sent anywhere in E2E mode.
+ */
+export function createFakeSecretStore(): SecretStore {
+  let secret: string | null = null
+  return {
+    isAvailable: () => true,
+    read: async () => secret,
+    write: async (value) => {
+      secret = value
+    },
+    clear: async () => {
+      secret = null
+    }
+  }
 }
 
 export function createFakeAnthropicClient(): AnthropicClient {
