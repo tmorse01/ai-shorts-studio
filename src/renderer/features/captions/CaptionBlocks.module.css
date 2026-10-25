@@ -1,0 +1,86 @@
+/* A caption block sits in the Captions lane. Its edges are handles for trimming; a press in the middle
+   moves it. */
+.block {
+  position: absolute;
+  top: 4px;
+  height: 36px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 2px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-subtle-border);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  cursor: grab;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.block:focus-visible {
+  outline: var(--border-width) solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.selected {
+  box-shadow: inset 0 0 0 var(--border-width) var(--color-primary);
+}
+
+.moving {
+  cursor: grabbing;
+  opacity: 0.85;
+}
+
+.locked {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.handleStart {
+  left: 0;
+}
+
+.handleEnd {
+  right: 0;
+}
+
+.menu {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.editor {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+}
