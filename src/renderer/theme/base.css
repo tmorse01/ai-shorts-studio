@@ -12,6 +12,12 @@ body,
   margin: 0;
 }
 
+/* Scrollbars use tokens. Panes scroll vertically only (see CLAUDE.md, Styling). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-text);

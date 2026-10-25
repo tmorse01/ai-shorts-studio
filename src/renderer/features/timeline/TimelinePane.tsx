@@ -1,5 +1,4 @@
 import {
-  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -12,7 +11,6 @@ import { useStore } from 'zustand'
 import { Lock, LockOpen, Maximize2, Volume2, VolumeX, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   addTrack,
-  detachAudio,
   insertClip,
   loopFillClip,
   placeClips,
@@ -23,9 +21,6 @@ import {
   setDucking,
   setTrackFlag,
   trimClip,
-  addCutTransition,
-  setClipLocked,
-  swapClipAlternative,
   updateClipFraming,
   updateClipImageItem,
   updateClipTextItem
@@ -34,10 +29,7 @@ import { textOverlayOf } from '@shared/text/textClip'
 import { imageOverlayOf } from '@shared/image/imageOverlay'
 import { CENTRED_FILL } from '@shared/timeline/framing'
 import {
-  DEFAULT_TRANSITION_MS,
-  TRANSITION_KINDS,
   TRANSITION_LABELS,
-  cutBefore,
   kindOf,
   transitionById,
   transitionLimitFor,
@@ -52,7 +44,7 @@ import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeli
 import { snapEdge, snapPoints, snapStart } from '@shared/timeline/snap'
 import { mainGaps, type Gap } from '@shared/timeline/gaps'
 import { Button } from '@renderer/ui/Button'
-import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
+import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { soundClipFor, soundsFor } from '../audio/clipSound'
 import { soundValuesOf } from '../audio/soundValues'
@@ -76,6 +68,8 @@ import {
   visibleLaneRange
 } from './clipView'
 import { CLIP_HEIGHT_PX, TimelineClip } from './TimelineClip'
+import { ClipContextMenu } from './ClipContextMenu'
+import { clipMenuItems } from './clipMenuItems'
 import {
   fitPxPerMs,
   followPlayhead,
@@ -229,6 +223,8 @@ export function TimelinePane({
   const [footageDrop, setFootageDrop] = useState<{ trackId: string; startMs: number } | null>(null)
   const [trim, setTrim] = useState<TrimPreview | null>(null)
   const [fadeDrag, setFadeDrag] = useState<FadePreview | null>(null)
+  // The clip whose menu is open, and the point it opened at (see openClipMenu).
+  const [clipMenu, setClipMenu] = useState<{ clipId: string; x: number; y: number } | null>(null)
   const newTrackId = newId ?? (() => crypto.randomUUID())
   // The latest props for the window listeners of a drag, which are attached once per press.
   const latest = useRef({ timeline, pxPerMs, snapping, onEdit, selection, newId: newTrackId })
@@ -937,137 +933,80 @@ export function TimelinePane({
         ? media?.items.find((ref) => ref.id === clip.mediaId)
         : undefined
       return (
-        <Fragment key={clip.id}>
-          <TimelineClip
-            clip={clip}
-            kind={track.kind}
-            locked={track.locked ?? false}
-            clipLocked={clip.locked === true}
-            selected={selectedIds.includes(clip.id)}
-            pxPerMs={pxPerMs}
-            range={laneRange}
-            media={mediaRef}
-            moments={media?.moments}
-            offline={clip.mediaId !== undefined && offlineIds.has(clip.mediaId)}
-            projectFolder={media?.projectFolder}
-            linked={
-              linkedClip
-                ? {
-                    clip: linkedClip,
-                    media: linkedMedia,
-                    offline: linkedClip.mediaId !== undefined && offlineIds.has(linkedClip.mediaId)
-                  }
-                : undefined
-            }
-            gainLine={
-              track.role === 'music'
-                ? gainLinePoints(clip, duckPoints, pxPerMs, CLIP_HEIGHT_PX)
-                : undefined
-            }
-            onPointerDown={(event) => pressClip(event, clip, track)}
-            onTrimPointerDown={
-              track.locked ? undefined : (edge, event) => pressTrim(event, clip, track, edge)
-            }
-            onFadePointerDown={
-              track.kind === 'audio' && !track.locked
-                ? (edge, event) => pressFade(event, clip, track, edge)
-                : undefined
-            }
-            onSelect={() => selectClips(() => [clip.id])}
-          />
-          {clipMenu(clip, track)}
-        </Fragment>
+        <TimelineClip
+          key={clip.id}
+          clip={clip}
+          kind={track.kind}
+          locked={track.locked ?? false}
+          clipLocked={clip.locked === true}
+          selected={selectedIds.includes(clip.id)}
+          pxPerMs={pxPerMs}
+          range={laneRange}
+          media={mediaRef}
+          moments={media?.moments}
+          offline={clip.mediaId !== undefined && offlineIds.has(clip.mediaId)}
+          projectFolder={media?.projectFolder}
+          linked={
+            linkedClip
+              ? {
+                  clip: linkedClip,
+                  media: linkedMedia,
+                  offline: linkedClip.mediaId !== undefined && offlineIds.has(linkedClip.mediaId)
+                }
+              : undefined
+          }
+          gainLine={
+            track.role === 'music'
+              ? gainLinePoints(clip, duckPoints, pxPerMs, CLIP_HEIGHT_PX)
+              : undefined
+          }
+          onPointerDown={(event) => pressClip(event, clip, track)}
+          onTrimPointerDown={
+            track.locked ? undefined : (edge, event) => pressTrim(event, clip, track, edge)
+          }
+          onFadePointerDown={
+            track.kind === 'audio' && !track.locked
+              ? (edge, event) => pressFade(event, clip, track, edge)
+              : undefined
+          }
+          onSelect={() => selectClips(() => [clip.id])}
+          onOpenMenu={(anchor) => openClipMenu(clip, track, anchor)}
+        />
       )
     })
   }
 
-  // The clip menu for the one selected clip on an unlocked track: Detach audio for a video clip whose
-  // sound is still on the clip, and Mute or Unmute for the clip's sound.
-  function clipMenu(clip: Clip, track: Track): JSX.Element | null {
-    if (track.locked || selectedIds.length !== 1 || selectedIds[0] !== clip.id) return null
-    const items: DropdownMenuItem[] = []
-    const audioTrack =
-      timeline.tracks.find(
-        (item) => item.kind === 'audio' && item.role === 'music' && !item.locked
-      ) ?? timeline.tracks.find((item) => item.kind === 'audio' && !item.locked)
-    if (track.kind === 'video' && clip.mediaId && !clip.linkedAudio && audioTrack) {
-      const target = audioTrack
-      items.push({
-        label: 'Detach audio',
-        onSelect: () => {
-          runEdit('Detach audio', (current) =>
-            detachAudio(current, clip.id, target.id, latest.current.newId())
-          )
-        }
-      })
-    }
-    const sound = soundClipFor(timeline, selectedIds)
-    if (sound) {
-      const label = sound.muted ? 'Unmute clip' : 'Mute clip'
-      items.push({
-        label,
-        onSelect: () =>
-          runEdit(label, (current) => setClipAudio(current, sound.id, { muted: !sound.muted }))
-      })
-    }
-    if (clip.assembly) {
-      clip.assembly.alternatives.forEach((_take, index) => {
-        const label = `Swap to take ${index + 1}`
-        items.push({
-          label,
-          onSelect: () => runEdit(label, (current) => swapClipAlternative(current, clip.id, index))
-        })
-      })
-      const pinned = clip.locked === true
-      const label = pinned ? 'Unlock clip' : 'Lock clip'
-      items.push({
-        label,
-        onSelect: () => runEdit(label, (current) => setClipLocked(current, clip.id, !pinned))
-      })
-    }
-    if (track.role === 'main') items.push(...cutMenuItems(clip))
-    if (items.length === 0) return null
-    return (
-      <div className={styles.clipMenu} style={{ left: timeToX(clip.startMs, pxPerMs) }}>
-        <DropdownMenu trigger={<Button variant="ghost">Clip</Button>} items={items} />
-      </div>
-    )
+  // A right-click or Shift+F10 on a clip selects it and opens its clip menu at the anchor point.
+  function openClipMenu(clip: Clip, track: Track, anchor: { x: number; y: number }) {
+    if (track.locked) return
+    selectClips(() => [clip.id])
+    setClipMenu({ clipId: clip.id, ...anchor })
   }
 
-  // The cut before a selected main-track clip: add a crossfade or a dip to black there at the default
-  // length (clamped to the handles), or remove the transition already on it.
-  function cutMenuItems(clip: Clip): DropdownMenuItem[] {
-    const cut = cutBefore(timeline, clip.id)
-    if (!cut) return []
-    const existing = (timeline.transitions ?? []).find(
-      (item) => item.fromClipId === cut.from.id && item.toClipId === clip.id
-    )
-    if (existing) {
-      return [
-        {
-          label: 'Remove transition',
-          onSelect: () =>
-            runEdit('Remove transition', (current) => removeTransition(current, existing.id))
-        }
-      ]
-    }
-    return TRANSITION_KINDS.map((kind) => {
-      const label = `Add ${TRANSITION_LABELS[kind].toLowerCase()} at cut`
-      return {
-        label,
-        onSelect: () =>
-          runEdit(label, (current) =>
-            addCutTransition(
-              current,
-              latest.current.newId(),
-              clip.id,
-              kind,
-              DEFAULT_TRANSITION_MS,
-              clipSourceLength
-            )
-          )
-      }
+  // The clip menu of the clip it was opened on. Its items are the clip's actions (see clipMenuItems).
+  function clipMenuNode(): JSX.Element | null {
+    if (!clipMenu) return null
+    const found = findClip(timeline, clipMenu.clipId)
+    if (!found) return null
+    const items = clipMenuItems({
+      timeline,
+      clip: found.clip,
+      track: found.track,
+      selectedIds,
+      runEdit: (label, edit) => {
+        runEdit(label, edit)
+      },
+      newId: () => latest.current.newId(),
+      clipSourceLength
     })
+    if (items.length === 0) return null
+    return (
+      <ClipContextMenu
+        anchor={{ x: clipMenu.x, y: clipMenu.y }}
+        items={items}
+        onClose={() => setClipMenu(null)}
+      />
+    )
   }
 
   function clipSourceLength(clip: Clip): number | undefined {
@@ -1358,6 +1297,7 @@ export function TimelinePane({
           </div>
         </div>
       </div>
+      {clipMenuNode()}
     </div>
   )
 }

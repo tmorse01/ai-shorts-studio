@@ -54,6 +54,13 @@ export interface TimelineClipProps {
   onFadePointerDown?: (edge: 'in' | 'out', event: PointerEvent<HTMLDivElement>) => void
   // Keyboard selection, for Enter and Space.
   onSelect: () => void
+  // Opens the clip menu at a viewport point: a right-click, or Shift+F10 or the Menu key on the clip.
+  onOpenMenu?: (anchor: { x: number; y: number }) => void
+}
+
+// The keys that open the clip menu from the keyboard: Shift+F10 and the Menu (ContextMenu) key.
+export function isClipMenuKey(event: { key: string; shiftKey: boolean }): boolean {
+  return event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)
 }
 
 // One clip on a lane. A video clip shows a filmstrip, an audio clip a waveform, and a video clip with
@@ -76,7 +83,8 @@ export function TimelineClip({
   onPointerDown,
   onTrimPointerDown,
   onFadePointerDown,
-  onSelect
+  onSelect,
+  onOpenMenu
 }: TimelineClipProps): JSX.Element {
   const box = clipBox(clip, pxPerMs)
   const label = clipLabel(clip, media?.fileName, moments)
@@ -147,10 +155,22 @@ export function TimelineClip({
       data-kind={kind}
       style={{ left: box.leftPx, width: box.widthPx, height: CLIP_HEIGHT_PX }}
       onPointerDown={onPointerDown}
+      onContextMenu={
+        onOpenMenu
+          ? (event) => {
+              event.preventDefault()
+              onOpenMenu({ x: event.clientX, y: event.clientY })
+            }
+          : undefined
+      }
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onSelect()
+        } else if (onOpenMenu && isClipMenuKey(event)) {
+          event.preventDefault()
+          const rect = event.currentTarget.getBoundingClientRect()
+          onOpenMenu({ x: rect.left + 8, y: rect.bottom })
         }
       }}
     >

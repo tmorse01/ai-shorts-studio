@@ -175,8 +175,9 @@ test('tags and search filter the media grid', async ({ session }) => {
   await expect(mediaCard(page, 'still.png')).toBeHidden()
   await expect(mediaCard(page, 'clip-b.mp4')).toBeVisible()
 
-  // The tag filter then keeps only the tagged clip.
+  // The tag filter lives in the Filter popover. It keeps only the tagged clip.
   await search.fill('')
+  await page.getByRole('button', { name: 'Filter', exact: true }).click()
   await page
     .getByRole('group', { name: 'Filter by tag' })
     .getByRole('button', { name: 'Intro' })

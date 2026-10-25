@@ -82,6 +82,13 @@ export interface MediaFilter {
 
 export const EMPTY_MEDIA_FILTER: MediaFilter = { query: '', kinds: [], tagIds: [] }
 
+// How many filter criteria are set, for the Filter button's count. Each type, each tag and the duration
+// range count once. The search text is not a filter criterion: it has its own box.
+export function activeFilterCount(filter: MediaFilter): number {
+  const duration = filter.minDurationSec !== undefined || filter.maxDurationSec !== undefined
+  return filter.kinds.length + filter.tagIds.length + (duration ? 1 : 0)
+}
+
 export function isMediaFilterActive(filter: MediaFilter): boolean {
   return (
     filter.query.trim() !== '' ||

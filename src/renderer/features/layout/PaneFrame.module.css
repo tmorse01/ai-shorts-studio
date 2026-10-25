@@ -50,8 +50,11 @@
 
 .body {
   flex: 1;
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
+  /* Panes never scroll sideways: long text truncates inside them instead. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Collapsed: a 32px strip that keeps only the expand button. */
