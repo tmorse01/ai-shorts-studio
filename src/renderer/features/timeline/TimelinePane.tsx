@@ -67,6 +67,7 @@ import { formatTimecode } from '../playback/playbackClock'
 import { toast } from '../toasts/toast'
 import { playbackStore } from '../playback/playbackStore'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
+import { setEditorPlaybackDuration, sourceStore } from '../source/sourceStore'
 import {
   clipsInRange,
   fadeMsFromPointer,
@@ -262,10 +263,12 @@ export function TimelinePane({
   const offlineIds = new Set(media?.offlineIds ?? [])
   const allClips = shown.tracks.flatMap((track) => track.clips)
 
-  // Playback length follows the timeline, so the scrub bar and the playhead stop at its end.
+  // Playback length follows the timeline in Short view, so the scrub bar and the playhead stop at its
+  // end. Source view keeps its own length (see setEditorPlaybackDuration).
+  const sourceMode = useStore(sourceStore, (state) => state.mode)
   useEffect(() => {
-    playbackStore.getState().setDurationMs(durationMs)
-  }, [durationMs])
+    setEditorPlaybackDuration(durationMs)
+  }, [durationMs, sourceMode])
 
   // Tracks the viewport width, so clips scrolled into a wider window are rendered.
   useEffect(() => {
