@@ -19,7 +19,7 @@ function mediaCard(page: Page, fileName: string): Locator {
 // The AI calls need a saved key. The fake provider never sends it anywhere, so a test value is enough.
 async function saveTestKey(page: Page): Promise<void> {
   const result = await page.evaluate(() =>
-    window.api.invoke('ai:key:save', { apiKey: 'e2e-test-key' })
+    window.api.invoke('ai:key:save', { apiKey: 'e2e-test-key-0123456789abcdefghijk' })
   )
   expect(result.ok).toBe(true)
 }
