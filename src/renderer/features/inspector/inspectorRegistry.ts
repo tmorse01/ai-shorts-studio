@@ -12,6 +12,7 @@ import { TextSection } from '@renderer/features/text/TextSection'
 import { ImageSection } from '@renderer/features/image/ImageSection'
 import { CaptionStyleSection } from '@renderer/features/captions/CaptionStyleSection'
 import { ClipTakesSection } from '@renderer/features/takes/ClipTakesSection'
+import { NarrationSection } from '@renderer/features/narration/NarrationSection'
 import { SELECTION_TYPES, type InspectorSectionDef } from './inspectorModel'
 
 export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
@@ -38,6 +39,15 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     order: 10,
     selections: ['audio-clip'],
     Component: ClipAudioSection
+  },
+  {
+    // The narration clip's script line, voice, text and regenerate. Shows only for a narration clip.
+    id: 'narration',
+    title: 'Narration',
+    tab: 'audio',
+    order: 15,
+    selections: ['audio-clip'],
+    Component: NarrationSection
   },
   {
     id: 'music',
