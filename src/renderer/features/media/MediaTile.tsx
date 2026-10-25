@@ -1,7 +1,7 @@
 // One media file in the Media grid: a fixed-size tile with a 16:9 thumbnail, a one-line name and a
 // duration badge. Status sits top-left, and usage and moments badges appear on hover or focus.
 // MediaTile is presentational; LoadedMediaTile reads the cached thumbnail for it.
-import type { ButtonHTMLAttributes, JSX, ReactNode } from 'react'
+import { useId, type ButtonHTMLAttributes, type JSX, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -63,6 +63,8 @@ export function MediaTile({
   momentRows
 }: MediaTileProps): JSX.Element {
   const Icon = KIND_ICON[kind]
+  // The button is named by its file name alone, so the duration is not read as part of the name.
+  const nameId = useId()
   const tooltip = [
     fileName,
     status.kind === 'busy' ? status.label : null,
@@ -82,7 +84,7 @@ export function MediaTile({
         <button
           type="button"
           aria-pressed={selected}
-          aria-label={fileName}
+          aria-labelledby={nameId}
           title={tooltip}
           className={styles.item}
           {...itemProps}
@@ -102,7 +104,9 @@ export function MediaTile({
             )}
             <span className={styles.duration}>{formatDuration(durationMs)}</span>
           </span>
-          <span className={styles.name}>{fileName}</span>
+          <span id={nameId} className={styles.name}>
+            {fileName}
+          </span>
           {tagNames.length > 0 ? <span className={styles.tags}>{tagNames.join(', ')}</span> : null}
         </button>
 
