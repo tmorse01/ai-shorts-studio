@@ -359,6 +359,9 @@ export function createIpcHandlers({
     }),
     'ai:scripts:rewriteLine': (input) => rewriteScriptLine(ai, input),
     'ai:footage:match': (input) => matchFootageRequest(ai, input),
+    'ai:shorts:propose': async (input) => ({
+      shorts: await jobs.enqueue('shorts', input.projectFolder, { shorts: input }).done
+    }),
     'tts:status': () => speech.status(),
     'tts:key:save': ({ apiKey }) => speech.saveKey(apiKey),
     'tts:key:clear': () => speech.clearKey(),

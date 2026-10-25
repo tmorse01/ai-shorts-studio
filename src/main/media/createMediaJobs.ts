@@ -23,6 +23,8 @@ import { encodeFailsByForce } from '../e2e/forcedEncoderFailure'
 import { generateScripts } from '../ai/scriptGenerator'
 import { readScriptFootage } from '../ai/scriptFootage'
 import { matchFootageRequest } from '../ai/footageMatcher'
+import { proposeShorts } from '../ai/shortGenerator'
+import { readShortsFootage } from '../ai/shortsFootage'
 import { usedRangesOfPlan } from '@shared/assembly/footageSpread'
 import { createAssemblySpreads } from './assemblySpread'
 
@@ -105,6 +107,10 @@ export function createMediaJobs(ai: AiService): JobQueue {
         { footage: assembly.footage, reuse: assembly.reuse, seed: assembly.priorUsed },
         signal
       )
+    },
+    shorts: ({ shorts }) => {
+      if (!shorts) throw new UserFacingError('The shorts job lost its request.')
+      return proposeShorts(ai, readShortsFootage, shorts)
     },
     // Renders a short to its MP4. The encode runs in FFmpeg, and the render queue records the result.
     export: ({ export: request }, { signal, reportProgress }) => {

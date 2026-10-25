@@ -67,6 +67,7 @@ describe('JobQueue hold', () => {
         poster: async () => undefined,
         analysis: () => new Promise<never>(() => undefined),
         script: async () => [],
+        shorts: async () => [],
         assembly: async () => ({
           plan: { lines: [] },
           unmatchedLineIds: [],

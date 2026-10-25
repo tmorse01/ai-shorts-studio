@@ -26,6 +26,7 @@ import { transcriptSchema } from './analysis/transcript'
 import { visionShotSchema } from './analysis/vision'
 import { suggestionsOutputSchema } from './analysis/suggestions'
 import { footageMatchRequestSchema, footageMatchResultSchema } from './assembly/footageMatchRequest'
+import { generateShortsInputSchema, generatedShortsOutputSchema } from './shorts/shortPlan'
 import {
   aiStatusSchema,
   MAX_CAP_USD,
@@ -579,6 +580,12 @@ export const ipcChannels = {
   'ai:footage:match': {
     input: footageMatchRequestSchema,
     output: footageMatchResultSchema
+  },
+  // Proposes shorts from analysed sources as a background shorts job (#143). The reply is a list of proposals
+  // the renderer reviews; it creates the accepted ones through a project command, so each is one undo step.
+  'ai:shorts:propose': {
+    input: generateShortsInputSchema,
+    output: generatedShortsOutputSchema
   },
   // Rewrites one line. The reply is text only; the renderer shows it as a suggestion and saves it
   // through a project command when the user accepts it.
