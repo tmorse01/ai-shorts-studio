@@ -1,0 +1,13 @@
+/* The window is a column: the title strip, then the screen. The screen takes what the strip leaves. */
+.frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.screen {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
