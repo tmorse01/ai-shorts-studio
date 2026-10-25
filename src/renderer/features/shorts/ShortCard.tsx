@@ -6,6 +6,7 @@ import { IconButton } from '@renderer/ui/IconButton'
 import { Input } from '@renderer/ui/Input'
 import { Button } from '@renderer/ui/Button'
 import type { ManualShortStatus } from './shortCommands'
+import { isShortEmpty } from './shortsView'
 import styles from './ShortCard.module.css'
 
 export interface ShortCardProps {
@@ -126,6 +127,11 @@ export function ShortCard({
         {posterSrc ? (
           // The name sits under the card, so the poster is decorative for screen readers.
           <img className={styles.image} src={posterSrc} alt="" draggable={false} />
+        ) : isShortEmpty(short) ? (
+          <span className={styles.emptyFrame} data-empty="true">
+            <span className={styles.ornament} aria-hidden="true" />
+            <span className={styles.emptyText}>Empty · open to add clips</span>
+          </span>
         ) : (
           <span className={styles.ornament} aria-hidden="true" />
         )}

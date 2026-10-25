@@ -35,6 +35,26 @@
   object-fit: cover;
 }
 
+.emptyFrame {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) dashed var(--color-border);
+  border-radius: var(--radius);
+}
+
+.emptyText {
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+  text-align: center;
+}
+
 .ornament {
   display: block;
   width: 40px;
@@ -65,6 +85,7 @@
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line);
   color: var(--color-editorial);
+  font-variant-numeric: lining-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -8,6 +8,7 @@ import { chooseVariant, mediaUrl } from '@shared/media/previewSource'
 import type { MediaSourceInfo } from '@shared/media/mediaSources'
 import type { Timeline } from '@shared/timeline/timeline'
 import { resolveFrame } from '@shared/timeline/resolveFrame'
+import { previewFrameOf, publishPreviewFrame } from '@shared/e2e/previewHook'
 import { Compositor } from '../compositor/compositor'
 import { createFrameBackend, type BitmapSource } from '../compositor/frameBackend'
 import { layerFrameStore } from '../compositor/layerFrameStore'
@@ -104,6 +105,8 @@ export class PreviewRenderer {
     // A video layer with footage that is not on disk shows the offline placeholder. It hides the
     // layers below it, so the frame is cleared.
     const top = topVideoLayerAt(timeline, playheadMs)
+    // The E2E hook reports the frame this call draws. Off unless the app runs in E2E mode.
+    publishPreviewFrame(window, window.api?.e2eMode === true, previewFrameOf(top))
     const offline = top?.mediaId !== undefined && sources[top.mediaId]?.online === false
     if (offline) {
       this.pauseExcept(new Set())

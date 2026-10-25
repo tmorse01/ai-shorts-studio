@@ -16,6 +16,8 @@ import {
   type WindowState
 } from '@shared/windowState'
 import { readWindowStateFile, writeWindowStateFile, writeWindowStateSync } from '../windowStateFile'
+import { isE2eMode } from '../e2e/e2eMode'
+import { E2E_RENDERER_ARG } from '@shared/e2e/previewHook'
 
 export interface MainWindowOptions {
   preload: string
@@ -61,7 +63,9 @@ export async function createMainWindow(options: MainWindowOptions): Promise<Brow
       preload: options.preload,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      // E2E runs only. The preload reads this argument. Nothing is added when AISS_E2E is unset.
+      additionalArguments: isE2eMode() ? [E2E_RENDERER_ARG] : []
     }
   })
 
