@@ -23,7 +23,7 @@ Projects save automatically. The save status shows in the top bar.
 
 1. Open the project and go to **Media** in the left tool rail.
 2. Click **Import**, or drag video, audio or image files onto the media panel.
-3. The app probes each file, then makes thumbnails, a filmstrip and a 720p **proxy** in the background so editing stays smooth. Originals are never changed, and export always uses them.
+3. The app probes each file, then makes thumbnails and a filmstrip in the background. Heavy footage (above 1080p, HEVC/ProRes, or a very high bitrate) also gets a 720p **proxy**, so editing stays smooth. Plain 1080p H.264 plays straight from the original. Originals are never changed, and export always uses them.
 4. Use **tags, search and filters** in the media panel to find clips. Music files can be tagged as music.
 
 If you move files on disk, the app marks them offline and offers **Relink**.
