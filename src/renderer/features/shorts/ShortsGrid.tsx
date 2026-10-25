@@ -1,6 +1,6 @@
 import { useRef, useState, type JSX, type KeyboardEvent } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import type { MediaRef, Short, ShortStatus } from '@shared/project/schema'
+import type { MediaRef, Script, Short, ShortStatus } from '@shared/project/schema'
 import { effectiveShortSettings } from '@shared/shorts/shortSettings'
 import { Button } from '@renderer/ui/Button'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
@@ -18,13 +18,24 @@ import {
   type ManualShortStatus
 } from './shortCommands'
 import { ShortCard } from './ShortCard'
-import { filterShorts, SORT_OPTIONS, sortShorts, STATUS_FILTERS, type SortMode } from './shortsView'
+import {
+  canRegenerateBatchDraft,
+  filterBatchDrafts,
+  filterShorts,
+  SORT_OPTIONS,
+  sortShorts,
+  STATUS_FILTERS,
+  type SortMode
+} from './shortsView'
+import { keepBatchDraftCommand } from './batchDraftCommands'
+import { startAssemblyBatch } from '../assembly/assemblyQueueStore'
 import { nextCardIndex } from './shortsGridNav'
 import { useShortPosters } from './useShortPosters'
 import styles from './ShortsGrid.module.css'
 
 const NO_SHORTS: Short[] = []
 const NO_MEDIA: MediaRef[] = []
+const NO_SCRIPTS: Script[] = []
 
 // The Shorts section of Project home: a grid of poster cards, with sort and status filters. Cards
 // can be reordered by dragging (Manual sort only) or with Alt+Left and Alt+Right.
@@ -34,6 +45,7 @@ export function ShortsGrid(): JSX.Element | null {
   const projectId = useProjectStore((state) => state.current?.project.id)
   const folderPath = useProjectStore((state) => state.current?.folderPath ?? null)
   const media = useProjectStore((state) => state.current?.project.media ?? NO_MEDIA)
+  const scripts = useProjectStore((state) => state.current?.project.scripts ?? NO_SCRIPTS)
   const posters = useShortPosters(folderPath, shorts, media)
   const router = useRouter()
   const gridRef = useRef<HTMLDivElement>(null)
@@ -41,12 +53,16 @@ export function ShortsGrid(): JSX.Element | null {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('manual')
   const [statuses, setStatuses] = useState<ShortStatus[]>([])
+  const [reviewOnly, setReviewOnly] = useState(false)
 
   if (!defaults || !projectId) return null
 
   const targetMax = (short: Short) =>
     effectiveShortSettings(defaults, short.overrides).targetLength.maxSec
-  const visible = filterShorts(sortShorts(shorts, sortMode, targetMax), statuses)
+  const visible = filterShorts(
+    filterBatchDrafts(sortShorts(shorts, sortMode, targetMax), reviewOnly),
+    statuses
+  )
   const dragEnabled = sortMode === 'manual'
   const now = () => new Date().toISOString()
 
@@ -78,6 +94,17 @@ export function ShortsGrid(): JSX.Element | null {
       title: `Deleted ${short.name}`,
       action: { label: 'Undo', run: () => undoProjectEdit() }
     })
+  }
+
+  // Keep clears the batch-draft badge. Regenerate runs footage matching for the short's script again; the
+  // new plan is reviewed in the script before it changes anything (#148).
+  function keep(shortId: string) {
+    applyProjectCommand(keepBatchDraftCommand(shortId, now()))
+  }
+
+  function regenerate(short: Short) {
+    if (!short.scriptId) return
+    void startAssemblyBatch([short.scriptId], false)
   }
 
   function moveTo(shortId: string, toIndex: number) {
@@ -171,6 +198,14 @@ export function ShortsGrid(): JSX.Element | null {
               </button>
             )
           })}
+          <button
+            type="button"
+            aria-pressed={reviewOnly}
+            className={reviewOnly ? styles.chipOn : styles.chip}
+            onClick={() => setReviewOnly((current) => !current)}
+          >
+            Batch drafts
+          </button>
         </div>
         <Button variant="primary" onClick={newShort}>
           New short
@@ -196,6 +231,10 @@ export function ShortsGrid(): JSX.Element | null {
               onDuplicate={() => duplicate(short.id)}
               onSetStatus={(status) => setStatus(short.id, status)}
               onDelete={() => remove(short)}
+              onKeep={() => keep(short.id)}
+              onRegenerate={
+                canRegenerateBatchDraft(short, scripts) ? () => regenerate(short) : undefined
+              }
               onMove={(delta) => move(short.id, delta)}
               onDragStart={() => {
                 draggedIdRef.current = short.id
