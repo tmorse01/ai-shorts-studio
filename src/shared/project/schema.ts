@@ -6,7 +6,7 @@ import { captionPresetSchema } from '../captions/captionPreset'
 import { batchSchema } from '../batch/batch'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 20
+export const CURRENT_SCHEMA_VERSION = 21
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -57,7 +57,9 @@ export const momentSchema = z
     outMs: z.number().int().nonnegative(),
     tags: z.array(nonEmptyString),
     createdBy: momentCreatorSchema,
-    note: z.string().optional()
+    note: z.string().optional(),
+    // The AI's 0-100 score, kept when an AI suggestion is accepted. Unset for moments the user marked.
+    score: z.number().int().min(0).max(100).optional()
   })
   .refine((moment) => moment.outMs > moment.inMs, {
     message: 'outMs must be greater than inMs'

@@ -214,6 +214,12 @@ export function migrateV19ToV20(data: unknown): unknown {
   return { ...data, schemaVersion: 20 }
 }
 
+// Moments gain an optional AI score. Older moments have none, so nothing else changes.
+export function migrateV20ToV21(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 21 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -244,7 +250,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 16, to: 17, up: migrateV16ToV17 },
   { from: 17, to: 18, up: migrateV17ToV18 },
   { from: 18, to: 19, up: migrateV18ToV19 },
-  { from: 19, to: 20, up: migrateV19ToV20 }
+  { from: 19, to: 20, up: migrateV19ToV20 },
+  { from: 20, to: 21, up: migrateV20ToV21 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

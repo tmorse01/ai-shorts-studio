@@ -37,6 +37,7 @@ export type ClipFinderItem =
       note?: string
       tagNames: string[]
       createdBy: 'user' | 'ai'
+      score?: number
     }
   | {
       // An open AI moment. It becomes a normal moment only when accepted.
@@ -57,10 +58,28 @@ export type ClipFinderItem =
       name: string
     }
 
+/** A draft the user changed before accepting it. Dismissing still uses the draft's own key. */
+export interface DraftEdit {
+  name: string
+  inMs: number
+  outMs: number
+  note?: string
+}
+
+/** The text in the draft editor: names and times in seconds, as typed. */
+export interface DraftEditInput {
+  name: string
+  inSec: string
+  outSec: string
+  note: string
+}
+
 export interface ClipFinderSource {
   mediaId: string
   moments: readonly Moment[]
   drafts: readonly MomentSuggestion[]
+  /** Edits to open drafts, keyed by the draft's key. */
+  draftEdits?: ReadonlyMap<string, DraftEdit>
   tagDrafts: readonly string[]
   /** The name of a tag id, for the chips on saved moments. */
   tagNameOf: (tagId: string) => string | undefined
@@ -86,18 +105,24 @@ export function clipFinderItems(source: ClipFinderSource): ClipFinderItem[] {
     tagNames: moment.tags
       .map((id) => source.tagNameOf(id))
       .filter((name): name is string => name !== undefined),
-    createdBy: moment.createdBy
+    createdBy: moment.createdBy,
+    ...(moment.score === undefined ? {} : { score: moment.score })
   }))
-  const drafts: ClipFinderItem[] = source.drafts.map((draft) => ({
-    kind: 'draft',
-    key: momentSuggestionKey(draft),
-    mediaId: source.mediaId,
-    name: draft.name,
-    inMs: draft.inMs,
-    outMs: draft.outMs,
-    ...(draft.note ? { note: draft.note } : {}),
-    ...(draft.score === undefined ? {} : { score: draft.score })
-  }))
+  const drafts: ClipFinderItem[] = source.drafts.map((draft) => {
+    const key = momentSuggestionKey(draft)
+    const edit = source.draftEdits?.get(key)
+    const note = edit ? edit.note : draft.note
+    return {
+      kind: 'draft',
+      key,
+      mediaId: source.mediaId,
+      name: edit?.name ?? draft.name,
+      inMs: edit?.inMs ?? draft.inMs,
+      outMs: edit?.outMs ?? draft.outMs,
+      ...(note ? { note } : {}),
+      ...(draft.score === undefined ? {} : { score: draft.score })
+    }
+  })
   const ranged = [...moments, ...drafts].sort((a, b) => rangeStart(a) - rangeStart(b))
   return [...tags, ...ranged]
 }
@@ -172,8 +197,7 @@ export function clipRowFacts(item: ClipFinderItem): ClipRowFacts {
   return {
     durationLabel: formatDuration(item.outMs - item.inMs),
     rangeLabel: `${formatDuration(item.inMs)} to ${formatDuration(item.outMs)}`,
-    scoreLabel:
-      item.kind === 'draft' && item.score !== undefined ? scoreLabel(item.score) : undefined,
+    scoreLabel: item.score === undefined ? undefined : scoreLabel(item.score),
     summary: item.note
   }
 }
@@ -182,4 +206,48 @@ export function clipRowFacts(item: ClipFinderItem): ClipRowFacts {
 export function scoreLabel(score: number): string {
   const whole = Math.min(100, Math.max(0, Math.round(score)))
   return `${whole}/100`
+}
+
+/** Splits the editor's text into a draft edit. Times are seconds, and Out must come after In. */
+export function draftEditFromInput(
+  input: DraftEditInput
+): { ok: true; edit: DraftEdit } | { ok: false; error: string } {
+  const name = input.name.trim()
+  if (name === '') return { ok: false, error: 'Give the clip a name.' }
+  const inMs = secondsToMs(input.inSec)
+  const outMs = secondsToMs(input.outSec)
+  if (inMs === undefined || outMs === undefined) {
+    return { ok: false, error: 'In and Out must be times in seconds, such as 12.5.' }
+  }
+  if (outMs <= inMs) return { ok: false, error: 'Out must come after In.' }
+  const note = input.note.trim()
+  return { ok: true, edit: { name, inMs, outMs, ...(note ? { note } : {}) } }
+}
+
+/** The editor's starting text for a draft. */
+export function draftEditInputOf(item: {
+  name: string
+  inMs: number
+  outMs: number
+  note?: string
+}): DraftEditInput {
+  return {
+    name: item.name,
+    inSec: String(item.inMs / 1000),
+    outSec: String(item.outMs / 1000),
+    note: item.note ?? ''
+  }
+}
+
+function secondsToMs(text: string): number | undefined {
+  const trimmed = text.trim()
+  if (trimmed === '') return undefined
+  const seconds = Number(trimmed)
+  if (!Number.isFinite(seconds) || seconds < 0) return undefined
+  return Math.round(seconds * 1000)
+}
+
+/** The resolution label for a video, such as "1080p" (the shorter side). */
+export function resolutionLabel(video: { width: number; height: number }): string {
+  return `${Math.min(video.width, video.height)}p`
 }

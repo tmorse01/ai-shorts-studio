@@ -53,12 +53,12 @@ describe('narration model', () => {
 
 describe('schema 19 to 20 migration', () => {
   it('bumps the schema version to 20 and is registered as the last migration', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(20)
+    expect(CURRENT_SCHEMA_VERSION).toBeGreaterThanOrEqual(20)
     expect(migrateV19ToV20({ schemaVersion: 19, id: 'p1' })).toEqual({
       schemaVersion: 20,
       id: 'p1'
     })
-    expect(projectMigrations[projectMigrations.length - 1]).toMatchObject({ from: 19, to: 20 })
+    expect(projectMigrations).toContainEqual(expect.objectContaining({ from: 19, to: 20 }))
   })
 
   it('rejects a project that is not an object', () => {
