@@ -72,13 +72,28 @@ function matches(binding: ParsedBinding, press: KeyPress): boolean {
 // Editable fields keep their own keys: typing, and native undo inside a text box.
 export function isEditableTarget(target: unknown): boolean {
   if (typeof target !== 'object' || target === null) return false
-  const { tagName, isContentEditable } = target as {
+  const { tagName, isContentEditable, type } = target as {
     tagName?: unknown
     isContentEditable?: unknown
+    type?: unknown
   }
   if (isContentEditable === true) return true
-  return typeof tagName === 'string' && ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)
+  // Inputs that take no typed text (range sliders, checkboxes, buttons) must not block shortcuts.
+  if (tagName === 'INPUT') return !NON_TEXT_INPUT_TYPES.has(String(type))
+  return typeof tagName === 'string' && ['TEXTAREA', 'SELECT'].includes(tagName)
 }
+
+const NON_TEXT_INPUT_TYPES = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'submit'
+])
 
 export function createShortcutRegistry(): ShortcutRegistry {
   const entries = new Map<string, { shortcut: ShortcutDefinition; bindings: ParsedBinding[] }>()

@@ -123,6 +123,13 @@ describe('isEditableTarget', () => {
     expect(isEditableTarget({ tagName: 'BUTTON' })).toBe(false)
     expect(isEditableTarget(null)).toBe(false)
   })
+
+  // A range slider takes no typed text, so single-key shortcuts must still reach the editor.
+  it('is false for range sliders and checkboxes, true for text inputs', () => {
+    expect(isEditableTarget({ tagName: 'INPUT', type: 'range' })).toBe(false)
+    expect(isEditableTarget({ tagName: 'INPUT', type: 'checkbox' })).toBe(false)
+    expect(isEditableTarget({ tagName: 'INPUT', type: 'text' })).toBe(true)
+  })
 })
 
 describe('formatBinding', () => {
