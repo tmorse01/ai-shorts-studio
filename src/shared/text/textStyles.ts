@@ -22,6 +22,8 @@ export const TEXT_PALETTE = {
   sage: '#c4dca5'
 } as const
 export type TextColorName = keyof typeof TEXT_PALETTE
+export const TEXT_COLOR_NAMES = Object.keys(TEXT_PALETTE) as [TextColorName, ...TextColorName[]]
+export const textColorNameSchema = z.enum(TEXT_COLOR_NAMES)
 
 export interface TextStyle {
   label: string

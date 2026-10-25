@@ -183,6 +183,12 @@ export function migrateV14ToV15(data: unknown): unknown {
   return { ...data, schemaVersion: 15 }
 }
 
+// v15 had no change that needs a key. Only the version changes.
+export function migrateV15ToV16(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 16 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -208,7 +214,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 11, to: 12, up: migrateV11ToV12 },
   { from: 12, to: 13, up: migrateV12ToV13 },
   { from: 13, to: 14, up: migrateV13ToV14 },
-  { from: 14, to: 15, up: migrateV14ToV15 }
+  { from: 14, to: 15, up: migrateV14ToV15 },
+  { from: 15, to: 16, up: migrateV15ToV16 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

@@ -24,8 +24,10 @@ import {
   setTrackFlag,
   trimClip,
   addCutTransition,
-  updateClipFraming
+  updateClipFraming,
+  updateClipTextItem
 } from '@shared/timeline/edits'
+import { textOverlayOf } from '@shared/text/textClip'
 import { CENTRED_FILL } from '@shared/timeline/framing'
 import {
   DEFAULT_TRANSITION_MS,
@@ -536,6 +538,24 @@ export function TimelinePane({
     )
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setFramingTarget(null), [])
+
+  // The text section edits the one selected text overlay: its words, look, position and size. Each change is
+  // one history entry. Publish it, or nothing.
+  useEffect(() => {
+    const overlay = selectedIds.length === 1 ? textOverlayOf(timeline, selectedIds[0]) : null
+    if (!overlay) {
+      inspectorStore.getState().setTextTarget(null)
+      return
+    }
+    const clipId = overlay.clip.id
+    inspectorStore.getState().setTextTarget({
+      clip: overlay.clip,
+      item: overlay.clip.textItem,
+      apply: (label, edit, mergeKey) =>
+        runEdit(label, (current) => updateClipTextItem(current, clipId, edit), mergeKey)
+    })
+  }, [timeline, selectedIds, runEdit])
+  useEffect(() => () => inspectorStore.getState().setTextTarget(null), [])
 
   // The transition section edits the one selected transition: its kind, its length (clamped to the
   // handles on its cut) and removal. Each is one history entry. Publish it, or nothing.

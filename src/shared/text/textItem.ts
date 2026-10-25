@@ -2,7 +2,7 @@
 // Position is an anchor on the frame, as fractions of its width and height, so the same item lands in
 // the same place at any resolution. Pure data plus a zod schema.
 import { z } from 'zod'
-import { textStyleIdSchema, type TextStyleId } from './textStyles'
+import { textColorNameSchema, textStyleIdSchema, type TextStyleId } from './textStyles'
 
 // How the item appears and leaves. 'fade' fades it in from nothing at the clip's start and out to
 // nothing at its end. 'none' (the default when the key is absent) cuts.
@@ -18,7 +18,11 @@ export const textItemSchema = z.object({
   // Multiplies the style's font size. Positive, so the text never disappears by accident.
   scale: z.number().positive().max(4),
   enter: textMotionSchema.optional(),
-  exit: textMotionSchema.optional()
+  exit: textMotionSchema.optional(),
+  // A palette colour that replaces the style's fill. Absent keeps the style's colour. Schema 14 added it.
+  color: textColorNameSchema.optional(),
+  // A palette colour for a box behind the text. Absent draws no box. Schema 14 added it.
+  backdrop: textColorNameSchema.optional()
 })
 export type TextItem = z.infer<typeof textItemSchema>
 

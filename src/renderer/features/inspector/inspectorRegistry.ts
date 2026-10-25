@@ -8,6 +8,7 @@ import { ShortPropertiesSection } from '@renderer/features/shorts/ShortPropertie
 import { TranscriptSection } from '@renderer/features/transcript/TranscriptSection'
 import { FramingSection } from '@renderer/features/framing/FramingSection'
 import { TransitionSection } from '@renderer/features/transition/TransitionSection'
+import { TextSection } from '@renderer/features/text/TextSection'
 import { SELECTION_TYPES, type InspectorSectionDef } from './inspectorModel'
 
 export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
@@ -59,6 +60,14 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     order: 10,
     selections: ['video-clip'],
     Component: FramingSection
+  },
+  {
+    id: 'text',
+    title: 'Text',
+    tab: 'video',
+    order: 10,
+    selections: ['text-clip'],
+    Component: TextSection
   },
   {
     id: 'transition',

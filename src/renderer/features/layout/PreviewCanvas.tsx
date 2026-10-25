@@ -30,6 +30,7 @@ import { previewSettingsStore, usePreviewSettings } from '../preview/previewSett
 import { useFullscreen } from '../preview/useFullscreen'
 import { useMediaSourceSync } from '../preview/useMediaSourceSync'
 import { useVideoPreview } from '../preview/useVideoPreview'
+import { TextEditor } from '../text/TextEditor'
 import { SourceViewer } from '../source/SourceViewer'
 import { ViewModeToggle } from '../source/ViewModeToggle'
 import { sourceStore } from '../source/sourceStore'
@@ -168,6 +169,7 @@ export function PreviewCanvas({
         onPointerMove={onFramePointerMove}
         onPointerUp={onFramePointerUp}
         onKeyDown={handlers.onKeyDown}
+        onDoubleClick={handlers.onDoubleClick}
       >
         <span className={styles.mark} aria-hidden="true" />
         <span className={styles.ratio} aria-hidden="true">
@@ -176,6 +178,7 @@ export function PreviewCanvas({
         <canvas ref={canvasRef} className={styles.video} aria-hidden="true" />
         {showSafeZones ? <SafeZoneOverlay platform={settings.platform} /> : null}
         {inShort && !playing ? <CanvasGizmo guides={guides} /> : null}
+        {inShort && !playing && shortId ? <TextEditor shortId={shortId} /> : null}
         {inShort && !hasClips(timeline) ? (
           <div className={styles.overlay}>
             <EmptyState
