@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { readExportSettingsFile } from '../src/main/export/exportSettingsFile'
 import {
   chooseEncoder,
   DEFAULT_EXPORT_SETTINGS,
@@ -25,6 +29,15 @@ const ENCODERS_OUTPUT = `Encoders:
 `
 
 describe('export presets and settings', () => {
+  it('reads saved settings from before the SRT option as off', async () => {
+    const folder = mkdtempSync(join(tmpdir(), 'export-settings-'))
+    const file = join(folder, 'export-settings.json')
+    const older: Record<string, unknown> = { ...DEFAULT_EXPORT_SETTINGS }
+    delete older.includeSrt
+    writeFileSync(file, JSON.stringify(older), 'utf8')
+    expect((await readExportSettingsFile(file))?.includeSrt).toBe(false)
+  })
+
   it('starts from the first preset with the default settings', () => {
     expect(DEFAULT_EXPORT_SETTINGS.presetId).toBe('youtube')
     expect(exportSettingsSchema.parse(DEFAULT_EXPORT_SETTINGS)).toEqual(DEFAULT_EXPORT_SETTINGS)

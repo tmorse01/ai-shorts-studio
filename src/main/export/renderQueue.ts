@@ -16,6 +16,7 @@ import {
   type EncoderInfo,
   type ExportSettings
 } from '@shared/export/exportSettings'
+import { buildSrt } from '@shared/captions/srt'
 import { renderEtaSec, type RenderJob } from '@shared/export/renderQueue'
 import { setShortExported } from '@shared/export/shortExport'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
@@ -36,6 +37,8 @@ export interface RenderQueueDeps {
   readSettings: () => Promise<ExportSettings | null>
   encoder: () => EncoderInfo | null
   fileExists: (path: string) => Promise<boolean>
+  /** Writes a text file, such as the SRT next to an export. Called only when a short has captions to save. */
+  writeText: (path: string, text: string) => Promise<void>
   /** Opens Explorer on a path: the file when it is finished, otherwise its folder. */
   reveal: (path: string) => void
   onChange?: (jobs: RenderJob[]) => void
@@ -51,13 +54,20 @@ interface Tracked {
   shortId: string
   shortName: string
   outPath: string
+  srt: SrtFile | null
   runningAt: number | null
+}
+
+interface SrtFile {
+  path: string
+  text: string
 }
 
 interface Plan {
   shortId: string
   shortName: string
   outPath: string
+  srt: SrtFile | null
   input: ExportJobInput
 }
 
@@ -151,12 +161,19 @@ export class RenderQueueService {
         index: project.shorts.indexOf(short) + 1,
         preset: preset.label
       })
-      const outPath = await this.freeOutputPath(outDir, baseName, taken)
+      const { outPath, srtPath } = await this.freeOutputPath(
+        outDir,
+        baseName,
+        taken,
+        settings.includeSrt
+      )
       taken.add(outPath)
+      const captions = settings.includeSrt ? buildSrt(short.timeline) : ''
       plans.push({
         shortId,
         shortName: short.name,
         outPath,
+        srt: captions === '' ? null : { path: srtPath, text: captions },
         input: {
           timeline: short.timeline,
           media: footage,
@@ -171,15 +188,25 @@ export class RenderQueueService {
     return plans
   }
 
-  // The first name in the folder that no file, pending export or earlier plan in this batch uses.
+  // The first name in the folder that no file, pending export or earlier plan in this batch uses. When an
+  // SRT is written, its name must be free too, so an existing caption file is never overwritten.
   private async freeOutputPath(
     outDir: string,
     baseName: string,
-    taken: ReadonlySet<string>
-  ): Promise<string> {
-    let candidate = join(outDir, exportFileName(baseName))
-    for (let copy = 2; taken.has(candidate) || (await this.deps.fileExists(candidate)); copy += 1) {
-      candidate = join(outDir, exportFileName(`${baseName} (${copy})`))
+    taken: ReadonlySet<string>,
+    withSrt: boolean
+  ): Promise<{ outPath: string; srtPath: string }> {
+    const attempt = (name: string) => ({
+      outPath: join(outDir, exportFileName(name)),
+      srtPath: join(outDir, `${name}.srt`)
+    })
+    const isFree = async ({ outPath, srtPath }: { outPath: string; srtPath: string }) =>
+      !taken.has(outPath) &&
+      !(await this.deps.fileExists(outPath)) &&
+      !(withSrt && (await this.deps.fileExists(srtPath)))
+    let candidate = attempt(baseName)
+    for (let copy = 2; !(await isFree(candidate)); copy += 1) {
+      candidate = attempt(`${baseName} (${copy})`)
     }
     return candidate
   }
@@ -195,6 +222,7 @@ export class RenderQueueService {
       shortId: plan.shortId,
       shortName: plan.shortName,
       outPath: plan.outPath,
+      srt: plan.srt,
       runningAt: null
     }
     // The queue may have started the job before this entry existed, so its running change went unseen.
@@ -210,6 +238,16 @@ export class RenderQueueService {
 
   private async recordExported(entry: Tracked): Promise<void> {
     const exportedAt = new Date(this.now()).toISOString()
+    if (entry.srt) {
+      // The caption file is a side output: a failure is reported, and the short is still recorded.
+      try {
+        await this.deps.writeText(entry.srt.path, entry.srt.text)
+      } catch (error) {
+        this.deps.onError?.(
+          `Saving the captions for ${entry.shortName} failed: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+    }
     try {
       const project = await this.deps.readProject(entry.projectFolder)
       const updated = setShortExported(project, entry.shortId, exportedAt)

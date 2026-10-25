@@ -41,7 +41,9 @@ export const exportSettingsSchema = z.object({
   namingTemplate: z.string().trim().min(1).max(200),
   // Null means the project folder.
   outputFolder: z.string().trim().min(1).nullable(),
-  includeCaptions: z.boolean()
+  includeCaptions: z.boolean(),
+  // Writes the short's captions as an SRT file next to the video (#153).
+  includeSrt: z.boolean()
 })
 export type ExportSettings = z.infer<typeof exportSettingsSchema>
 
@@ -50,7 +52,8 @@ export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   fps: 30,
   namingTemplate: '{project} - {short}',
   outputFolder: null,
-  includeCaptions: true
+  includeCaptions: true,
+  includeSrt: false
 }
 
 export const EXPORT_EXTENSION = '.mp4'
