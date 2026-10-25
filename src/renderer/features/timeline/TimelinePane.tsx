@@ -82,6 +82,7 @@ import {
 } from './timelineView'
 import { timelineViewStore } from './timelineViewStore'
 import { SetPosterButton } from '../shorts/SetPosterButton'
+import { CaptionBlocks } from '../captions/CaptionBlocks'
 import { closeGapEdit, timelineShortcuts, type TimelineShortcutContext } from './timelineShortcuts'
 import { shortcutRegistry } from '../shortcuts/shortcutRegistry'
 import styles from './TimelinePane.module.css'
@@ -1138,6 +1139,15 @@ export function TimelinePane({
           }
         >
           {track ? laneClips(track) : null}
+          {track?.role === 'captions' ? (
+            <CaptionBlocks
+              track={track}
+              pxPerMs={pxPerMs}
+              playheadMs={playheadMs}
+              newId={newTrackId}
+              runEdit={runEdit}
+            />
+          ) : null}
           {track && footageDrop?.trackId === track.id ? (
             <div
               className={styles.dropLine}
