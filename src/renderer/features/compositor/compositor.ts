@@ -3,7 +3,7 @@
 // has not decoded its frame, it holds the last frame on screen rather than drawing a partial one.
 import type { FrameDescription, FrameLayer } from '@shared/compositor/frame'
 import type { LayerRegistry } from '@shared/compositor/layerRegistry'
-import type { FrameBackend } from './frameBackend'
+import type { BitmapSource, FrameBackend } from './frameBackend'
 import { layerRegistry, type LayerContext, type LayerSource } from './layerRenderers'
 
 export class Compositor {
@@ -16,7 +16,11 @@ export class Compositor {
 
   // Returns false when the frame was held because a video layer is still pending. The frame drawn
   // last stays on screen until that layer decodes, and the next redraw picks it up.
-  render(frame: FrameDescription, sourceOf: (layer: FrameLayer) => LayerSource): boolean {
+  render(
+    frame: FrameDescription,
+    sourceOf: (layer: FrameLayer) => LayerSource,
+    imageOf: (layer: FrameLayer) => BitmapSource | null = () => null
+  ): boolean {
     const sources = new Map<string, LayerSource>()
     let pending = false
     for (const layer of frame.layers) {
@@ -32,7 +36,8 @@ export class Compositor {
     this.backend.clear(dipping ? 'black' : 'transparent')
     this.registry.renderFrame(frame, {
       backend: this.backend,
-      sourceOf: (layer) => sources.get(layer.clipId) ?? { state: 'none' }
+      sourceOf: (layer) => sources.get(layer.clipId) ?? { state: 'none' },
+      imageOf
     })
     this.hasFrame = true
     return true

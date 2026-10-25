@@ -4,6 +4,7 @@ import type { ComponentType } from 'react'
 import type { Gap } from '@shared/timeline/gaps'
 import type { Timeline, TrackKind } from '@shared/timeline/timeline'
 import { textOverlayOf } from '@shared/text/textClip'
+import { imageOverlayOf } from '@shared/image/imageOverlay'
 
 export const INSPECTOR_TABS = ['video', 'audio', 'ai', 'transcript'] as const
 export type InspectorTab = (typeof INSPECTOR_TABS)[number]
@@ -27,6 +28,7 @@ export const SELECTION_TYPES = [
   'video-clip',
   'audio-clip',
   'text-clip',
+  'image-clip',
   'transition',
   'gap'
 ] as const
@@ -82,6 +84,7 @@ export function selectionTypeFor(
   const firstId = clipIds[0]
   if (firstId === undefined) return 'short'
   if (textOverlayOf(timeline, firstId)) return 'text-clip'
+  if (imageOverlayOf(timeline, firstId)) return 'image-clip'
   const kind = trackKindOfClip(timeline, firstId)
   if (kind === 'audio') return 'audio-clip'
   if (kind === 'video') return 'video-clip'
@@ -111,5 +114,7 @@ export function selectionHeaderFor(selection: SelectionType, count: number): str
       return count === 1 ? 'Audio clip' : `${count} audio clips`
     case 'text-clip':
       return count === 1 ? 'Text clip' : `${count} text clips`
+    case 'image-clip':
+      return count === 1 ? 'Image clip' : `${count} image clips`
   }
 }

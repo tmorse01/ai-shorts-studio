@@ -81,7 +81,8 @@ describe('layer registry transform opt-in', () => {
 
   it('opts video in on the preview registry', () => {
     expect(layerRegistry.supportsTransform('video')).toBe(true)
-    expect(layerRegistry.supportsTransform('overlay')).toBe(false)
+    // Image overlays (Epic 13, #129) move with the gizmo through their clip transform.
+    expect(layerRegistry.supportsTransform('overlay')).toBe(true)
   })
 })
 
