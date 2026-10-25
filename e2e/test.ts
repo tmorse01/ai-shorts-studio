@@ -5,12 +5,12 @@ import { rm } from 'node:fs/promises'
 import { test as base } from '@playwright/test'
 import { createProfileDir, launchApp, type AppSession } from './launchApp'
 
-export const test = base.extend<{ session: AppSession }>({
-  // Playwright requires a destructuring first argument, even when no other fixture is used.
-  // eslint-disable-next-line no-empty-pattern
-  session: async ({}, use, testInfo) => {
+export const test = base.extend<{ session: AppSession; aiFakes: boolean }>({
+  // Set per file or test with test.use({ aiFakes: false }) to run Claude without the fake.
+  aiFakes: [true, { option: true }],
+  session: async ({ aiFakes }, use, testInfo) => {
     const profileDir = await createProfileDir()
-    const session = await launchApp({ profileDir })
+    const session = await launchApp({ profileDir, aiFakes })
     const tracing = session.app.context().tracing
     await tracing.start({ screenshots: true, snapshots: true })
 

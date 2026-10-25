@@ -9,7 +9,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
-import { E2E_DIALOGS_FILE, E2E_FLAG_ENV, USER_DATA_ENV } from '../src/main/e2e/e2eMode'
+import { E2E_AI_ENV, E2E_DIALOGS_FILE, E2E_FLAG_ENV, USER_DATA_ENV } from '../src/main/e2e/e2eMode'
 
 // The folder with package.json. Electron reads "main" from it, so out/main/index.js runs.
 export const REPO_ROOT = resolve(__dirname, '..')
@@ -32,12 +32,20 @@ export async function createProfileDir(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'aiss-e2e-'))
 }
 
-export async function launchApp(options: { profileDir: string }): Promise<AppSession> {
+/**
+ * Launches the app with the fakes on (the default). With aiFakes false, Claude runs the real client
+ * path and no key is saved, so AI actions show the missing-key message. Speech and dialogs stay faked.
+ */
+export async function launchApp(options: {
+  profileDir: string
+  aiFakes?: boolean
+}): Promise<AppSession> {
   const env: Record<string, string> = {}
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined && key !== 'ELECTRON_RENDERER_URL') env[key] = value
   }
   env[E2E_FLAG_ENV] = '1'
+  env[E2E_AI_ENV] = options.aiFakes === false ? '0' : '1'
   env[USER_DATA_ENV] = options.profileDir
 
   const app = await electron.launch({ args: [REPO_ROOT], env })
