@@ -77,10 +77,14 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
     await page.keyboard.press('m')
     await page.getByLabel('Moment name').fill(MOMENT)
     await page.keyboard.press('Enter')
+    // The moments of a clip are folded behind a "1 moment" toggle in the Media panel. Open it.
+    const toggle = page.getByRole('button', { name: '1 moment' })
+    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
     await expect(page.getByRole('list', { name: 'Moments' })).toContainText(MOMENT)
   })
 
   await test.step('add the moment through the Clip Finder button', async () => {
+    await page.getByRole('button', { name: 'Clip Finder', exact: true }).click()
     await page
       .getByRole('listitem')
       .filter({ hasText: MOMENT })
@@ -91,6 +95,7 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
   })
 
   await test.step('drag the moment onto the timeline', async () => {
+    await page.getByRole('button', { name: 'Media', exact: true }).click()
     const momentRow = page.getByRole('list', { name: 'Moments' }).getByRole('listitem').first()
     await momentRow.dragTo(page.locator('[data-track-id]').first(), {
       targetPosition: { x: 600, y: 20 }
