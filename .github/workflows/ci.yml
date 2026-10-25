@@ -62,12 +62,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The Chocolatey ffmpeg.exe on PATH is a shim, not the binary. Point FFMPEG_DIR at the real
+      # build inside the package, or the copied file is a 0 MB shim that cannot run.
       - name: Install FFmpeg
         shell: pwsh
         run: |
           choco install ffmpeg -y --no-progress
-          $ffmpeg = (Get-Command ffmpeg.exe).Source
-          "FFMPEG_DIR=$(Split-Path $ffmpeg)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $ffmpeg = Get-ChildItem 'C:/ProgramData/chocolatey/lib/ffmpeg' -Recurse -Filter ffmpeg.exe |
+            Where-Object { $_.Length -gt 1MB } | Select-Object -First 1
+          "FFMPEG_DIR=$($ffmpeg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Copy FFmpeg into resources/bin
         run: pnpm fetch:bin
