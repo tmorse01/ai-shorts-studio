@@ -126,9 +126,15 @@ describe('appendFootageToMain', () => {
     ).toThrow('That file is no longer in the project.')
   })
 
-  it('refuses a short with no main track', () => {
-    expect(() =>
-      appendFootageToMain(timelineWith([]), media, rangePayload('clip', 0, 1_000), 'new_clip')
-    ).toThrow('This short has no main track.')
+  it('creates the main track on a new short with no tracks, then adds the clip to it', () => {
+    const next = appendFootageToMain(
+      timelineWith([]),
+      media,
+      rangePayload('clip', 0, 1_000),
+      'new_clip'
+    )
+    const main = next.tracks.find((track) => track.role === 'main')
+    expect(main?.clips.map((clip) => clip.id)).toEqual(['new_clip'])
+    expect(main?.clips[0]).toMatchObject({ sourceInMs: 0, durationMs: 1_000 })
   })
 })

@@ -3,7 +3,7 @@
 // Pure: the command wraps it, and the tests call it directly.
 import type { MediaRef } from '@shared/project/schema'
 import type { DragPayload } from '@shared/timeline/dragPayload'
-import { insertClip } from '@shared/timeline/edits'
+import { addTrack, insertClip } from '@shared/timeline/edits'
 import { footageClipForDrop } from '@shared/timeline/footageDrop'
 import type { Timeline } from '@shared/timeline/timeline'
 
@@ -21,9 +21,19 @@ export function appendFootageToMain(
   payload: DragPayload,
   clipId: string
 ): Timeline {
-  const main = timeline.tracks.find((track) => track.role === 'main')
+  // A new short has no tracks, so the footage gets its main video track first, as the assembly does.
+  const withMain = timeline.tracks.some((track) => track.role === 'main')
+    ? timeline
+    : addTrack(timeline, {
+        id: `${clipId}-main`,
+        kind: 'video',
+        role: 'main',
+        muted: false,
+        clips: []
+      })
+  const main = withMain.tracks.find((track) => track.role === 'main')
   if (!main) throw new Error('This short has no main track.')
-  const result = footageClipForDrop(payload, media, main, clipId, mainTrackEndMs(timeline))
+  const result = footageClipForDrop(payload, media, main, clipId, mainTrackEndMs(withMain))
   if (!result.ok) throw new Error(result.reason)
-  return insertClip(timeline, main.id, result.clip, result.clip.startMs)
+  return insertClip(withMain, main.id, result.clip, result.clip.startMs)
 }
