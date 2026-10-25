@@ -20,8 +20,6 @@ import { Dialog } from '@renderer/ui/Dialog'
 import { IconButton } from '@renderer/ui/IconButton'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { applyProjectCommand } from '../shorts/shortActions'
-import { recordSummary } from '@shared/analysis/analysis'
-import { MediaSuggestions } from '../suggestions/MediaSuggestions'
 import { analysisStore } from '../analysis/analysisStore'
 import { reanalyzeMedia, setAnalyzeAutomatically } from '../analysis/analysisSync'
 import { analysisErrorText, analysisStatusLabel } from '../analysis/analysisStatus'
@@ -32,7 +30,6 @@ import { MediaTagsDialog } from './MediaTagsDialog'
 import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
 import { sourceStore } from '../source/sourceStore'
 import { MomentRows } from '../moments/MomentRows'
-import { MomentSearch } from '../search/MomentSearch'
 import { momentsOfMedia } from '../moments/momentView'
 import { clipPayload, DRAG_MIME, encodeDragPayload } from '@shared/timeline/dragPayload'
 import { mediaUsageIndex, shortCountForMedia, usedInLabel } from '@shared/timeline/mediaUsage'
@@ -62,8 +59,6 @@ export function MediaPanel(): JSX.Element {
   const selection = useStore(mediaPanelStore, (state) => state.selection)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
-  // The footage search text. While it is set, the panel shows ranked results instead of the grid.
-  const [searchText, setSearchText] = useState('')
   // Clips whose saved moments are shown under them. Moments start collapsed.
   const [openMomentIds, setOpenMomentIds] = useState<string[]>([])
   const analysisFile = useStore(analysisStore, (state) =>
@@ -98,7 +93,6 @@ export function MediaPanel(): JSX.Element {
     selectedIds.length === 1
       ? current.project.media.find((ref) => ref.id === selectedIds[0])
       : undefined
-  const selectedRecord = selectedRef ? analysisFile?.records[selectedRef.id] : undefined
 
   const onItemClick = (id: string, event: MouseEvent) => {
     mediaPanelStore
@@ -275,18 +269,9 @@ export function MediaPanel(): JSX.Element {
         />
       </div>
 
-      <MomentSearch
-        folderPath={current.folderPath}
-        project={current.project}
-        query={searchText}
-        onQueryChange={setSearchText}
-      />
+      <MediaFilterBar folderPath={current.folderPath} filter={filter} tags={tags} />
 
-      {searchText.trim() === '' ? (
-        <MediaFilterBar folderPath={current.folderPath} filter={filter} tags={tags} />
-      ) : null}
-
-      {selectedIds.length > 0 && searchText.trim() === '' ? (
+      {selectedIds.length > 0 ? (
         <div className={styles.tagBar} role="group" aria-label="Tag selected files">
           <span className={styles.tagBarLabel}>
             {selectedIds.length === 1 ? '1 selected' : `${selectedIds.length} selected`}
@@ -309,7 +294,7 @@ export function MediaPanel(): JSX.Element {
         </div>
       ) : null}
 
-      {searchText.trim() === '' && activeView === 'list' ? (
+      {activeView === 'list' ? (
         <div className={styles.header} role="presentation">
           {sortButton('name', 'Name')}
           {sortButton('duration', 'Duration')}
@@ -317,24 +302,13 @@ export function MediaPanel(): JSX.Element {
         </div>
       ) : null}
 
-      {searchText.trim() !== '' ? null : items.length === 0 ? (
+      {items.length === 0 ? (
         <p className={styles.empty}>No files match the search and filters.</p>
       ) : (
         <div className={activeView === 'grid' ? styles.grid : styles.list}>
           {items.map(renderRow)}
         </div>
       )}
-
-      {selectedRef && searchText.trim() === '' ? (
-        <MediaSuggestions
-          folderPath={current.folderPath}
-          project={current.project}
-          ref={selectedRef}
-          analysisState={
-            selectedRecord ? `${selectedRecord.version}:${recordSummary(selectedRecord)}` : 'none'
-          }
-        />
-      ) : null}
 
       <Dialog
         open={confirmOpen}

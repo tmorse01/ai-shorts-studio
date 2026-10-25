@@ -1,10 +1,11 @@
-// One ranked search result: a thumbnail, the snippet with its matching words highlighted, the timecode
-// and the source name. Clicking the row opens the source viewer at the match.
+// One ranked search result, shown with the same row as the Clip Finder list: a thumbnail, the snippet with
+// its matching words highlighted, the source name and the timecode. Clicking the row opens the source viewer
+// at the match.
 import type { JSX } from 'react'
 import type { ThumbReadFile } from '@shared/media/thumbs'
 import type { SearchHit, SnippetPart } from '@shared/search/searchIndex'
+import { ClipRow } from '../clipFinder/ClipRow'
 import { formatDuration } from '../media/mediaView'
-import { useThumb } from '../timeline/useThumb'
 import { SEARCH_KIND_LABEL } from './searchActions'
 import styles from './SearchResultRow.module.css'
 
@@ -27,20 +28,12 @@ export function SearchResultRow({
   active,
   onOpen
 }: SearchResultRowProps): JSX.Element {
-  const thumb = useThumb(projectFolder, hit.mediaId, thumbFile)
   return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={active}
-      data-active={active ? 'true' : undefined}
-      className={styles.row}
-      onClick={onOpen}
-    >
-      <span className={styles.thumb}>
-        {thumb ? <img src={thumb.src} alt="" className={styles.image} /> : null}
-      </span>
-      <span className={styles.body}>
+    <ClipRow
+      projectFolder={projectFolder}
+      mediaId={hit.mediaId}
+      thumbFile={thumbFile}
+      title={
         <span className={styles.snippet}>
           {parts.map((part, index) =>
             part.match ? (
@@ -52,10 +45,12 @@ export function SearchResultRow({
             )
           )}
         </span>
-        <span className={styles.meta}>
-          {`${fileName} · ${formatDuration(hit.startMs)} · ${SEARCH_KIND_LABEL[hit.kind]}`}
-        </span>
-      </span>
-    </button>
+      }
+      summary={fileName}
+      tags={[SEARCH_KIND_LABEL[hit.kind]]}
+      rangeLabel={formatDuration(hit.startMs)}
+      active={active}
+      onOpen={onOpen}
+    />
   )
 }

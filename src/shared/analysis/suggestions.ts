@@ -22,7 +22,9 @@ export const momentSuggestionSchema = z
     name: z.string().trim().min(1).max(80),
     inMs: z.number().int().nonnegative(),
     outMs: z.number().int().nonnegative(),
-    note: z.string().trim().max(200).optional()
+    note: z.string().trim().max(200).optional(),
+    // How strong a short the moment makes, from 0 to 100. Absent when the reply gave none.
+    score: z.number().int().min(0).max(100).optional()
   })
   .refine((moment) => moment.outMs > moment.inMs, {
     message: 'outMs must be greater than inMs'
@@ -112,6 +114,7 @@ export interface MomentCandidate {
   startSec: number
   endSec: number
   note?: string
+  score?: number
 }
 
 export interface AlignInput {
@@ -152,7 +155,14 @@ export function alignMoments(input: AlignInput): MomentSuggestion[] {
     if (seen.has(key)) continue
     seen.add(key)
     const note = candidate.note?.trim()
-    out.push(note ? { name, inMs, outMs, note } : { name, inMs, outMs })
+    const score = candidate.score === undefined ? undefined : Math.round(candidate.score)
+    out.push({
+      name,
+      inMs,
+      outMs,
+      ...(note ? { note } : {}),
+      ...(score === undefined ? {} : { score })
+    })
   }
   return out
 }
@@ -208,9 +218,10 @@ export function buildMomentPrompt(input: MomentPromptInput): string {
     `Suggest up to ${SUGGESTION_MOMENT_LIMIT} self-contained moments of 10 to 60 seconds that would make a`,
     'strong short: a complete thought, a clear hook or a clear payoff. Start each moment at the start of a',
     'sentence and end it at the end of one. Give each a title of under 8 words and a one-sentence note on',
-    'why it works. Times are seconds from the start of the clip.',
+    'why it works. Give each a score from 0 to 100 for how strong a short it makes. Times are seconds',
+    'from the start of the clip.',
     'Reply with only a JSON array and no other text, in this form:',
-    '[{"name": "...", "startSec": 12.5, "endSec": 41.0, "note": "..."}]',
+    '[{"name": "...", "startSec": 12.5, "endSec": 41.0, "note": "...", "score": 80}]',
     'If nothing is worth suggesting, reply with [].',
     '',
     `Clip: ${input.fileName}`,
@@ -241,7 +252,8 @@ const candidateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   startSec: z.number().nonnegative(),
   endSec: z.number().nonnegative(),
-  note: z.string().trim().max(200).optional()
+  note: z.string().trim().max(200).optional(),
+  score: z.number().min(0).max(100).optional().catch(undefined)
 })
 
 /**
