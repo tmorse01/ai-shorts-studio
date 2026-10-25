@@ -4,6 +4,7 @@ import type { Short, ShortDefaults, ShortStatus } from '@shared/project/schema'
 import { DropdownMenu, type DropdownMenuItem } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { Input } from '@renderer/ui/Input'
+import { Button } from '@renderer/ui/Button'
 import type { ManualShortStatus } from './shortCommands'
 import styles from './ShortCard.module.css'
 
@@ -21,6 +22,9 @@ export interface ShortCardProps {
   onDuplicate: () => void
   onSetStatus: (status: ManualShortStatus) => void
   onDelete: () => void
+  // Batch drafts only (#148): keep the draft, or run footage matching again when `onRegenerate` is set.
+  onKeep: () => void
+  onRegenerate?: () => void
   // Dragging and Alt+Arrow reordering are on in Manual sort only.
   draggable: boolean
   onMove: (delta: number) => void
@@ -47,6 +51,8 @@ export function ShortCard({
   onDuplicate,
   onSetStatus,
   onDelete,
+  onKeep,
+  onRegenerate,
   draggable,
   onMove,
   onDragStart,
@@ -150,6 +156,24 @@ export function ShortCard({
         <span className={styles.chip} data-status={short.status}>
           {STATUS_LABEL[short.status]}
         </span>
+        {short.batchDraft && (
+          <div className={styles.review}>
+            <span className={styles.draftBadge}>Batch draft</span>
+            <div className={styles.reviewActions}>
+              <Button size="sm" variant="primary" onClick={onKeep}>
+                Keep
+              </Button>
+              {onRegenerate && (
+                <Button size="sm" variant="ai" onClick={onRegenerate}>
+                  Regenerate
+                </Button>
+              )}
+              <Button size="sm" variant="destructive" onClick={onDelete}>
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className={styles.menu}>

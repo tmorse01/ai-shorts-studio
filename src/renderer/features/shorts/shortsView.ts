@@ -1,6 +1,6 @@
 // Sorting and filtering for the shorts grid. Pure, so the grid and the tests use the same answers.
 // The grid's own order (`order`) is the Manual sort, the only one where cards can be dragged.
-import type { Short, ShortStatus } from '@shared/project/schema'
+import type { Script, Short, ShortStatus } from '@shared/project/schema'
 
 export type SortMode = 'manual' | 'updated' | 'status' | 'length'
 
@@ -45,4 +45,22 @@ export function sortShorts(
 export function filterShorts(shorts: readonly Short[], statuses: readonly ShortStatus[]): Short[] {
   if (statuses.length === 0) return [...shorts]
   return shorts.filter((short) => statuses.includes(short.status))
+}
+
+/** The batch drafts when `reviewOnly` is set, otherwise every short. Keeps the input order. */
+export function filterBatchDrafts(shorts: readonly Short[], reviewOnly: boolean): Short[] {
+  if (!reviewOnly) return [...shorts]
+  return shorts.filter((short) => short.batchDraft === true)
+}
+
+/**
+ * A batch draft can be regenerated when the script it was written from still exists. Regenerating runs
+ * footage matching for that script again; the new plan is reviewed before anything changes.
+ */
+export function canRegenerateBatchDraft(short: Short, scripts: readonly Script[]): boolean {
+  return (
+    short.batchDraft === true &&
+    short.scriptId !== undefined &&
+    scripts.some((script) => script.id === short.scriptId)
+  )
 }

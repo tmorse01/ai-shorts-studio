@@ -75,6 +75,12 @@ function fakeQueue() {
       if (!job) throw new Error(`no job ${id}`)
       job.status = 'failed'
       job.reject(error)
+    },
+    finishWith(id: string, value: unknown) {
+      const job = jobs.get(id)
+      if (!job) throw new Error(`no job ${id}`)
+      job.status = 'done'
+      job.resolve(value)
     }
   }
 }
@@ -189,6 +195,67 @@ describe('BatchRunner', () => {
   it('refuses to retry a batch that does not exist', async () => {
     const { runner } = setup()
     await expect(runner.retry('/p', 'missing', items)).rejects.toThrow(/not found/)
+  })
+})
+
+const footage = (lineId: string) => ({
+  lines: [{ lineId, text: `line ${lineId}` }],
+  targetMs: null,
+  docs: [],
+  mediaNames: {},
+  shots: {},
+  durationsMs: {}
+})
+
+describe('BatchRunner assembly batches', () => {
+  it('runs each script as an assembly job and saves the plan it matched', async () => {
+    const { fake, runner, saved } = setup()
+    const batch = await runner.start({
+      projectFolder: '/p',
+      kind: 'assembly',
+      items: [{ id: 's1', footage: footage('l1') }]
+    })
+
+    expect(batch.kind).toBe('assembly')
+    const [job] = [...fake.jobs.values()]
+    expect(job.extra).toEqual({
+      assembly: { batchId: batch.id, reuse: false, footage: footage('l1') }
+    })
+
+    const plan = { plan: { lines: [] }, unmatchedLineIds: ['l1'], totalMs: 0, targetHit: null }
+    fake.finishWith(job.id, plan)
+    await flush()
+    expect(saved.at(-1)?.items[0]).toMatchObject({ id: 's1', status: 'done', plan })
+    expect(saved.at(-1)?.status).toBe('done')
+  })
+
+  it('records a failed match with its message, and after a restart retries it only with its footage request', async () => {
+    const { fake, runner, stored } = setup()
+    await runner.start({
+      projectFolder: '/p',
+      kind: 'assembly',
+      items: [{ id: 's1', footage: footage('l1') }]
+    })
+    fake.fail('job-1', new UserFacingError('The footage could not be read.'))
+    await flush()
+    expect(stored.get('batch-1')?.items[0]).toMatchObject({
+      status: 'failed',
+      error: { message: 'The footage could not be read.' }
+    })
+
+    // A runner that did not start the batch holds no footage requests, since they are not saved.
+    const restarted = new BatchRunner({
+      queue: fake.queue,
+      jobExtras: () => ({}),
+      load: async (_folder, batchId) => stored.get(batchId),
+      save: async () => undefined
+    })
+    await expect(restarted.retry('/p', 'batch-1', [{ id: 's1' }])).rejects.toThrow(
+      'Retrying an item needs its footage request.'
+    )
+    const retried = await restarted.retry('/p', 'batch-1', [{ id: 's1', footage: footage('l1') }])
+    expect(retried.retried).toEqual(['s1'])
+    expect(retried.batch.items[0]).toMatchObject({ status: 'queued', attempts: 2 })
   })
 })
 

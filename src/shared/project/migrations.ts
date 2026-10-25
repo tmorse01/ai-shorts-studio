@@ -226,6 +226,12 @@ export function migrateV21ToV22(data: unknown): unknown {
   return { ...data, schemaVersion: 22 }
 }
 
+// Schema 23 adds an optional batch-draft flag on shorts. Unset means not a draft, so only the version changes.
+export function migrateV22ToV23(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 23 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -258,7 +264,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 18, to: 19, up: migrateV18ToV19 },
   { from: 19, to: 20, up: migrateV19ToV20 },
   { from: 20, to: 21, up: migrateV20ToV21 },
-  { from: 21, to: 22, up: migrateV21ToV22 }
+  { from: 21, to: 22, up: migrateV21ToV22 },
+  { from: 22, to: 23, up: migrateV22ToV23 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
