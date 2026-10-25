@@ -3,7 +3,7 @@
 // renderers register against the same registry in Epics 11 and 13.
 import { LayerRegistry } from '@shared/compositor/layerRegistry'
 import type { FrameLayer } from '@shared/compositor/frame'
-import type { FrameBackend } from './frameBackend'
+import type { BitmapSource, FrameBackend } from './frameBackend'
 import { textBitmap } from './textBitmap'
 import { captionBitmap } from './captionBitmap'
 
@@ -15,6 +15,8 @@ export type LayerSource =
 export interface LayerContext {
   backend: FrameBackend
   sourceOf(layer: FrameLayer): LayerSource
+  // The loaded image of an image overlay layer, or null while it is not ready (Epic 13, #129).
+  imageOf(layer: FrameLayer): BitmapSource | null
 }
 
 export function createLayerRegistry(): LayerRegistry<LayerContext> {
@@ -65,6 +67,17 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
         },
         text.alpha
       )
+    },
+    { transformable: true }
+  )
+  // An image overlay is drawn at the placement its description gives, which already has the motion. Like text,
+  // the gizmo moves its clip transform, so it is transformable.
+  registry.register(
+    'overlay',
+    (layer, context) => {
+      const image = context.imageOf(layer)
+      if (!image || !layer.image) return
+      context.backend.drawBitmap(image, layer.placement, layer.image.alpha)
     },
     { transformable: true }
   )

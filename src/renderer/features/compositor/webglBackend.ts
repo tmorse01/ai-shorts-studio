@@ -1,5 +1,5 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type Placement } from '@shared/compositor/frame'
-import type { FrameBackend, FrameBackground, VideoEffect } from './frameBackend'
+import type { BitmapSource, FrameBackend, FrameBackground, VideoEffect } from './frameBackend'
 
 // Each video layer is a textured quad. The vertex shader places the unit quad at the layer's
 // placement (in canvas pixels), so the transform is applied on the GPU.
@@ -162,8 +162,9 @@ export function createWebGLBackend(canvas: HTMLCanvasElement): FrameBackend | nu
     drawVideo(video: HTMLVideoElement, placement: Placement, effect?: VideoEffect, opacity = 1) {
       drawSource(video, placement, effect, opacity, false)
     },
-    drawBitmap(bitmap: HTMLCanvasElement, placement: Placement, opacity = 1) {
-      drawSource(bitmap, placement, undefined, opacity, true)
+    drawBitmap(bitmap: BitmapSource, placement: Placement, opacity = 1) {
+      // Canvases carry premultiplied alpha. Images do not, so they are uploaded as they are.
+      drawSource(bitmap, placement, undefined, opacity, !(bitmap instanceof HTMLImageElement))
     },
     dispose() {
       textures.forEach((texture) => gl.deleteTexture(texture))

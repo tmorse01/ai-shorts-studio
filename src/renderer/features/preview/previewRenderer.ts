@@ -9,7 +9,7 @@ import type { MediaSourceInfo } from '@shared/media/mediaSources'
 import type { Timeline } from '@shared/timeline/timeline'
 import { resolveFrame } from '@shared/timeline/resolveFrame'
 import { Compositor } from '../compositor/compositor'
-import { createFrameBackend } from '../compositor/frameBackend'
+import { createFrameBackend, type BitmapSource } from '../compositor/frameBackend'
 import { layerFrameStore } from '../compositor/layerFrameStore'
 import type { LayerSource } from '../compositor/layerRenderers'
 import {
@@ -51,6 +51,9 @@ interface LatestFrame {
   // The element each video clip draws from, for this frame.
   elementByClip: Map<string, HTMLVideoElement>
   elementByMedia: Map<string, HTMLVideoElement>
+  // The loaded image each image overlay draws, by clip and by media id.
+  imageByClip: Map<string, HTMLImageElement>
+  imageByMedia: Map<string, HTMLImageElement>
 }
 
 export class PreviewRenderer {
@@ -58,6 +61,8 @@ export class PreviewRenderer {
   private compositor: Compositor | null = null
   private compositorCanvas: HTMLCanvasElement | null = null
   private shown = new Set<HTMLVideoElement>()
+  // One image element per image media item, kept after use. Overlays draw from it once it has loaded.
+  private readonly images = new Map<string, HTMLImageElement>()
   private latest: LatestFrame | null = null
   private captionOptions: CaptionOptions | undefined = undefined
   private dropped: DroppedFrameState = NO_DROPPED_FRAMES
@@ -107,7 +112,9 @@ export class PreviewRenderer {
         playheadMs,
         playing: false,
         elementByClip: new Map(),
-        elementByMedia: new Map()
+        elementByMedia: new Map(),
+        imageByClip: new Map(),
+        imageByMedia: new Map()
       })
       this.draw()
       return { offline: true }
@@ -131,8 +138,27 @@ export class PreviewRenderer {
       elementByClip.set(layer.clipId, video)
       elementByMedia.set(layer.mediaId, video)
     }
+    // Image overlays are on overlay tracks. Each draws from its image element, which loads once.
+    const imageByClip = new Map<string, HTMLImageElement>()
+    const imageByMedia = new Map<string, HTMLImageElement>()
+    for (const layer of resolveFrame(timeline, playheadMs)) {
+      if (layer.trackKind !== 'overlay' || !layer.mediaId) continue
+      const info = sources[layer.mediaId]
+      if (!info || !info.online) continue
+      const image = this.imageFor(layer.mediaId)
+      imageByClip.set(layer.clipId, image)
+      imageByMedia.set(layer.mediaId, image)
+    }
     this.pauseExcept(new Set(elementByClip.values()))
-    this.setLatest({ timeline, playheadMs, playing, elementByClip, elementByMedia })
+    this.setLatest({
+      timeline,
+      playheadMs,
+      playing,
+      elementByClip,
+      elementByMedia,
+      imageByClip,
+      imageByMedia
+    })
     this.draw()
     return { offline: false }
   }
@@ -145,6 +171,17 @@ export class PreviewRenderer {
 
   private readonly redraw = (): void => {
     this.draw()
+  }
+
+  // The image element for a media item, started loading the first time it is asked for.
+  private imageFor(mediaId: string): HTMLImageElement {
+    const known = this.images.get(mediaId)
+    if (known) return known
+    const image = new Image()
+    image.addEventListener('load', this.redraw)
+    image.src = mediaUrl(mediaId, 'original')
+    this.images.set(mediaId, image)
+    return image
   }
 
   private setLatest(latest: LatestFrame): void {
@@ -165,16 +202,21 @@ export class PreviewRenderer {
     const frame = describeFrame(
       latest.timeline,
       latest.playheadMs,
-      (mediaId) => sizeOf(latest.elementByMedia.get(mediaId)),
+      (mediaId) =>
+        sizeOf(latest.elementByMedia.get(mediaId)) ?? imageSizeOf(latest.imageByMedia.get(mediaId)),
       this.captionOptions
     )
     layerFrameStore.getState().setFrame(frame)
-    const drawn = compositor.render(frame, (layer): LayerSource => {
-      const video = latest.elementByClip.get(layer.clipId)
-      if (!video || video.error) return { state: 'none' }
-      if (video.readyState < 2 || video.videoWidth === 0) return { state: 'pending' }
-      return { state: 'ready', element: video }
-    })
+    const drawn = compositor.render(
+      frame,
+      (layer): LayerSource => {
+        const video = latest.elementByClip.get(layer.clipId)
+        if (!video || video.error) return { state: 'none' }
+        if (video.readyState < 2 || video.videoWidth === 0) return { state: 'pending' }
+        return { state: 'ready', element: video }
+      },
+      (layer): BitmapSource | null => readyImage(latest.imageByClip.get(layer.clipId))
+    )
     if (this.countDrops) {
       const next = recordFrameDraw(this.dropped, {
         nowMs: performance.now(),
@@ -190,4 +232,15 @@ export class PreviewRenderer {
 function sizeOf(video: HTMLVideoElement | undefined): SourceSize | null {
   if (!video || video.videoWidth === 0 || video.videoHeight === 0) return null
   return { width: video.videoWidth, height: video.videoHeight }
+}
+
+// The pixel size of an image once it has decoded, or null while it has not.
+function imageSizeOf(image: HTMLImageElement | undefined): SourceSize | null {
+  if (!readyImage(image)) return null
+  return { width: image?.naturalWidth ?? 0, height: image?.naturalHeight ?? 0 }
+}
+
+// The image when it has decoded, else null. A layer with no ready image draws nothing.
+function readyImage(image: HTMLImageElement | undefined): HTMLImageElement | null {
+  return image && image.complete && image.naturalWidth > 0 ? image : null
 }
