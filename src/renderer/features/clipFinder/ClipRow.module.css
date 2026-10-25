@@ -132,6 +132,24 @@
   color: var(--color-undead-sage);
 }
 
+.star {
+  flex: none;
+  display: flex;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-text-2);
+  cursor: pointer;
+}
+
+.star:hover {
+  color: var(--color-text);
+}
+
+.star[aria-pressed='true'] {
+  color: var(--color-spectral-lavender);
+}
+
 .actions {
   display: flex;
   flex: none;

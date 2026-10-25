@@ -22,6 +22,7 @@ import { applyProjectCommand } from '../shorts/shortActions'
 import { sourceStore } from '../source/sourceStore'
 import { toast } from '../toasts/toast'
 import { momentsOfMedia } from '../moments/momentView'
+import { setMomentStarredCommand } from '../moments/momentCommands'
 import { projectStore } from '../project/projectStore'
 import { acceptSuggestionsCommand } from '../suggestions/suggestionCommands'
 import { openSuggestions } from '../suggestions/suggestionView'
@@ -296,6 +297,14 @@ export function ClipFinderPanel(): JSX.Element {
           }
           onOpen={item.kind === 'tag' ? undefined : () => preview(item)}
           actions={actions}
+          star={
+            item.kind === 'moment'
+              ? {
+                  starred: item.starred,
+                  onToggle: () => run(setMomentStarredCommand(item.momentId, !item.starred))
+                }
+              : undefined
+          }
         />
         {item.kind === 'draft' && editingKey === item.key ? (
           <DraftEditForm

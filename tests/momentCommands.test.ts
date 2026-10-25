@@ -7,7 +7,8 @@ import {
   addMomentCommand,
   deleteMomentCommand,
   renameMomentCommand,
-  retagMomentCommand
+  retagMomentCommand,
+  setMomentStarredCommand
 } from '@renderer/features/moments/momentCommands'
 import {
   defaultMomentName,
@@ -146,5 +147,32 @@ describe('moment view', () => {
   it('names a new moment after the count of moments on the clip', () => {
     expect(defaultMomentName(0)).toBe('Moment 1')
     expect(defaultMomentName(4)).toBe('Moment 5')
+  })
+})
+
+describe('setMomentStarredCommand', () => {
+  it('stars a moment and removes the key again when unstarred', () => {
+    const history = createHistoryStore(projectWith([moment('a')]))
+    history.getState().execute(setMomentStarredCommand('a', true))
+    expect(history.getState().present.moments[0]?.starred).toBe(true)
+    history.getState().execute(setMomentStarredCommand('a', false))
+    expect(history.getState().present.moments[0]).not.toHaveProperty('starred')
+  })
+
+  it('takes one undo step per toggle', () => {
+    const history = createHistoryStore(projectWith([moment('a')]))
+    history.getState().execute(setMomentStarredCommand('a', true))
+    history.getState().execute(setMomentStarredCommand('a', false))
+    history.getState().undo()
+    expect(history.getState().present.moments[0]?.starred).toBe(true)
+    history.getState().undo()
+    expect(history.getState().present.moments[0]?.starred).toBeUndefined()
+  })
+
+  it('refuses a moment that no longer exists', () => {
+    const history = createHistoryStore(projectWith([]))
+    expect(() => history.getState().execute(setMomentStarredCommand('gone', true))).toThrow(
+      'no longer exists'
+    )
   })
 })

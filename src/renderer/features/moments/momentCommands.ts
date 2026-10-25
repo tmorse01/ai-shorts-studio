@@ -46,6 +46,19 @@ export function deleteMomentCommand(id: string): Command<Project> {
   }
 }
 
+// Sets or clears the star on one moment. Unstarring removes the key, so an unstarred moment is stored as before.
+export function setMomentStarredCommand(id: string, starred: boolean): Command<Project> {
+  return {
+    label: starred ? 'Star moment' : 'Unstar moment',
+    produce: (draft) => {
+      const moment = draft.moments.find((item) => item.id === id)
+      if (!moment) throw new Error('This moment no longer exists.')
+      if (starred) moment.starred = true
+      else delete moment.starred
+    }
+  }
+}
+
 // Replaces the tag ids of one moment. Duplicates are dropped and the order given is kept.
 export function retagMomentCommand(id: string, tagIds: readonly string[]): Command<Project> {
   return {
