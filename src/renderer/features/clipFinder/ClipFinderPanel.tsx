@@ -4,7 +4,6 @@
 // timeline and any other change are project commands, so each one can be undone.
 import { useEffect, useState, type JSX } from 'react'
 import { useStore } from 'zustand'
-import { Sparkles } from 'lucide-react'
 import { recordSummary } from '@shared/analysis/analysis'
 import type { MomentSuggestion, SuggestionsOutput } from '@shared/analysis/suggestions'
 import { thumbFileName } from '@shared/media/thumbs'
@@ -18,7 +17,6 @@ import { analysisStore } from '../analysis/analysisStore'
 import { reanalyzeMedia } from '../analysis/analysisSync'
 import { mediaPanelStore } from '../media/mediaPanelStore'
 import { allMediaTags } from '../media/mediaTags'
-import { formatDuration } from '../media/mediaView'
 import { MomentSearch } from '../search/MomentSearch'
 import { applyProjectCommand } from '../shorts/shortActions'
 import { sourceStore } from '../source/sourceStore'
@@ -29,17 +27,21 @@ import { acceptSuggestionsCommand } from '../suggestions/suggestionCommands'
 import { openSuggestions } from '../suggestions/suggestionView'
 import { dismissSuggestions, findMoments, readSuggestions } from '../suggestions/suggestionSync'
 import { ClipRow } from './ClipRow'
+import { ClipSourceHeader } from './ClipSourceHeader'
+import { DraftEditForm } from './DraftEditForm'
 import { addToTimelineCommand } from './clipFinderCommands'
 import {
   CLIP_FINDER_FILTERS,
   CLIP_FINDER_TABS,
   clipFinderItems,
   clipRowFacts,
+  draftEditInputOf,
   isOpenSuggestion,
   visibleClipFinderItems,
   type ClipFinderFilter,
   type ClipFinderItem,
-  type ClipFinderTab
+  type ClipFinderTab,
+  type DraftEdit
 } from './clipFinderModel'
 import styles from './ClipFinderPanel.module.css'
 
@@ -55,6 +57,9 @@ export function ClipFinderPanel(): JSX.Element {
   const [tab, setTab] = useState<ClipFinderTab>('suggested')
   const [data, setData] = useState<SuggestionsOutput | null>(null)
   const [busy, setBusy] = useState(false)
+  // Edits to AI drafts, keyed by the draft's key, and the draft whose editor is open.
+  const [draftEdits, setDraftEdits] = useState<ReadonlyMap<string, DraftEdit>>(() => new Map())
+  const [editingKey, setEditingKey] = useState<string | null>(null)
 
   const folderPath = current?.folderPath
   // The source is the one video selected in the Media panel.
@@ -92,14 +97,16 @@ export function ClipFinderPanel(): JSX.Element {
   const searching = query.trim() !== ''
 
   // Runs one project command. A refused change shows as a toast and leaves the project as it was.
-  const run = (command: Parameters<typeof applyProjectCommand>[0]) => {
+  const run = (command: Parameters<typeof applyProjectCommand>[0]): boolean => {
     try {
       applyProjectCommand(command)
+      return true
     } catch (caught) {
       toast.error({
         title: 'The change could not be made',
         details: caught instanceof Error ? caught.message : undefined
       })
+      return false
     }
   }
 
@@ -111,13 +118,14 @@ export function ClipFinderPanel(): JSX.Element {
         mediaId: sourceRef.id,
         moments: momentsOfMedia(project.moments, sourceRef.id),
         drafts: openItems?.moments ?? [],
+        draftEdits,
         tagDrafts: openItems?.tags ?? [],
         tagNameOf: (id) => tagNames.get(id)
       })
     : []
   const shown = visibleClipFinderItems(items, filter, tab)
 
-  const acceptDraft = (item: Extract<ClipFinderItem, { kind: 'draft' }>) => {
+  const acceptDraft = async (item: Extract<ClipFinderItem, { kind: 'draft' }>) => {
     const moment: MomentSuggestion = {
       name: item.name,
       inMs: item.inMs,
@@ -125,7 +133,7 @@ export function ClipFinderPanel(): JSX.Element {
       ...(item.note ? { note: item.note } : {}),
       ...(item.score === undefined ? {} : { score: item.score })
     }
-    run(
+    const saved = run(
       acceptSuggestionsCommand({
         mediaId: item.mediaId,
         tags: [],
@@ -133,6 +141,18 @@ export function ClipFinderPanel(): JSX.Element {
         newId: () => crypto.randomUUID()
       })
     )
+    // An edited draft is saved from its new range, so the draft itself would still show as open. Dismiss it.
+    if (saved && draftEdits.has(item.key)) {
+      setBusy(true)
+      const next = await dismissSuggestions(window.api, folderPath, item.mediaId, [item.key])
+      setBusy(false)
+      if (next) setData(next)
+      setDraftEdits((previous) => {
+        const remaining = new Map(previous)
+        remaining.delete(item.key)
+        return remaining
+      })
+    }
   }
 
   const acceptTag = (item: Extract<ClipFinderItem, { kind: 'tag' }>) => {
@@ -144,6 +164,11 @@ export function ClipFinderPanel(): JSX.Element {
         newId: () => crypto.randomUUID()
       })
     )
+  }
+
+  const saveDraftEdit = (key: string, edit: DraftEdit) => {
+    setDraftEdits((previous) => new Map(previous).set(key, edit))
+    setEditingKey(null)
   }
 
   const dismiss = async (item: ClipFinderItem) => {
@@ -221,10 +246,18 @@ export function ClipFinderPanel(): JSX.Element {
                 type="button"
                 className={styles.accent}
                 disabled={busy}
-                onClick={() => acceptDraft(item)}
+                onClick={() => void acceptDraft(item)}
               >
                 Accept
               </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => setEditingKey(item.key)}
+              >
+                Edit
+              </Button>
               <Button variant="ghost" size="sm" disabled={busy} onClick={() => void dismiss(item)}>
                 Dismiss
               </Button>
@@ -264,6 +297,13 @@ export function ClipFinderPanel(): JSX.Element {
           onOpen={item.kind === 'tag' ? undefined : () => preview(item)}
           actions={actions}
         />
+        {item.kind === 'draft' && editingKey === item.key ? (
+          <DraftEditForm
+            initial={draftEditInputOf(item)}
+            onSave={(edit) => saveDraftEdit(item.key, edit)}
+            onCancel={() => setEditingKey(null)}
+          />
+        ) : null}
       </li>
     )
   }
@@ -292,30 +332,14 @@ export function ClipFinderPanel(): JSX.Element {
       {searching ? null : (
         <>
           {sourceRef ? (
-            <header className={styles.source}>
-              <span className={styles.sourceName} title={sourceRef.fileName}>
-                <Sparkles size={12} strokeWidth={1.75} aria-hidden="true" />
-                {sourceRef.fileName}
-              </span>
-              <span className={styles.meta}>{formatDuration(sourceRef.durationMs)}</span>
-              <span className={styles.sourceActions}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void find(sourceRef)}
-                >
-                  Find moments
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void reanalyzeMedia(window.api, folderPath, sourceRef)}
-                >
-                  Reanalyze
-                </Button>
-              </span>
-            </header>
+            <ClipSourceHeader
+              key={sourceRef.id}
+              folderPath={folderPath}
+              source={sourceRef}
+              busy={busy}
+              onFind={() => void find(sourceRef)}
+              onReanalyze={() => void reanalyzeMedia(window.api, folderPath, sourceRef)}
+            />
           ) : null}
           <div className={styles.filter} role="group" aria-label="Filter clip candidates">
             {CLIP_FINDER_FILTERS.map((option) => (

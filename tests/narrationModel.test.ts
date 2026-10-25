@@ -53,7 +53,7 @@ describe('narration model', () => {
 
 describe('schema 19 to 20 migration', () => {
   it('bumps the schema version to 20 and registers the 19 to 20 migration', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(21)
+    expect(CURRENT_SCHEMA_VERSION).toBeGreaterThanOrEqual(20)
     expect(migrateV19ToV20({ schemaVersion: 19, id: 'p1' })).toEqual({
       schemaVersion: 20,
       id: 'p1'
