@@ -8,6 +8,7 @@ import { openSuggestions } from '@renderer/features/suggestions/suggestionView'
 import {
   clipFinderItems,
   clipRowFacts,
+  clipStarLabel,
   draftEditFromInput,
   CLIP_FINDER_FILTERS,
   filterClipFinderItems,
@@ -336,5 +337,12 @@ describe('draft edits and saved scores', () => {
   it('labels a video by its shorter side', () => {
     expect(resolutionLabel({ width: 1920, height: 1080 })).toBe('1080p')
     expect(resolutionLabel({ width: 1080, height: 1920 })).toBe('1080p')
+  })
+})
+
+describe('clip star label', () => {
+  it('names the action the click takes', () => {
+    expect(clipStarLabel(false)).toBe('Star clip')
+    expect(clipStarLabel(true)).toBe('Unstar clip')
   })
 })

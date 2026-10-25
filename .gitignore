@@ -7,3 +7,6 @@ site/.astro
 resources/bin
 resources/parakeet
 .DS_Store
+
+e2e/.fixtures/
+test-results/

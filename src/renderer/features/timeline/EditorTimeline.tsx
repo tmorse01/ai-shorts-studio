@@ -17,14 +17,15 @@ export interface EditorTimelineProps {
 export function EditorTimeline({ timeline, shortId }: EditorTimelineProps): JSX.Element {
   const folderPath = useProjectStore((state) => state.current?.folderPath ?? '')
   const media = useProjectStore((state) => state.current?.project.media)
+  const moments = useProjectStore((state) => state.current?.project.moments)
   // Primitive selectors keep the store subscription stable across renders.
   const minMs = useProjectStore((state) => targetRangeMs(state.current?.project, shortId).minMs)
   const maxMs = useProjectStore((state) => targetRangeMs(state.current?.project, shortId).maxMs)
   const offlineIds = useOfflineMediaIds(folderPath, media)
   const target = useMemo(() => ({ minMs, maxMs }), [minMs, maxMs])
   const mediaInfo = useMemo(
-    () => ({ projectFolder: folderPath, items: media ?? [], offlineIds }),
-    [folderPath, media, offlineIds]
+    () => ({ projectFolder: folderPath, items: media ?? [], offlineIds, moments }),
+    [folderPath, media, offlineIds, moments]
   )
 
   const onEdit = useCallback(

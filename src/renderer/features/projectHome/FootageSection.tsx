@@ -69,7 +69,12 @@ export function FootageSection(): JSX.Element {
             ? 'Drop files anywhere on this page to add more footage.'
             : 'No footage yet. Drop video, audio or image files here, or import them.'}
         </p>
-        <Button variant="primary" size="sm" onClick={() => void pickAndImportMedia()}>
+        <Button
+          variant="primary"
+          size="sm"
+          data-testid="footage-import"
+          onClick={() => void pickAndImportMedia()}
+        >
           Import media
         </Button>
       </div>

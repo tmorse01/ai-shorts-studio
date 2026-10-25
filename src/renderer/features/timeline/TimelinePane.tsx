@@ -47,7 +47,7 @@ import { audioClipForDrop } from '@shared/timeline/audioDrop'
 import { footageClipForDrop, footageInsertMs } from '@shared/timeline/footageDrop'
 import { timelineDurationMs } from '@shared/timeline/resolveFrame'
 import { duckEnvelope, duckingFor, narrationRanges } from '@shared/timeline/ducking'
-import type { MediaRef } from '@shared/project/schema'
+import type { MediaRef, Moment } from '@shared/project/schema'
 import type { Clip, Timeline, Track, TrackKind, TrackRole } from '@shared/timeline/timeline'
 import { snapEdge, snapPoints, snapStart } from '@shared/timeline/snap'
 import { mainGaps, type Gap } from '@shared/timeline/gaps'
@@ -102,6 +102,8 @@ export interface TimelineMedia {
   projectFolder: string
   items: readonly MediaRef[]
   offlineIds: readonly string[]
+  // The project's moments. A clip from a moment shows the moment's name.
+  moments?: readonly Moment[]
 }
 
 export interface TimelinePaneProps {
@@ -945,6 +947,7 @@ export function TimelinePane({
             pxPerMs={pxPerMs}
             range={laneRange}
             media={mediaRef}
+            moments={media?.moments}
             offline={clip.mediaId !== undefined && offlineIds.has(clip.mediaId)}
             projectFolder={media?.projectFolder}
             linked={

@@ -262,3 +262,8 @@ function secondsToMs(text: string): number | undefined {
 export function resolutionLabel(video: { width: number; height: number }): string {
   return `${Math.min(video.width, video.height)}p`
 }
+
+// The accessible name and tooltip of a clip's star button. It names the action the click will take.
+export function clipStarLabel(starred: boolean): string {
+  return starred ? 'Unstar clip' : 'Star clip'
+}

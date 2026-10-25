@@ -1,7 +1,7 @@
 import type { JSX, PointerEvent } from 'react'
 import { Lock } from 'lucide-react'
 import { filmstripPlan, FILMSTRIP_FILE } from '@shared/media/thumbs'
-import type { MediaRef } from '@shared/project/schema'
+import type { MediaRef, Moment } from '@shared/project/schema'
 import type { Clip, TrackKind } from '@shared/timeline/timeline'
 import {
   clipBox,
@@ -38,6 +38,8 @@ export interface TimelineClipProps {
   // The part of the lane on screen. Filmstrip tiles are only built for this range.
   range: LaneRange
   media?: MediaRef
+  // The project's moments, so a clip from a moment shows the moment's current name.
+  moments?: readonly Moment[]
   offline: boolean
   // The project folder the cache lives in. Without it, clips show no thumbnails.
   projectFolder?: string
@@ -66,6 +68,7 @@ export function TimelineClip({
   pxPerMs,
   range,
   media,
+  moments,
   offline,
   projectFolder,
   linked,
@@ -76,7 +79,7 @@ export function TimelineClip({
   onSelect
 }: TimelineClipProps): JSX.Element {
   const box = clipBox(clip, pxPerMs)
-  const label = clipLabel(clip, media?.fileName)
+  const label = clipLabel(clip, media?.fileName, moments)
   const sourceId = offline ? undefined : clip.mediaId
   const linkedOffline = linked?.offline ?? false
 

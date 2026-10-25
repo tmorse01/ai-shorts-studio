@@ -27,7 +27,7 @@ function ProjectPage(): JSX.Element {
   return (
     <div className={styles.shell}>
       <ProjectSidebar scrollRef={pageRef} />
-      <main ref={pageRef} className={styles.page}>
+      <main ref={pageRef} className={styles.page} data-testid="project-home">
         <ProjectHeader />
         <OfflineBanner />
         <GuidedStart />
