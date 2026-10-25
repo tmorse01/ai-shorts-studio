@@ -121,7 +121,20 @@ export async function saveProjectBatch(folderPath: string, batch: Batch): Promis
   }
   const project = primary.loaded.project
   const others = (project.batches ?? []).filter((item) => item.id !== batch.id)
-  await saveProject(dir, { ...project, batches: [...others, batch] })
+  // Windows can refuse the rename while another read of project.json is open. A short retry covers that.
+  await retryOnLockedFile(() => saveProject(dir, { ...project, batches: [...others, batch] }))
+}
+
+async function retryOnLockedFile<T>(action: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await action()
+    } catch (error) {
+      const locked = isErrorCode(error, 'EPERM') || isErrorCode(error, 'EBUSY')
+      if (!locked || attempt >= 5) throw error
+      await new Promise((resolve) => setTimeout(resolve, 40 * attempt))
+    }
+  }
 }
 
 async function describeOpened(
