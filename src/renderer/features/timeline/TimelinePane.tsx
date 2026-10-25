@@ -24,6 +24,8 @@ import {
   setTrackFlag,
   trimClip,
   addCutTransition,
+  setClipLocked,
+  swapClipAlternative,
   updateClipFraming,
   updateClipTextItem
 } from '@shared/timeline/edits'
@@ -878,6 +880,7 @@ export function TimelinePane({
             clip={clip}
             kind={track.kind}
             locked={track.locked ?? false}
+            clipLocked={clip.locked === true}
             selected={selectedIds.includes(clip.id)}
             pxPerMs={pxPerMs}
             range={laneRange}
@@ -942,6 +945,21 @@ export function TimelinePane({
         label,
         onSelect: () =>
           runEdit(label, (current) => setClipAudio(current, sound.id, { muted: !sound.muted }))
+      })
+    }
+    if (clip.assembly) {
+      clip.assembly.alternatives.forEach((_take, index) => {
+        const label = `Swap to take ${index + 1}`
+        items.push({
+          label,
+          onSelect: () => runEdit(label, (current) => swapClipAlternative(current, clip.id, index))
+        })
+      })
+      const pinned = clip.locked === true
+      const label = pinned ? 'Unlock clip' : 'Lock clip'
+      items.push({
+        label,
+        onSelect: () => runEdit(label, (current) => setClipLocked(current, clip.id, !pinned))
       })
     }
     if (track.role === 'main') items.push(...cutMenuItems(clip))

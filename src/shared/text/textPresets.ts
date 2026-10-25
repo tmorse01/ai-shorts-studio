@@ -94,8 +94,8 @@ export function textPresetClip(preset: TextPreset, clipId: string, startMs: numb
   }
 }
 
-// The item with the preset's look: style, size and motion. Its words and position stay. A colour or backdrop
-// the user set is cleared, so the result shows the preset's look exactly.
+// The item with the preset's look: style, size and motion. Its words and position stay. A colour, backdrop or
+// motion length the user set is cleared, so the result shows the preset's look exactly.
 export function applyTextPresetLook(item: TextItem, preset: TextPreset): TextItem {
   return {
     text: item.text,
@@ -117,7 +117,8 @@ export function matchTextPreset(item: TextItem): TextPresetId | null {
       preset.enter === item.enter &&
       preset.exit === item.exit &&
       item.color === undefined &&
-      item.backdrop === undefined
+      item.backdrop === undefined &&
+      item.motionMs === undefined
   )
   return match?.id ?? null
 }
