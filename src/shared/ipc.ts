@@ -359,6 +359,20 @@ export const ipcChannels = {
       )
     })
   },
+  // Saves a short's captions as an SRT file. The renderer builds the text (src/shared/captions/srt.ts)
+  // and main shows the save dialog and writes it. Null savedPath means the user cancelled.
+  'captions:exportSrt': {
+    input: z.object({
+      suggestedName: z
+        .string()
+        .trim()
+        .min(1)
+        .max(200)
+        .refine((name) => !/[\\/]/.test(name), { message: 'A file name cannot hold a folder.' }),
+      srt: z.string().max(2_000_000)
+    }),
+    output: z.object({ savedPath: z.string().min(1).nullable() })
+  },
   // One media item's vision descriptions, one per described shot. Empty until the vision stage has run
   // for it. The search index reads them to find shots by what is on screen.
   'analysis:vision:read': {

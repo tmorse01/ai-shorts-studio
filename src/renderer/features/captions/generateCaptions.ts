@@ -8,6 +8,11 @@ import {
   type CaptionSourceClip
 } from '@shared/captions/captionRemap'
 import type { TranscriptWord } from '@shared/analysis/transcript'
+import {
+  captionPresetsOf,
+  resolveCaptionPreset,
+  wordsPerCaptionOf
+} from '@shared/captions/captionPreset'
 import { projectStore } from '../project/projectStore'
 import { applyProjectCommand } from '../shorts/shortActions'
 import { toast } from '../toasts/toast'
@@ -86,7 +91,15 @@ export async function generateShortCaptions(shortId: string, source: CaptionSour
 
   const span = clipsSpan(clips)
   if (!span) return
-  const blocks = captionBlocksForClips(clips, wordsByMedia, newId)
+  // The short's preset decides how many words go in one caption (Epic 11, #121).
+  const preset = resolveCaptionPreset(
+    captionPresetsOf(project.captionPresets),
+    short.captionPresetId,
+    undefined
+  )
+  const blocks = captionBlocksForClips(clips, wordsByMedia, newId, {
+    maxWords: wordsPerCaptionOf(preset)
+  })
   applyProjectCommand(
     generateCaptionsCommand({
       shortId,

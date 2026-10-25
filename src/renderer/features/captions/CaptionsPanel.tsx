@@ -5,6 +5,7 @@ import { useStore } from 'zustand'
 import { Button } from '@renderer/ui/Button'
 import { editorHistory } from '../history/editorHistory'
 import { generateShortCaptions, type CaptionSource } from './generateCaptions'
+import { exportShortSrt } from './exportSrt'
 import styles from './CaptionsPanel.module.css'
 
 export function CaptionsPanel(): JSX.Element {
@@ -41,6 +42,7 @@ export function CaptionsPanel(): JSX.Element {
       <Button loading={busy === 'cut'} disabled={busy !== null} onClick={() => void run('cut')}>
         Caption cuts
       </Button>
+      <Button onClick={() => void exportShortSrt(activeId)}>Export SRT</Button>
     </div>
   )
 }

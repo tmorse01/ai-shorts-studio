@@ -3,6 +3,7 @@
 // hands the frame description to the compositor. Frames are drawn again when an element seeks or
 // loads, so a paused frame updates as soon as its pixels are ready.
 import { describeFrame, type SourceSize } from '@shared/compositor/frame'
+import type { CaptionOptions } from '@shared/captions/captionLayout'
 import { chooseVariant, mediaUrl } from '@shared/media/previewSource'
 import type { MediaSourceInfo } from '@shared/media/mediaSources'
 import type { Timeline } from '@shared/timeline/timeline'
@@ -39,6 +40,8 @@ export interface ShowInput {
   playing: boolean
   useOriginals: boolean
   sources: Record<string, MediaSourceInfo>
+  // The caption presets and default preset for the short. Unset draws the shipped defaults.
+  captionOptions?: CaptionOptions
 }
 
 interface LatestFrame {
@@ -61,6 +64,7 @@ export class PreviewRenderer {
   // One image element per image media item, kept after use. Overlays draw from it once it has loaded.
   private readonly images = new Map<string, HTMLImageElement>()
   private latest: LatestFrame | null = null
+  private captionOptions: CaptionOptions | undefined = undefined
   private dropped: DroppedFrameState = NO_DROPPED_FRAMES
 
   // `countDrops` is on in development only. `onDroppedChange` runs when the count changes.
@@ -80,6 +84,8 @@ export class PreviewRenderer {
   // can say so.
   show(input: ShowInput): { offline: boolean } {
     const { canvas, timeline, playheadMs, playing, useOriginals, sources } = input
+    // The project's caption presets, so the preview draws captions as the project styles them (Epic 11, #121).
+    this.captionOptions = input.captionOptions
     if (!this.compositor || this.compositorCanvas !== canvas) {
       this.compositor = new Compositor(createFrameBackend(canvas))
       this.compositorCanvas = canvas
@@ -197,7 +203,8 @@ export class PreviewRenderer {
       latest.timeline,
       latest.playheadMs,
       (mediaId) =>
-        sizeOf(latest.elementByMedia.get(mediaId)) ?? imageSizeOf(latest.imageByMedia.get(mediaId))
+        sizeOf(latest.elementByMedia.get(mediaId)) ?? imageSizeOf(latest.imageByMedia.get(mediaId)),
+      this.captionOptions
     )
     layerFrameStore.getState().setFrame(frame)
     const drawn = compositor.render(

@@ -189,10 +189,17 @@ export function migrateV15ToV16(data: unknown): unknown {
   return { ...data, schemaVersion: 16 }
 }
 
-// v16 had no change that needs a key. Only the version changes. Schema 17 adds the optional imageItem key.
+// Schema 17 adds two optional caption preset fields (position and wordsPerCaption). Old presets
+// without them read as before, so only the version changes.
 export function migrateV16ToV17(data: unknown): unknown {
   if (!isRecord(data)) throw new Error('the file is not a JSON object')
   return { ...data, schemaVersion: 17 }
+}
+
+// Schema 18 adds the optional imageItem key on clips (Epic 13, #129). Only the version changes.
+export function migrateV17ToV18(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 18 }
 }
 
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
@@ -222,7 +229,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 13, to: 14, up: migrateV13ToV14 },
   { from: 14, to: 15, up: migrateV14ToV15 },
   { from: 15, to: 16, up: migrateV15ToV16 },
-  { from: 16, to: 17, up: migrateV16ToV17 }
+  { from: 16, to: 17, up: migrateV16ToV17 },
+  { from: 17, to: 18, up: migrateV17ToV18 }
 ]
 
 function withTrackRoles(value: unknown): unknown {
