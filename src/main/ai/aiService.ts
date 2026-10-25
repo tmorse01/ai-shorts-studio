@@ -25,10 +25,12 @@ import { UserFacingError } from '../errors'
 import { logError } from '../errors/errorLog'
 import type { AnthropicClient } from './anthropicClient'
 import type { AiStateStorage } from './aiStateFile'
-import type { SecretStore } from './secretStore'
+import { unavailableSecretStore, type SecretStore } from './secretStore'
 
 export interface AiServiceOptions {
   secrets: SecretStore
+  /** Holds the speech provider key (ElevenLabs), kept apart from the Anthropic key. Defaults to none. */
+  speechSecrets?: SecretStore
   state: AiStateStorage
   /** Builds the API client for a key. Tests pass a fake, so no request leaves the machine. */
   createClient: (apiKey: string) => AnthropicClient
@@ -96,6 +98,24 @@ export class AiService {
     await this.options.secrets.write(apiKey)
     this.hasKey = true
     return this.commit()
+  }
+
+  /** Whether the OS keychain can hold the speech key on this computer. */
+  speechKeyStorageAvailable(): boolean {
+    return (this.options.speechSecrets ?? unavailableSecretStore).isAvailable()
+  }
+
+  /** The saved speech key, or null. Read on demand, never kept in the status. */
+  async speechKey(): Promise<string | null> {
+    return (this.options.speechSecrets ?? unavailableSecretStore).read()
+  }
+
+  async saveSpeechKey(apiKey: string): Promise<void> {
+    await (this.options.speechSecrets ?? unavailableSecretStore).write(apiKey)
+  }
+
+  async clearSpeechKey(): Promise<void> {
+    await (this.options.speechSecrets ?? unavailableSecretStore).clear()
   }
 
   async clearKey(): Promise<AiStatus> {
