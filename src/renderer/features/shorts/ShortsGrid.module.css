@@ -47,7 +47,34 @@
 
 .chipOn {
   border-color: var(--color-primary);
-  color: var(--color-text);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.chip:focus-visible,
+.chipOn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.heading {
+  margin: 0 var(--space-2) 0 0;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  letter-spacing: var(--type-small-tracking);
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+.sortLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
 }
 
 .none {

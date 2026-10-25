@@ -19,6 +19,7 @@ import { detectEncoder, unknownEncoder } from './export/encoderDetection'
 import { resolveBinary, type BinaryLocation } from './media/binaries'
 import type { EncoderInfo } from '@shared/export/exportSettings'
 import { isE2eAiFakes, isE2eMode, isolatedProfile, readDialogPicks } from './e2e/e2eMode'
+import { withForcedHardwareEncoder } from './e2e/forcedEncoderFailure'
 import { createFakeAnthropicClient, createFakeAnthropicSecrets } from './e2e/fakes'
 
 // A test can give the app its own profile and documents folder through AISS_USER_DATA. This must run
@@ -90,7 +91,9 @@ void app.whenReady().then(async () => {
   }
   void (async () => {
     try {
-      exportEncoder = await detectEncoder(resolveBinary('ffmpeg', binaryLocation))
+      exportEncoder = withForcedHardwareEncoder(
+        await detectEncoder(resolveBinary('ffmpeg', binaryLocation))
+      )
     } catch {
       exportEncoder = unknownEncoder()
     }

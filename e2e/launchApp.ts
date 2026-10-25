@@ -72,7 +72,8 @@ export async function launchApp(options: {
       await page.getByTestId('footage-import').click()
     },
     async openShort(name) {
-      await page.getByText(name, { exact: true }).first().click()
+      // A short opens on double-click of its poster button (ShortCard), not on its name.
+      await page.getByRole('button', { name: `Open ${name}`, exact: true }).dblclick()
     },
     async close() {
       await app.close()
