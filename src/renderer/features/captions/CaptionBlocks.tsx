@@ -263,12 +263,13 @@ export function CaptionBlocks({
             ) : (
               <span className={styles.text}>{blockText(block)}</span>
             )}
+            {/* The menu covers the block's top right, so a double click on a short block can land on
+                it. Its double click bubbles to the block, so the text editor still opens. */}
             {selected && !editing && !locked ? (
               <div
                 className={styles.menu}
                 onPointerDown={(event) => event.stopPropagation()}
                 onPointerUp={(event) => event.stopPropagation()}
-                onDoubleClick={(event) => event.stopPropagation()}
               >
                 <DropdownMenu
                   trigger={
