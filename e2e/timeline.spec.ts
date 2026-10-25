@@ -8,6 +8,8 @@ import { launchApp } from './launchApp'
 import { FIXTURES } from './generateFixtures'
 import { currentSourceTimecode } from './previewHook'
 import { formatTimecode } from '../src/renderer/features/playback/playbackClock'
+import type { Clip } from '../src/shared/timeline/timeline'
+import { transitionLimitMs } from '../src/shared/timeline/transitions'
 import { expect, test } from './test'
 
 // Frame tolerance for a preview check: one frame at 30 fps, plus a little for rounding.
@@ -27,7 +29,16 @@ interface SavedTrack {
 }
 interface SavedTimeline {
   tracks: SavedTrack[]
-  transitions?: { id: string; durationMs: number }[]
+  transitions?: { id: string; durationMs: number; fromClipId: string; toClipId: string }[]
+}
+
+// The source length of each media item in the saved project, by id.
+async function savedMediaDurations(profileDir: string): Promise<Map<string, number>> {
+  const file = await findProjectFile(profileDir)
+  const project = JSON.parse(await readFile(file ?? '', 'utf8')) as {
+    media: { id: string; durationMs?: number }[]
+  }
+  return new Map(project.media.map((item) => [item.id, item.durationMs ?? 0]))
 }
 
 async function findProjectFile(dir: string): Promise<string | null> {
@@ -216,33 +227,22 @@ test('edits a short on the timeline, undoes and redoes every step, and survives 
     await page.keyboard.press('s')
     await recordEdit()
     expect(mainClips(latest())).toHaveLength(before + 1)
-
-    // Select the left half of the split and delete it. Deleting a clip that sits between others
-    // always leaves a gap where it was, so the gap starts at that clip's start.
-    const gaps = page.locator('[aria-label^="Gap of"]')
-    const gapsBefore = await gaps.count()
-    const leftHalf = mainClips(latest())[1]
-    const pieceBox = await box(await clipByStart(1))
-    await (await clipByStart(1)).click({ position: { x: pieceBox.width - 30, y: 20 } })
-    await page.keyboard.press('Delete')
-    await recordEdit()
-    expect(mainClips(latest())).toHaveLength(before)
-    const gap = page.locator(`[aria-label$="at ${formatTimecode(leftHalf.startMs)}"]`)
-    await expect(gaps).toHaveCount(gapsBefore + 1)
-    await expect(gap).toHaveCount(1)
-
-    await gap.click()
-    await page.getByRole('button', { name: 'Gap', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Close gap' }).click()
-    await recordEdit()
-    await expect(gaps).toHaveCount(gapsBefore)
   })
 
   await test.step('crossfade at a cut, resized', async () => {
     await fit()
+    // A cut has a crossfade only where both clips have handle media. The split cut has it.
+    const durations = await savedMediaDurations(session.profileDir)
     const clips = mainClips(latest())
     const index = clips.findIndex(
-      (clip, i) => i > 0 && clip.startMs === clips[i - 1].startMs + clips[i - 1].durationMs
+      (clip, i) =>
+        i > 0 &&
+        clip.startMs === clips[i - 1].startMs + clips[i - 1].durationMs &&
+        transitionLimitMs(
+          clips[i - 1] as unknown as Clip,
+          clip as unknown as Clip,
+          durations.get(clips[i - 1].mediaId)
+        ) >= 200
     )
     expect(index).toBeGreaterThan(0)
     await (await clipByStart(index)).click({ position: { x: 30, y: 20 } })
@@ -259,6 +259,35 @@ test('edits a short on the timeline, undoes and redoes every step, and survives 
     await page.getByLabel('Transition duration').press('Enter')
     await recordEdit()
     expect(parseSaved(latest()).transitions?.[0]?.durationMs).toBe(200)
+  })
+
+  await test.step('delete leaves a gap, close gap', async () => {
+    await fit()
+    // Deleting a clip with clips on both sides leaves a gap where it was. Prefer a clip that is not
+    // on the crossfade's cut, so the crossfade stays put.
+    const clips = mainClips(latest())
+    const transition = parseSaved(latest()).transitions?.[0]
+    const onCut = (id: string) => transition?.fromClipId === id || transition?.toClipId === id
+    const middle = clips.map((_, i) => i).filter((i) => i > 0 && i < clips.length - 1)
+    const target = middle.find((i) => !onCut(clips[i].id)) ?? middle[0]
+    expect(target).toBeDefined()
+    const gaps = page.locator('[aria-label^="Gap of"]')
+    const gapsBefore = await gaps.count()
+    const doomed = clips[target]
+    const piece = await box(await clipByStart(target))
+    await (await clipByStart(target)).click({ position: { x: piece.width - 30, y: 20 } })
+    await page.keyboard.press('Delete')
+    await recordEdit()
+    expect(mainClips(latest())).toHaveLength(clips.length - 1)
+    await expect(gaps).toHaveCount(gapsBefore + 1)
+    const gap = page.locator(`[aria-label$="at ${formatTimecode(doomed.startMs)}"]`)
+    await expect(gap).toHaveCount(1)
+
+    await gap.click()
+    await page.getByRole('button', { name: 'Gap', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Close gap' }).click()
+    await recordEdit()
+    await expect(gaps).toHaveCount(gapsBefore)
   })
 
   await test.step('overlay track with a B-roll clip', async () => {
