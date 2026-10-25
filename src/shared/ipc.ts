@@ -4,6 +4,7 @@
 import { z } from 'zod'
 import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
+import { encoderInfoSchema, exportSettingsSchema } from './export/exportSettings'
 import { mediaKindSchema, pathKindSchema, projectSchema } from './project/schema'
 import { posterFrameRefSchema } from './shorts/poster'
 import { recentProjectSchema } from './project/recentProjects'
@@ -179,6 +180,19 @@ export const ipcChannels = {
   },
   'ui:layout:save': {
     input: z.object({ layout: uiLayoutSchema }),
+    output: z.object({ saved: z.literal(true) })
+  },
+  // Export state: the encoder found at startup (null until detection ends) and the shared export
+  // settings (presets, naming, output folder). Saved by main as a JSON file in user data.
+  'export:state:get': {
+    input: z.object({}),
+    output: z.object({
+      encoder: encoderInfoSchema.nullable(),
+      settings: exportSettingsSchema.nullable()
+    })
+  },
+  'export:settings:save': {
+    input: z.object({ settings: exportSettingsSchema }),
     output: z.object({ saved: z.literal(true) })
   },
   // Reads a media file's streams with ffprobe. Runs as a probe job, ahead of other media jobs.
