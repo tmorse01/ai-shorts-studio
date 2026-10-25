@@ -93,4 +93,14 @@ describe('createAssemblySpreads', () => {
     await spreads.run('batch-1', { footage: request('b'), reuse: false }, signal())
     expect(calls.map((call) => call.lineId)).toEqual(['b'])
   })
+
+  it('starts a batch with no spread from the seed ranges, and keeps them for later matches', async () => {
+    const { calls, options } = recordingMatcher()
+    const spreads = createAssemblySpreads(options)
+    const seed = [{ mediaId: 'm-old', startMs: 0, endMs: 500 }]
+    await spreads.run('batch-1', { footage: request('a'), reuse: false, seed }, signal())
+    await spreads.run('batch-1', { footage: request('b'), reuse: false, seed: [] }, signal())
+    expect(calls[0].used).toEqual(seed)
+    expect(calls[1].used).toEqual([...seed, { mediaId: 'm-a', startMs: 0, endMs: 1000 }])
+  })
 })
