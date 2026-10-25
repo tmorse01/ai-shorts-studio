@@ -12,6 +12,7 @@ import type {
   FootageMatchResultData
 } from '@shared/assembly/footageMatchRequest'
 import type { UsedRange } from '@shared/assembly/footageSpread'
+import type { GeneratedShort, GenerateShortsInput } from '@shared/shorts/shortPlan'
 import { UserFacingError } from '../errors'
 import type { ExportJobInput } from '../export/exportJob'
 
@@ -37,6 +38,8 @@ export interface JobInput {
   assembly?: AssemblyJobInput
   /** What an export job renders: the short, its footage and the encoder settings. Set for export jobs. */
   export?: ExportJobInput
+  /** The request a shorts job proposes shorts from. Set for shorts jobs only. */
+  shorts?: GenerateShortsInput
 }
 
 export interface AssemblyJobInput {
@@ -66,6 +69,8 @@ export interface JobResults {
   analysis: StageResult
   script: GeneratedScript[]
   assembly: FootageMatchResultData
+  /** The shorts the model proposed, reviewed before anything is created. */
+  shorts: GeneratedShort[]
   /** The file the export wrote, after it was renamed into place. */
   export: { outPath: string }
 }
@@ -85,6 +90,7 @@ export const JOB_PRIORITY: Record<JobKind, number> = {
   analysis: 4,
   script: 4,
   assembly: 4,
+  shorts: 4,
   // Exports are user-started and long. They run after probing and thumbnails, ahead of analysis.
   export: 3
 }
@@ -98,6 +104,7 @@ const JOB_TITLES: Record<JobKind, string> = {
   analysis: 'Analyzing the footage',
   script: 'Drafting a script',
   assembly: 'Matching footage',
+  shorts: 'Generating shorts',
   export: 'Exporting the short'
 }
 
@@ -321,6 +328,7 @@ export function unavailableExecutors(): JobExecutors {
     analysis: unavailable('analysis'),
     script: unavailable('script'),
     assembly: unavailable('assembly'),
+    shorts: unavailable('shorts'),
     export: unavailable('export')
   }
 }
