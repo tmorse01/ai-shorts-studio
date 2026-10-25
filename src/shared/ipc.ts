@@ -18,6 +18,7 @@ import {
   ttsVoiceSchema
 } from './tts/speech'
 import { speechSettingsSchema } from './tts/speechSettings'
+import { MAX_TAKE_BYTES } from './narration/take'
 import { importCandidateSchema } from './media/importFiles'
 import { analysisFileSchema, analysisStageSchema, visionDecisionSchema } from './analysis/analysis'
 import { batchSchema, MAX_BATCH_ITEMS } from './batch/batch'
@@ -633,6 +634,24 @@ export const ipcChannels = {
       audioPath: z.string().min(1),
       characters: z.number().int().nonnegative(),
       cached: z.boolean()
+    })
+  },
+  // Saves a voiceover take (a 16-bit WAV) in the project's media/narration folder. The renderer then
+  // adds it as footage and a narration clip, in one undoable command.
+  'narration:take:save': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      bytes: z
+        .instanceof(Uint8Array)
+        .refine((bytes) => bytes.byteLength > 0 && bytes.byteLength <= MAX_TAKE_BYTES, {
+          message: 'The take is empty or too large.'
+        })
+    }),
+    output: z.object({
+      path: z.string().min(1),
+      pathKind: pathKindSchema,
+      fileName: z.string().min(1),
+      sizeBytes: z.number().int().positive()
     })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>

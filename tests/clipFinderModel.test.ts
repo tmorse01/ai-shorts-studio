@@ -8,12 +8,15 @@ import { openSuggestions } from '@renderer/features/suggestions/suggestionView'
 import {
   clipFinderItems,
   clipRowFacts,
+  draftEditFromInput,
   filterClipFinderItems,
   filterClipFinderTab,
+  resolutionLabel,
   scoreLabel,
   visibleClipFinderItems,
   type ClipFinderItem,
-  type ClipFinderSource
+  type ClipFinderSource,
+  type DraftEdit
 } from '@renderer/features/clipFinder/clipFinderModel'
 
 const userMoment: Moment = {
@@ -235,9 +238,79 @@ describe('accepting a draft makes a normal moment', () => {
         outMs: 9_000,
         tags: [],
         createdBy: 'ai',
+        score: 82,
         note: 'Hooks.'
       }
     ])
     expect(openSuggestions(after, 'm1', { tags: [], moments: [draft] }).moments).toEqual([])
+  })
+})
+
+describe('draft edits and saved scores', () => {
+  const draftSource = (edits?: Map<string, DraftEdit>): ClipFinderSource => ({
+    mediaId: 'm1',
+    moments: [],
+    drafts: [{ name: 'Old name', inMs: 1000, outMs: 5000, score: 70 }],
+    draftEdits: edits,
+    tagDrafts: [],
+    tagNameOf: () => undefined
+  })
+
+  it('keeps the draft key when its range is edited, so dismissing still finds it', () => {
+    const original = clipFinderItems(draftSource())[0]
+    const edited = clipFinderItems(
+      draftSource(new Map([[original.key, { name: 'New name', inMs: 2000, outMs: 9000 }]]))
+    )[0]
+    expect(edited.key).toBe(original.key)
+    expect(edited).toMatchObject({
+      kind: 'draft',
+      name: 'New name',
+      inMs: 2000,
+      outMs: 9000,
+      score: 70
+    })
+  })
+
+  it('reads a draft edit from the editor text in seconds', () => {
+    expect(draftEditFromInput({ name: ' Hook ', inSec: '12.5', outSec: '41', note: ' ' })).toEqual({
+      ok: true,
+      edit: { name: 'Hook', inMs: 12500, outMs: 41000 }
+    })
+  })
+
+  it('refuses an empty name, bad times and an Out before In', () => {
+    expect(draftEditFromInput({ name: ' ', inSec: '1', outSec: '2', note: '' })).toMatchObject({
+      ok: false
+    })
+    expect(draftEditFromInput({ name: 'a', inSec: 'soon', outSec: '2', note: '' })).toMatchObject({
+      ok: false
+    })
+    expect(draftEditFromInput({ name: 'a', inSec: '-1', outSec: '2', note: '' })).toMatchObject({
+      ok: false
+    })
+    expect(draftEditFromInput({ name: 'a', inSec: '5', outSec: '5', note: '' })).toEqual({
+      ok: false,
+      error: 'Out must come after In.'
+    })
+  })
+
+  it('shows the score on an accepted moment', () => {
+    const accepted: Moment = {
+      id: 'mom_ai',
+      mediaId: 'm1',
+      name: 'Saved',
+      inMs: 0,
+      outMs: 4000,
+      tags: [],
+      createdBy: 'ai',
+      score: 84
+    }
+    const item = clipFinderItems({ ...draftSource(), moments: [accepted], drafts: [] })[0]
+    expect(clipRowFacts(item).scoreLabel).toBe('84/100')
+  })
+
+  it('labels a video by its shorter side', () => {
+    expect(resolutionLabel({ width: 1920, height: 1080 })).toBe('1080p')
+    expect(resolutionLabel({ width: 1080, height: 1920 })).toBe('1080p')
   })
 })

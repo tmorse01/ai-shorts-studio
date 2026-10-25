@@ -56,7 +56,8 @@ export function acceptSuggestionsCommand(input: AcceptSuggestionsInput): Command
           outMs: moment.outMs,
           tags: [],
           createdBy: 'ai',
-          ...(moment.note ? { note: moment.note } : {})
+          ...(moment.note ? { note: moment.note } : {}),
+          ...(moment.score === undefined ? {} : { score: moment.score })
         })
       }
     }

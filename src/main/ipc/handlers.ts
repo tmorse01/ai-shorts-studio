@@ -54,6 +54,7 @@ import { matchFootageRequest } from '../ai/footageMatcher'
 import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage'
 import { SpeechService } from '../tts/speechService'
 import { createElevenLabsProvider } from '../tts/elevenLabsProvider'
+import { saveNarrationTake } from '../narration/takeStorage'
 import {
   dismissSuggestions,
   findMomentSuggestions,
@@ -363,6 +364,7 @@ export function createIpcHandlers({
       speech.setDefaultVoice(projectFolder, defaultVoiceId),
     'tts:estimate': (input) => speech.estimate(input),
     'tts:generate': (input) => speech.generate(input),
+    'narration:take:save': ({ projectFolder, bytes }) => saveNarrationTake(projectFolder, bytes),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })
