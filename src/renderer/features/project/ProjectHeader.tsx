@@ -10,6 +10,7 @@ import { BackButton } from '@renderer/routes/BackButton'
 import { DeleteProjectDialog } from '../dashboard/DeleteProjectDialog'
 import { removeFromList, renameProject, revealProject } from '../dashboard/projectActions'
 import { applyProjectCommand } from '../shorts/shortActions'
+import { ProjectSettingsDialog } from '../shorts/ProjectSettingsDialog'
 import { projectStore } from './projectStore'
 import { renameProjectCommand } from './projectCommands'
 import { resetEditorState } from './resetEditorState'
@@ -25,6 +26,7 @@ export function ProjectHeader(): JSX.Element {
   const media = useProjectStore((state) => state.current?.project.media)
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const footageInside = useMemo(
     () => footageInsideFolder(media ?? [], folderPath).map((ref) => fileName(ref.path)),
     [media, folderPath]
@@ -75,11 +77,13 @@ export function ProjectHeader(): JSX.Element {
         trigger={<IconButton icon={MoreHorizontal} label="Project actions" />}
         items={[
           { label: 'Rename', onSelect: () => setRenaming(true) },
+          { label: 'Project settings…', onSelect: () => setSettingsOpen(true) },
           { label: 'Reveal in Explorer', onSelect: () => void revealProject(folderPath) },
           { label: 'Remove from list', onSelect: () => void removeFromRecent() },
           { label: 'Delete folder…', onSelect: () => setDeleting(true), destructive: true }
         ]}
       />
+      <ProjectSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <DeleteProjectDialog
         project={deleting ? { name, folderPath } : null}
         footageInside={footageInside}
