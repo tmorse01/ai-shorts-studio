@@ -1,4 +1,6 @@
 import { readLayoutFile, writeLayoutFile } from '../layoutFile'
+import { readExportSettingsFile, writeExportSettingsFile } from '../export/exportSettingsFile'
+import type { EncoderInfo, ExportSettings } from '@shared/export/exportSettings'
 import {
   createProject,
   openProject,
@@ -81,6 +83,10 @@ export interface IpcHandlerOptions {
   layoutFile: string
   /** Where the recent projects registry is saved. Same rule as layoutFile. */
   recentFile: string
+  /** Where the shared export settings are saved. Without it they are kept in memory only. */
+  exportSettingsFile?: string
+  /** The encoder found at startup. Null until detection ends. Defaults to null. */
+  exportEncoder?: () => EncoderInfo | null
   /** The media job queue. Defaults to one with no tools, so tests need not provide FFmpeg. */
   jobs?: JobQueue
   /** Native actions. Defaults refuse, so a caller that forgets them fails loudly. */
@@ -108,6 +114,8 @@ export interface IpcHandlerOptions {
 export function createIpcHandlers({
   layoutFile,
   recentFile,
+  exportSettingsFile,
+  exportEncoder = () => null,
   jobs = new JobQueue(unavailableExecutors()),
   system = {},
   analysisStorage = { load: loadAnalysisFile, save: saveAnalysisFile },
@@ -158,6 +166,8 @@ export function createIpcHandlers({
   }
   // Poster frames queued and not yet settled, so repeated requests do not queue one frame twice.
   const pendingPosters = new Set<string>()
+  // Export settings when no file is given (tests): kept for the life of the handlers.
+  let memoryExportSettings: ExportSettings | null = null
 
   return {
     'app:echo': ({ text }) => ({ text, length: text.length }),
@@ -218,6 +228,17 @@ export function createIpcHandlers({
     'recent:locate': async ({ oldFolderPath, newFolderPath }) => {
       const opened = await openProject(newFolderPath)
       return { project: await locateRecentProject(recentFile, oldFolderPath, opened) }
+    },
+    'export:state:get': async () => ({
+      encoder: exportEncoder(),
+      settings: exportSettingsFile
+        ? await readExportSettingsFile(exportSettingsFile)
+        : memoryExportSettings
+    }),
+    'export:settings:save': async ({ settings }) => {
+      if (exportSettingsFile) await writeExportSettingsFile(exportSettingsFile, settings)
+      else memoryExportSettings = settings
+      return { saved: true }
     },
     'ui:layout:load': async () => ({ layout: await readLayoutFile(layoutFile) }),
     'ui:layout:save': async ({ layout }) => {

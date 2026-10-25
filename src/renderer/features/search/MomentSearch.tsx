@@ -1,6 +1,7 @@
-// The footage search box in the Media panel. It searches transcript speech, shot descriptions, tags and
-// moment names through the local index. Results are ranked; Enter or a click opens the match in the
-// source viewer. The Media panel hides its grid while a search is active.
+// The footage search box at the top of the Clip Finder panel. It searches transcript speech, shot
+// descriptions, tags and moment names through the local index. Results are ranked and use the Clip Finder
+// row; Enter or a click opens the match in the source viewer. The Clip Finder hides its list while a search
+// is active.
 import { useState, type JSX, type KeyboardEvent } from 'react'
 import { useStore } from 'zustand'
 import { thumbFileName } from '@shared/media/thumbs'
@@ -67,7 +68,7 @@ export function MomentSearch({
         onKeyDown={onKeyDown}
       />
       {searching ? (
-        <div role="listbox" aria-label="Search results" className={styles.results}>
+        <div aria-label="Search results" className={styles.results}>
           {hits.length === 0 ? (
             <p className={styles.empty}>No matches for “{query.trim()}”.</p>
           ) : (
