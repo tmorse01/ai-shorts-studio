@@ -1,7 +1,9 @@
-// A batch runs one analysis stage over many media items (Epic 16, #143). The batch is stored in the
-// project so it survives a restart. Pure logic only: the runner in main does the queueing and I/O.
+// A batch runs one analysis stage over many media items (Epic 16, #143), or drafts several scripts
+// (#145). The batch is stored in the project so it survives a restart. Pure logic only: the runner in
+// main does the queueing and I/O.
 import { z } from 'zod'
 import { analysisStageSchema, type AnalysisStage } from '../analysis/analysis'
+import { generatedScriptSchema } from '../ai/scriptGeneration'
 
 const nonEmptyString = z.string().trim().min(1)
 
@@ -12,6 +14,10 @@ export const batchStatusSchema = z.enum(['running', 'done', 'failed', 'cancelled
 export type BatchStatus = z.infer<typeof batchStatusSchema>
 
 export const MAX_BATCH_ITEMS = 500
+
+// Unset means an analysis batch, which is what every batch was before script drafting (#145).
+export const batchKindSchema = z.enum(['analysis', 'script'])
+export type BatchKind = z.infer<typeof batchKindSchema>
 
 export const batchItemSchema = z.object({
   // The media id. One item per media item in a batch.
@@ -26,13 +32,17 @@ export const batchItemSchema = z.object({
       message: z.string(),
       details: z.string().optional()
     })
-    .optional()
+    .optional(),
+  // The scripts a script item drafted, once it is done. Unset on analysis items.
+  scripts: z.array(generatedScriptSchema).optional()
 })
 export type BatchItem = z.infer<typeof batchItemSchema>
 
 export const batchSchema = z.object({
   id: nonEmptyString,
-  stage: analysisStageSchema,
+  kind: batchKindSchema.optional(),
+  // The analysis stage an analysis batch runs. Unset for a script batch.
+  stage: analysisStageSchema.optional(),
   status: batchStatusSchema,
   createdAt: z.iso.datetime(),
   items: z.array(batchItemSchema).min(1).max(MAX_BATCH_ITEMS)
@@ -59,13 +69,15 @@ export function batchStatusOf(items: readonly BatchItem[]): BatchStatus {
 
 export function createBatch(input: {
   id: string
-  stage: AnalysisStage
+  /** Set for an analysis batch. Leave out for a script batch. */
+  stage?: AnalysisStage
+  /** The item ids: media ids for an analysis batch, any unique ids for a script batch. */
   mediaIds: readonly string[]
   createdAt: string
 }): Batch {
   const seen = new Set<string>()
   for (const id of input.mediaIds) {
-    if (seen.has(id)) throw new Error(`Media item "${id}" is in the batch more than once.`)
+    if (seen.has(id)) throw new Error(`Item "${id}" is in the batch more than once.`)
     seen.add(id)
   }
   const items: BatchItem[] = input.mediaIds.map((id) => ({
@@ -76,7 +88,8 @@ export function createBatch(input: {
   }))
   return batchSchema.parse({
     id: input.id,
-    stage: input.stage,
+    kind: input.stage === undefined ? 'script' : 'analysis',
+    ...(input.stage === undefined ? {} : { stage: input.stage }),
     status: batchStatusOf(items),
     createdAt: input.createdAt,
     items

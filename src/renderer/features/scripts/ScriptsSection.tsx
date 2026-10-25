@@ -3,6 +3,9 @@ import type { Script } from '@shared/project/schema'
 import { Button } from '@renderer/ui/Button'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { useProjectStore } from '../project/useProjectStore'
+import { toast } from '../toasts/toast'
+import { assemblyStatusLabel } from '../assembly/assemblyQueue'
+import { queueFootageMatching, useAssemblyQueueStore } from '../assembly/assemblyQueueStore'
 import { GenerateScriptsDialog } from './GenerateScriptsDialog'
 import { NewScriptDialog } from './NewScriptDialog'
 import { ScriptEditor } from './ScriptEditor'
@@ -15,15 +18,36 @@ const NO_SCRIPTS: Script[] = []
 // time. Opening a row shows the script editor.
 export function ScriptsSection(): JSX.Element {
   const scripts = useProjectStore((state) => state.current?.project.scripts ?? NO_SCRIPTS)
+  const plans = useAssemblyQueueStore((state) => state.plans)
   const [creating, setCreating] = useState(false)
   const [drafting, setDrafting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const approvedIds = scripts.filter((script) => script.approval === 'approved').map((s) => s.id)
+
+  // Queues footage matching for every approved script. Nothing reaches a short until it is reviewed.
+  function assembleApproved() {
+    queueFootageMatching(approvedIds)
+    toast.info({
+      title:
+        approvedIds.length === 1
+          ? 'Queued footage matching for 1 script'
+          : `Queued footage matching for ${approvedIds.length} scripts`,
+      description: 'Review each one in its script before it is applied to a short.'
+    })
+  }
 
   return (
     <section aria-label="Scripts" className={styles.section}>
       <div className={styles.toolbar}>
         <h2 className={styles.heading}>Scripts</h2>
         <div className={styles.actions}>
+          <Button
+            variant="secondary"
+            disabled={approvedIds.length === 0}
+            onClick={assembleApproved}
+          >
+            Assemble approved
+          </Button>
           <Button variant="ai" onClick={() => setDrafting(true)}>
             Draft with AI
           </Button>
@@ -52,6 +76,9 @@ export function ScriptsSection(): JSX.Element {
                   <span className={styles.meta}>
                     {script.approval === 'approved' && (
                       <span className={styles.approved}>Approved · </span>
+                    )}
+                    {assemblyStatusLabel(plans[script.id]) && (
+                      <span>{assemblyStatusLabel(plans[script.id])} · </span>
                     )}
                     {script.lines.length} {script.lines.length === 1 ? 'line' : 'lines'} · {words}{' '}
                     {words === 1 ? 'word' : 'words'} · about {read} read

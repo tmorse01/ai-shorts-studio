@@ -6,6 +6,7 @@ import { isJobFinished, type JobKind, type JobSnapshot } from '@shared/media/job
 import type { MediaKind } from '@shared/project/schema'
 import type { ProbeResult } from '@shared/media/probe'
 import type { AnalysisStage, StageResult } from '@shared/analysis/analysis'
+import type { GeneratedScript, ScriptRunInput } from '@shared/ai/scriptGeneration'
 import { UserFacingError } from '../errors'
 
 export interface JobInput {
@@ -24,6 +25,8 @@ export interface JobInput {
   stage?: AnalysisStage
   /** The file an analysis stage keeps its results in, outside cache/. Set for the vision stage. */
   resultFile?: string
+  /** The script draft request a script job runs. Set for script jobs only. */
+  scriptRequest?: ScriptRunInput
 }
 
 export interface JobContext {
@@ -41,6 +44,7 @@ export interface JobResults {
   proxy: void
   poster: void
   analysis: StageResult
+  script: GeneratedScript[]
 }
 
 export type JobExecutors = {
@@ -55,7 +59,8 @@ export const JOB_PRIORITY: Record<JobKind, number> = {
   filmstrip: 2,
   proxy: 3,
   poster: 1,
-  analysis: 4
+  analysis: 4,
+  script: 4
 }
 
 const JOB_TITLES: Record<JobKind, string> = {
@@ -64,7 +69,8 @@ const JOB_TITLES: Record<JobKind, string> = {
   filmstrip: 'Making the filmstrip',
   proxy: 'Making a proxy file',
   poster: 'Making a poster frame',
-  analysis: 'Analyzing the footage'
+  analysis: 'Analyzing the footage',
+  script: 'Drafting a script'
 }
 
 const DEFAULT_CONCURRENCY = 2
@@ -284,6 +290,7 @@ export function unavailableExecutors(): JobExecutors {
     filmstrip: unavailable('filmstrip'),
     proxy: unavailable('proxy'),
     poster: unavailable('poster'),
-    analysis: unavailable('analysis')
+    analysis: unavailable('analysis'),
+    script: unavailable('script')
   }
 }

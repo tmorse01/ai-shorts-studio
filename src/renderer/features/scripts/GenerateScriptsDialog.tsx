@@ -14,11 +14,9 @@ import { Button } from '@renderer/ui/Button'
 import { Dialog } from '@renderer/ui/Dialog'
 import { Input } from '@renderer/ui/Input'
 import { Switch } from '@renderer/ui/Switch'
-import { applyProjectCommand } from '../shorts/shortActions'
 import { toast } from '../toasts/toast'
 import { useProjectStore } from '../project/useProjectStore'
-import { createScriptsCommand } from './scriptCommands'
-import { draftScripts, estimateScriptDrafts, scriptsFromDrafts } from './scriptDrafts'
+import { estimateScriptDrafts, startScriptBatch } from './scriptDrafts'
 import styles from './GenerateScriptsDialog.module.css'
 
 export interface GenerateScriptsDialogProps {
@@ -100,16 +98,18 @@ function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
     if (estimate) setEstimated({ input, estimate })
   }
 
+  // Starts a persisted batch with one item per script. The batch runs on the job queue, and each
+  // finished draft is added to the Scripts list.
   async function draft() {
     if (!estimated || busy) return
+    const count = estimated.input.request.count
     setBusy(true)
-    const drafts = await draftScripts(window.api, estimated.input)
+    const started = await startScriptBatch(window.api, estimated.input, count)
     setBusy(false)
-    if (!drafts) return
-    applyProjectCommand(createScriptsCommand(scriptsFromDrafts(drafts)))
+    if (!started) return
     toast.ai({
-      title: drafts.length === 1 ? 'Drafted 1 script' : `Drafted ${drafts.length} scripts`,
-      description: 'They are in the Scripts list. Undo removes them.'
+      title: count === 1 ? 'Drafting 1 script' : `Drafting ${count} scripts`,
+      description: 'They appear in the Scripts list when they are ready.'
     })
     onDone()
   }

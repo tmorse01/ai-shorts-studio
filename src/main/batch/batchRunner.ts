@@ -4,6 +4,7 @@
 // No Electron imports here, so it can be tested with a fake queue.
 import { randomUUID } from 'node:crypto'
 import type { AnalysisStage } from '@shared/analysis/analysis'
+import type { GeneratedScript, ScriptRunInput } from '@shared/ai/scriptGeneration'
 import {
   cancelBatchItem,
   createBatch,
@@ -22,10 +23,12 @@ import { JobCancelledError, type JobInput, type JobQueue } from '../jobs/jobQueu
 export type BatchQueue = Pick<JobQueue, 'enqueue' | 'cancel' | 'subscribe' | 'list'>
 
 export interface BatchItemInput {
-  /** The media id. Also the item id in the batch. */
+  /** The media id for an analysis item, or any unique id for a script item. The item id in the batch. */
   id: string
-  /** The file the analysis job reads. */
-  path: string
+  /** The file the analysis job reads. Analysis items only. */
+  path?: string
+  /** The draft request a script item runs. Script items only. */
+  request?: ScriptRunInput
 }
 
 export interface BatchRunnerOptions {
@@ -51,8 +54,10 @@ export interface BatchRunnerOptions {
 interface Run {
   projectFolder: string
   batch: Batch
-  /** Current file path per item, used when an item is retried. */
+  /** Current file path per analysis item, used when an item is retried. */
   paths: Map<string, string>
+  /** The draft request per script item, used when an item is retried. */
+  requests: Map<string, ScriptRunInput>
   /** The queue job each item is running as, while it is queued or running. */
   jobs: Map<string, string>
 }
@@ -66,10 +71,13 @@ export class BatchRunner {
     options.queue.subscribe((job) => this.onJobChanged(job))
   }
 
-  /** Starts a batch. Returns as soon as it is saved and its items are queued. */
+  /**
+   * Starts a batch. Pass a stage for an analysis batch (each item needs a path), or leave it out for a
+   * script batch (each item needs a request). Returns as soon as the batch is saved and queued.
+   */
   async start(input: {
     projectFolder: string
-    stage: AnalysisStage
+    stage?: AnalysisStage
     items: BatchItemInput[]
   }): Promise<Batch> {
     const batch = createBatch({
@@ -81,8 +89,16 @@ export class BatchRunner {
     const run: Run = {
       projectFolder: input.projectFolder,
       batch,
-      paths: new Map(input.items.map((item) => [item.id, item.path])),
+      paths: new Map(
+        input.items.flatMap((item) => (item.path === undefined ? [] : [[item.id, item.path]]))
+      ),
+      requests: new Map(
+        input.items.flatMap((item) => (item.request === undefined ? [] : [[item.id, item.request]]))
+      ),
       jobs: new Map()
+    }
+    if (!batch.items.every((item) => hasInput(run, item.id))) {
+      throw new UserFacingError('Each item in the batch needs its input.')
     }
     this.runs.set(batch.id, run)
     await this.options.save(run.projectFolder, run.batch)
@@ -116,15 +132,21 @@ export class BatchRunner {
   ): Promise<{ retried: string[]; batch: Batch }> {
     const run = await this.loadRun(projectFolder, batchId)
     for (const item of items) {
-      if (findBatchItem(run.batch, item.id)) run.paths.set(item.id, item.path)
+      if (!findBatchItem(run.batch, item.id)) continue
+      if (item.path !== undefined) run.paths.set(item.id, item.path)
+      if (item.request !== undefined) run.requests.set(item.id, item.request)
     }
     const retried = items
       .map((item) => findBatchItem(run.batch, item.id))
       .filter((item): item is BatchItem => item !== undefined && isBatchItemRetryable(item.status))
       .map((item) => item.id)
-    const missingPath = retried.find((id) => !run.paths.get(id))
-    if (missingPath !== undefined) {
-      throw new UserFacingError('Retrying an item needs its current file path.')
+    const missingInput = retried.find((id) => !hasInput(run, id))
+    if (missingInput !== undefined) {
+      throw new UserFacingError(
+        run.batch.kind === 'script'
+          ? 'Retrying an item needs its draft request.'
+          : 'Retrying an item needs its current file path.'
+      )
     }
     if (retried.length === 0) return { retried, batch: run.batch }
     this.commit(run, resetBatchItemsForRetry(run.batch, retried), true)
@@ -133,13 +155,11 @@ export class BatchRunner {
   }
 
   private runItem(run: Run, itemId: string): void {
-    const path = run.paths.get(itemId)
-    if (path === undefined) return
-    const stage = run.batch.stage
-    const job = this.options.queue.enqueue('analysis', path, {
-      stage,
-      ...this.options.jobExtras(run.projectFolder, stage, itemId)
-    })
+    if (!hasInput(run, itemId)) return
+    const job =
+      run.batch.kind === 'script'
+        ? this.enqueueScript(run, itemId)
+        : this.enqueueAnalysis(run, itemId)
     run.jobs.set(itemId, job.id)
     this.linkedItems.set(job.id, { batchId: run.batch.id, itemId })
     const attempts = requireItem(run.batch, itemId).attempts + 1
@@ -158,7 +178,7 @@ export class BatchRunner {
     if (current) this.onJobChanged(current)
 
     job.done.then(
-      () => this.settle(run, itemId, job.id, 'done'),
+      (result: unknown) => this.settle(run, itemId, job.id, 'done', undefined, result),
       (error: unknown) =>
         error instanceof JobCancelledError
           ? this.settle(run, itemId, job.id, 'cancelled')
@@ -166,12 +186,29 @@ export class BatchRunner {
     )
   }
 
+  private enqueueAnalysis(run: Run, itemId: string) {
+    const path = run.paths.get(itemId) ?? ''
+    const stage = run.batch.stage
+    if (stage === undefined) throw new Error('An analysis batch has no stage.')
+    return this.options.queue.enqueue('analysis', path, {
+      stage,
+      ...this.options.jobExtras(run.projectFolder, stage, itemId)
+    })
+  }
+
+  private enqueueScript(run: Run, itemId: string) {
+    const request = run.requests.get(itemId)
+    if (!request) throw new Error('A script item has no request.')
+    return this.options.queue.enqueue('script', run.projectFolder, { scriptRequest: request })
+  }
+
   private settle(
     run: Run,
     itemId: string,
     jobId: string,
     status: 'done' | 'failed' | 'cancelled',
-    error?: unknown
+    error?: unknown,
+    scripts?: unknown
   ): void {
     this.linkedItems.delete(jobId)
     // A job that was replaced by a retry, or already settled, has nothing left to report.
@@ -181,7 +218,16 @@ export class BatchRunner {
     if (!item || isBatchItemSettled(item.status)) return
 
     if (status === 'done') {
-      this.commit(run, updateBatchItem(run.batch, itemId, { status, progress: 1 }), true)
+      const drafts = run.batch.kind === 'script' ? (scripts as GeneratedScript[]) : undefined
+      this.commit(
+        run,
+        updateBatchItem(run.batch, itemId, {
+          status,
+          progress: 1,
+          ...(drafts ? { scripts: drafts } : {})
+        }),
+        true
+      )
     } else if (status === 'failed') {
       this.commit(
         run,
@@ -231,10 +277,21 @@ export class BatchRunner {
     if (held && held.projectFolder === projectFolder) return held
     const batch = await this.options.load(projectFolder, batchId)
     if (!batch) throw new UserFacingError('That batch was not found in this project.')
-    const run: Run = { projectFolder, batch, paths: new Map(), jobs: new Map() }
+    const run: Run = {
+      projectFolder,
+      batch,
+      paths: new Map(),
+      requests: new Map(),
+      jobs: new Map()
+    }
     this.runs.set(batchId, run)
     return run
   }
+}
+
+// Script items run from their request, analysis items from their file path.
+function hasInput(run: Run, itemId: string): boolean {
+  return run.batch.kind === 'script' ? run.requests.has(itemId) : run.paths.has(itemId)
 }
 
 function requireItem(batch: Batch, itemId: string): BatchItem {

@@ -15,6 +15,8 @@ import type { AiService } from '../ai/aiService'
 import { visionStageRunner } from '../ai/visionStage'
 import { transcriptStageRunner } from '../transcription/transcriptStage'
 import { realTranscriptTools } from '../transcription/transcriptTools'
+import { generateScripts } from '../ai/scriptGenerator'
+import { readScriptFootage } from '../ai/scriptFootage'
 
 export function createMediaJobs(ai: AiService): JobQueue {
   const location: BinaryLocation = {
@@ -72,6 +74,10 @@ export function createMediaJobs(ai: AiService): JobQueue {
         )
       )
     ),
+    script: (input) => {
+      if (!input.scriptRequest) throw new UserFacingError('The script job lost its request.')
+      return generateScripts(ai, readScriptFootage, input.scriptRequest)
+    },
     filmstrip: ({ path, outDir, durationSec }, { signal }) => {
       if (!outDir || durationSec === undefined) {
         throw new UserFacingError('The filmstrip job lost its details.')

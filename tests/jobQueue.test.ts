@@ -30,7 +30,8 @@ function manualExecutors() {
     filmstrip: run as JobExecutors['filmstrip'],
     proxy: run as JobExecutors['proxy'],
     poster: run as JobExecutors['poster'],
-    analysis: run as JobExecutors['analysis']
+    analysis: run as JobExecutors['analysis'],
+    script: run as JobExecutors['script']
   }
   return { executors, started }
 }

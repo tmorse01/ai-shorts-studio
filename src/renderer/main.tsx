@@ -9,6 +9,7 @@ import {
 } from '@renderer/features/analysis/analysisSync'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
 import { watchBatches } from '@renderer/features/batch/batchSync'
+import { importScriptDrafts } from '@renderer/features/scripts/importScriptDrafts'
 import { watchSearchIndex } from '@renderer/features/search/searchSync'
 import { refreshAiStatus, watchAi } from '@renderer/features/ai/aiSync'
 import { toast } from '@renderer/features/toasts/toast'
@@ -29,7 +30,7 @@ if (window.api) {
   watchAnalysisRecords(window.api)
   watchPlaybackForAnalysis(window.api, playbackStore)
   // Batches come from main. The open project keeps them current so its saves do not drop them.
-  watchBatches(window.api, projectStore)
+  watchBatches(window.api, projectStore, importScriptDrafts)
   // The footage search index follows the open project and its analysis records.
   watchSearchIndex(window.api)
   // Cloud AI status comes from main. The cap toast fires when main reports the cap was reached.
