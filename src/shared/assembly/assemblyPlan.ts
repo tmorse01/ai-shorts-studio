@@ -42,7 +42,22 @@ export type ApplyAssemblyOptions = {
   newId: () => string
 }
 
-// Applies a plan to one track. Clips from the plan's lines that are not locked are replaced; their
+// The ids of the clips that a plan for these lines replaces on a track: the track's unlocked clips
+// placed for one of the lines, plus their linked audio. Locked clips and clips from other lines are
+// not in the set. Shared by applyAssemblyPlan and the single-line re-assembly (#142).
+export function clipIdsReplacedBy(track: Track, lineIds: ReadonlySet<string>): Set<string> {
+  const replaced = track.clips.filter(
+    (clip) =>
+      clip.assembly !== undefined && lineIds.has(clip.assembly.lineId) && clip.locked !== true
+  )
+  const dropIds = new Set<string>(replaced.map((clip) => clip.id))
+  for (const clip of replaced) {
+    if (clip.linkedAudio) dropIds.add(clip.linkedAudio)
+  }
+  return dropIds
+}
+
+// Applies a plan to one track.Clips from the plan's lines that are not locked are replaced; their
 // linked audio goes with them. Locked clips, and clips from lines the plan does not mention, stay
 // where they are. The new cuts follow the last kept clip on the track, in plan order. Returns a new
 // timeline; the input is not mutated.
@@ -63,14 +78,7 @@ export function applyAssemblyPlan(
   if (!target) throw new TimelineEditError(`No track with id "${options.trackId}".`)
   if (target.locked) throw new TimelineEditError(`Track "${target.id}" is locked.`)
 
-  const replaced = target.clips.filter(
-    (clip) =>
-      clip.assembly !== undefined && lineIds.has(clip.assembly.lineId) && clip.locked !== true
-  )
-  const dropIds = new Set<string>(replaced.map((clip) => clip.id))
-  for (const clip of replaced) {
-    if (clip.linkedAudio) dropIds.add(clip.linkedAudio)
-  }
+  const dropIds = clipIdsReplacedBy(target, lineIds)
 
   const tracks: Track[] = timeline.tracks.map((track) => {
     if (!track.clips.some((clip) => dropIds.has(clip.id))) return track

@@ -6,11 +6,7 @@ import type { LineNarrationState } from '@shared/narration/lineNarration'
 import { lineNarrationLabel } from '@shared/narration/lineNarration'
 import { speechTextSchema } from '@shared/tts/speech'
 import { Button } from '@renderer/ui/Button'
-import { toast } from '../toasts/toast'
-import { projectStore } from '../project/projectStore'
-import { applyProjectCommand } from '../shorts/shortActions'
-import { generateLineNarration } from './lineNarrationActions'
-import { lineSpeechDeps } from './narrationMedia'
+import { generateLineNow } from './generateLineNow'
 import { RecordLineButton } from './RecordLineButton'
 import styles from './NarrationLineRow.module.css'
 
@@ -42,36 +38,18 @@ export function NarrationLineRow({
   else if (voiceId === null) hint = 'Set a default voice to generate this line.'
 
   async function generate() {
-    const folderPath = projectStore.getState().current?.folderPath
-    if (!folderPath || !voiceId) return
+    if (!voiceId) return
     setBusy(true)
-    try {
-      const { command, cached } = await generateLineNarration(lineSpeechDeps, {
-        shortId,
-        scriptId,
-        lineId: line.id,
-        lineText: line.text,
-        projectFolder: folderPath,
-        voiceId,
-        regenerate: hasClip,
-        now: new Date().toISOString(),
-        clipId: crypto.randomUUID(),
-        narrationTrackId: crypto.randomUUID(),
-        mediaId: crypto.randomUUID()
-      })
-      applyProjectCommand(command)
-      toast.success({
-        title: cached ? 'Line narration reused' : 'Line narration made',
-        description: `Line ${state.index + 1}`
-      })
-    } catch (error) {
-      toast.error({
-        title: 'Could not make the narration',
-        description: error instanceof Error ? error.message : 'Try again.'
-      })
-    } finally {
-      setBusy(false)
-    }
+    await generateLineNow({
+      shortId,
+      scriptId,
+      lineId: line.id,
+      lineText: line.text,
+      lineIndex: state.index,
+      voiceId,
+      regenerate: hasClip
+    })
+    setBusy(false)
   }
 
   return (

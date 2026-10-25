@@ -1,4 +1,4 @@
-import { useRef, useState, type JSX } from 'react'
+import { Fragment, useRef, useState, type JSX } from 'react'
 import type { LineRewriteAction } from '@shared/ai/lineRewrite'
 import type { ScriptRunInput } from '@shared/ai/scriptGeneration'
 import type { Script, Short } from '@shared/project/schema'
@@ -25,6 +25,9 @@ import {
 import { draftScripts, estimateScriptDrafts, rewriteLine, scriptsFromDrafts } from './scriptDrafts'
 import { ScriptLineRow } from './ScriptLineRow'
 import { AssemblyReviewDialog } from '../assembly/AssemblyReviewDialog'
+import { ReassembledLineActions } from '../assembly/ReassembledLineActions'
+import { reassembleLine } from '../assembly/reassembleLine'
+import { videoTrackId } from '../assembly/assemblyReview'
 import { estimatedReadSeconds, formatReadTime, scriptWordCount } from './scriptStats'
 import styles from './ScriptEditor.module.css'
 
@@ -78,6 +81,9 @@ function ScriptEditorBody({
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
   const [reviewingFootage, setReviewingFootage] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  // The line being re-assembled on its short (#142), and the line whose optional next steps are showing.
+  const [reassemblingLineId, setReassemblingLineId] = useState<string | null>(null)
+  const [nextStepsLineId, setNextStepsLineId] = useState<string | null>(null)
   const now = () => new Date().toISOString()
   const approved = script.approval === 'approved'
 
@@ -140,6 +146,8 @@ function ScriptEditorBody({
   const readTime = formatReadTime(estimatedReadSeconds(words))
   const attached = shorts.filter((short) => short.scriptId === script.id)
   const available = shorts.filter((short) => short.scriptId !== script.id)
+  // The short that footage is re-assembled on: the first attached short with an unlocked video track (#142).
+  const footageShort = attached.find((short) => videoTrackId(short) !== undefined)
 
   function moveLine(lineId: string, toIndex: number) {
     applyProjectCommand(moveScriptLineCommand(script.id, lineId, toIndex))
@@ -192,6 +200,16 @@ function ScriptEditorBody({
     })
   }
 
+  // Re-assembles one line on the first attached short that has a video track to put footage on (#142).
+  // Only that line's unlocked clips change. The optional next steps show under the line once it is applied.
+  async function reassemble(lineId: string) {
+    if (!footageShort || reassemblingLineId !== null) return
+    setReassemblingLineId(lineId)
+    const outcome = await reassembleLine(footageShort.id, lineId)
+    setReassemblingLineId(null)
+    if (outcome === 'applied') setNextStepsLineId(lineId)
+  }
+
   function newShortFromScript() {
     const shortId = crypto.randomUUID()
     applyProjectCommand(createShortFromScriptCommand(shortId, script.id, now()))
@@ -226,31 +244,46 @@ function ScriptEditorBody({
       ) : (
         <ol className={styles.lines} aria-label="Script lines">
           {script.lines.map((line, index) => (
-            <ScriptLineRow
-              key={line.id}
-              index={index}
-              lineCount={script.lines.length}
-              text={line.text}
-              onChangeText={(text) => {
-                if (suggestion?.lineId === line.id) setSuggestion(null)
-                applyProjectCommand(editScriptLineCommand(script.id, line.id, text))
-              }}
-              onRemove={() => removeLine(line.id)}
-              onMove={(toIndex) => moveLine(line.id, toIndex)}
-              onDragStart={() => {
-                draggedIdRef.current = line.id
-              }}
-              onDropHere={() => dropOn(index)}
-              onRewrite={(action) => void rewrite(line.id, action)}
-              rewriting={rewritingLineId === line.id}
-              suggestion={
-                suggestion?.lineId === line.id
-                  ? { text: suggestion.text, action: suggestion.action }
-                  : null
-              }
-              onAcceptSuggestion={acceptSuggestion}
-              onDiscardSuggestion={() => setSuggestion(null)}
-            />
+            <Fragment key={line.id}>
+              <ScriptLineRow
+                index={index}
+                lineCount={script.lines.length}
+                text={line.text}
+                onChangeText={(text) => {
+                  if (suggestion?.lineId === line.id) setSuggestion(null)
+                  applyProjectCommand(editScriptLineCommand(script.id, line.id, text))
+                }}
+                onRemove={() => removeLine(line.id)}
+                onMove={(toIndex) => moveLine(line.id, toIndex)}
+                onDragStart={() => {
+                  draggedIdRef.current = line.id
+                }}
+                onDropHere={() => dropOn(index)}
+                onRewrite={(action) => void rewrite(line.id, action)}
+                rewriting={rewritingLineId === line.id}
+                suggestion={
+                  suggestion?.lineId === line.id
+                    ? { text: suggestion.text, action: suggestion.action }
+                    : null
+                }
+                onAcceptSuggestion={acceptSuggestion}
+                onDiscardSuggestion={() => setSuggestion(null)}
+                onReassemble={footageShort ? () => void reassemble(line.id) : undefined}
+                reassembling={reassemblingLineId === line.id}
+              />
+              {footageShort && nextStepsLineId === line.id && (
+                <li>
+                  <ReassembledLineActions
+                    shortId={footageShort.id}
+                    scriptId={script.id}
+                    lineId={line.id}
+                    lineText={line.text}
+                    lineIndex={index}
+                    onDismiss={() => setNextStepsLineId(null)}
+                  />
+                </li>
+              )}
+            </Fragment>
           ))}
         </ol>
       )}
