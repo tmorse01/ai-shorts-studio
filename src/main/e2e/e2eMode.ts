@@ -15,6 +15,14 @@ export function isE2eMode(env: NodeJS.ProcessEnv = process.env): boolean {
   return env[E2E_FLAG_ENV] === '1'
 }
 
+/** Set to 0 with AISS_E2E=1 to run without the Claude fake: no saved key, and the real client path. */
+export const E2E_AI_ENV = 'AISS_E2E_AI'
+
+/** True when Claude is the fake (E2E mode, and not switched off with AISS_E2E_AI=0). */
+export function isE2eAiFakes(env: NodeJS.ProcessEnv = process.env): boolean {
+  return isE2eMode(env) && env[E2E_AI_ENV] !== '0'
+}
+
 export interface IsolatedProfile {
   userData: string
   documents: string
