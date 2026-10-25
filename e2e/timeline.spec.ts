@@ -309,8 +309,14 @@ test('edits a short on the timeline, undoes and redoes every step, and survives 
 
   await test.step('framing: drag the crop on the canvas, then blur-fit', async () => {
     const preview = page.locator('section[aria-label="Preview"]')
-    // Select the clip under the playhead, so the framing section and the canvas gizmo use it.
-    await (await clipByStart(0)).click({ position: { x: 30, y: 20 } })
+    // Put the playhead inside clip 1, so the canvas has a frame to crop. Then select that clip, so the
+    // framing section and the canvas gizmo use it.
+    const framed = await clipByStart(0)
+    const framedBox = await box(framed)
+    const ruler = page.getByRole('slider', { name: 'Timeline ruler' })
+    const rulerBox = await box(ruler)
+    await ruler.click({ position: { x: framedBox.x - rulerBox.x + framedBox.width / 2, y: 8 } })
+    await framed.click({ position: { x: 30, y: 20 } })
     const shot0 = await preview.screenshot()
     const pb = await box(preview)
     const from = { x: pb.x + pb.width / 2, y: pb.y + pb.height / 2 }
