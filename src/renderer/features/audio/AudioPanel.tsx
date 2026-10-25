@@ -4,6 +4,7 @@
 import type { JSX, ReactNode } from 'react'
 import { ClipAudioSection } from './ClipAudioSection'
 import { MusicSection } from '../music/MusicSection'
+import { NarrationLinesPanel } from '../narration/NarrationLinesPanel'
 import { RecordNarrationButton } from '../narration/RecordNarrationButton'
 import styles from './AudioPanel.module.css'
 
@@ -23,6 +24,7 @@ export function AudioPanel({ shortId }: AudioPanelProps): JSX.Element {
         ) : (
           <p className={styles.hint}>Open a short to record narration.</p>
         )}
+        {shortId ? <NarrationLinesPanel shortId={shortId} /> : null}
       </Group>
       <Group title="Music">
         <MusicSection />
