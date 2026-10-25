@@ -3,9 +3,10 @@
 import { z } from 'zod'
 import { timelineSchema } from '../timeline/timeline'
 import { captionPresetSchema } from '../captions/captionPreset'
+import { batchSchema } from '../batch/batch'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 16
+export const CURRENT_SCHEMA_VERSION = 17
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -158,6 +159,8 @@ export const projectSchema = z.object({
   shorts: z.array(shortSchema),
   scripts: z.array(scriptSchema),
   // Caption style presets this project offers. Unset means the shipped defaults (schema 14).
-  captionPresets: z.array(captionPresetSchema).optional()
+  captionPresets: z.array(captionPresetSchema).optional(),
+  // Batch analysis runs this project has started. Unset means none (schema 17).
+  batches: z.array(batchSchema).optional()
 })
 export type Project = z.infer<typeof projectSchema>

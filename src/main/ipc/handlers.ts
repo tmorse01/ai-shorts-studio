@@ -1,5 +1,14 @@
 import { readLayoutFile, writeLayoutFile } from '../layoutFile'
-import { createProject, openProject, saveProject } from '../project/projectStorage'
+import {
+  createProject,
+  openProject,
+  readProjectBatch,
+  saveProject,
+  saveProjectBatch
+} from '../project/projectStorage'
+import { BatchRunner } from '../batch/batchRunner'
+import { recoverInterruptedBatch, type Batch } from '@shared/batch/batch'
+import { analysisFramesDir } from '../analysis/frameCache'
 import {
   listRecentProjects,
   locateRecentProject,
@@ -26,7 +35,7 @@ import {
   type AnalysisStorage,
   type AnalysisChange
 } from '../analysis/analysisService'
-import { loadAnalysisFile, saveAnalysisFile } from '../analysis/analysisFile'
+import { loadAnalysisFile, saveAnalysisFile, visionResultPath } from '../analysis/analysisFile'
 import { readMediaTranscript } from '../analysis/transcriptRead'
 import { transcribeMediaItems } from '../captions/transcribeMedia'
 import { readMediaVision } from '../analysis/visionRead'
@@ -89,6 +98,8 @@ export interface IpcHandlerOptions {
   scriptFootage?: ScriptFootageSource
   /** Reads the transcript, shots and descriptions that clip suggestions are based on. Tests pass a fake. */
   suggestionFootage?: SuggestionFootageSource
+  /** Told whenever a batch changes. The app forwards it to the renderer. */
+  onBatchChanged?: (projectFolder: string, batch: Batch) => void
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -106,13 +117,34 @@ export function createIpcHandlers({
     createClient: (apiKey) => createAnthropicClient({ apiKey })
   }),
   scriptFootage = readScriptFootage,
-  suggestionFootage = readSuggestionFootage
+  suggestionFootage = readSuggestionFootage,
+  onBatchChanged
 }: IpcHandlerOptions): IpcHandlers {
   const analysis = new AnalysisService({
     queue: jobs,
     storage: analysisStorage,
     onChange: onAnalysisChanged,
     vision: { availability: () => ai.visionAvailability() }
+  })
+  // Batch runs keep their live state here. Saved batches are read from and written to project.json.
+  const batches = new BatchRunner({
+    queue: jobs,
+    jobExtras: (folder, stage, mediaId) => ({
+      outDir: analysisFramesDir(folder, mediaId),
+      resultFile: stage === 'vision' ? visionResultPath(folder, mediaId) : undefined
+    }),
+    load: async (folder, batchId) => {
+      const batch = await readProjectBatch(folder, batchId)
+      return batch && recoverInterruptedBatch(batch)
+    },
+    save: saveProjectBatch,
+    onChange: onBatchChanged,
+    onSaveError: (error) =>
+      logError({
+        occurredAt: new Date().toISOString(),
+        source: 'main',
+        summary: `Saving a batch failed: ${String(error)}`
+      })
   })
   const actions: SystemActions = {
     pickFolder: system.pickFolder ?? unavailable,
@@ -192,6 +224,13 @@ export function createIpcHandlers({
     'media:probe': ({ path }) => jobs.enqueue('probe', path).done,
     'media:job:list': () => ({ jobs: jobs.list() }),
     'media:job:cancel': ({ jobId }) => ({ cancelled: jobs.cancel(jobId) }),
+    'batch:run': async ({ projectFolder, stage, items }) => ({
+      batch: await batches.start({ projectFolder, stage, items })
+    }),
+    'batch:cancel': async ({ projectFolder, batchId, itemId }) =>
+      batches.cancel(projectFolder, batchId, itemId),
+    'batch:retry': async ({ projectFolder, batchId, items }) =>
+      batches.retry(projectFolder, batchId, items),
     'media:pick': async () => ({ paths: await actions.pickMediaFiles() }),
     'media:stat': ({ paths }) => statMediaFiles(paths),
     'media:thumbs': ({ projectFolder, items }) => ensureMediaThumbs(projectFolder, items, jobs),

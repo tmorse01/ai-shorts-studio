@@ -70,6 +70,8 @@ void app.whenReady().then(async () => {
       jobs,
       ai,
       onAnalysisChanged: (change) => emitIpcEvent('analysis:changed', change),
+      onBatchChanged: (projectFolder, batch) =>
+        emitIpcEvent('batch:changed', { projectFolder, batch }),
       mediaSources,
       system: {
         pickFolder: async () => {
