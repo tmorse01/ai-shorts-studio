@@ -140,6 +140,7 @@ export function TimelineClip({
   return (
     <div
       role="button"
+      data-testid="timeline-clip"
       tabIndex={0}
       aria-pressed={selected}
       aria-label={`${label}${offline ? ', offline' : ''}${locked ? ', locked' : ''}${clipLocked ? ', clip locked' : ''}`}
