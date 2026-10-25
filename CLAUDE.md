@@ -108,6 +108,7 @@ sections 2 (colour), 3 (type) and 10 (implementation) before styling anything.
   (_planned: task #20_). No hard-coded hex, rgb or hsl values in components or other stylesheets.
 - Use CSS Modules. No global class names outside the tokens and base stylesheets.
 - Icons are Lucide icons. No other icon sets and no inline SVG icons.
+- Panes never scroll horizontally: truncate long text with an ellipsis and a tooltip instead.
 - Text and surface pairs must meet WCAG AA contrast. A contrast test covers the token pairs.
 - Avoid stock-looking dashboards: no extra cards, no unnecessary borders, no large empty panels.
   Editing space comes first.

@@ -3,14 +3,47 @@
   flex-direction: column;
   gap: var(--space-2);
   height: 100%;
+  min-width: 0;
   min-height: 0;
   padding: var(--space-2);
+  overflow-x: hidden;
 }
 
+/* The toolbar never clips. When it is narrow, the view, analyse and re-analyse controls move into the
+   overflow menu. The container query reads this row's width. */
 .toolbar {
+  container-type: inline-size;
+  container-name: mediaToolbar;
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
+}
+
+.inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.overflow {
+  display: none;
+}
+
+.spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+@container mediaToolbar (max-width: 400px) {
+  .inline {
+    display: none;
+  }
+
+  .overflow {
+    display: inline-flex;
+  }
 }
 
 .header {
@@ -29,17 +62,27 @@
   padding: 0;
 }
 
+/* Every tile is --media-tile-w wide. The grid scrolls down only. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--media-tile-w), 1fr));
+  align-content: start;
   gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
 .list {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -117,11 +160,20 @@
   cursor: pointer;
 }
 
+/* The selection bar stays on one line. Its tag chips truncate rather than wrap. */
 .tagBar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tagBar .chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tagBarLabel {

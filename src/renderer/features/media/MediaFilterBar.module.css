@@ -2,18 +2,72 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .search {
   flex: 1;
   min-width: 0;
+}
+
+.filterButton {
+  flex: none;
+  gap: var(--space-1);
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--type-small-size);
+  line-height: 1;
+}
+
+/* The filter popover. It sits above the grid, so it can be as tall as its groups need. */
+.popover {
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.groupLabel {
+  color: var(--color-text-2);
+  font-size: var(--type-small-size);
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .duration {
@@ -36,4 +90,38 @@
 .on {
   border-color: var(--color-focus);
   color: var(--color-text);
+}
+
+/* Active filters on one line. Chips shrink and truncate instead of wrapping. */
+.chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chip {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  background: none;
+  border: var(--border-width) solid var(--color-focus);
+  border-radius: 999px;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  cursor: pointer;
+}
+
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
