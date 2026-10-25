@@ -1,10 +1,12 @@
 // The export job (Epic 17, #152): builds the FFmpeg command for one short from its render graph and the
 // export settings, runs it, and moves the file into place only when FFmpeg finishes. Every tool and file
 // operation is passed in, so tests run it with a fake runner and never encode a frame.
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { fallbackEncoder } from '@shared/export/encoderFallback'
 import { exportProgressFromLine } from '@shared/export/renderQueue'
 import { buildRenderGraph, type RenderGraph } from '@shared/render/renderGraph'
+import { buildOverlaySubtitles } from '@shared/render/overlaySubtitles'
 import type { ProbeResult } from '@shared/media/probe'
 import type { Timeline } from '@shared/timeline/timeline'
 import { UserFacingError } from '../errors'
@@ -47,6 +49,10 @@ export interface ExportDeps {
   commit?: (partial: string, final: string) => Promise<void>
   discard?: (partial: string) => Promise<void>
   makeFolder?: (folder: string) => Promise<void>
+  /** Writes the ASS script for the text overlays and captions. */
+  writeText?: (path: string, text: string) => Promise<void>
+  /** Called when a hardware encoder failed and the job is retried with the named encoder. */
+  onEncoderFallback?: (encoder: string) => void
 }
 
 /** The FFmpeg arguments that encode the graph into an MP4 at `outPath`. Pure. */
@@ -56,7 +62,9 @@ export function exportArgs(
   options: Pick<ExportJobInput, 'encoder' | 'videoKbps' | 'audioKbps' | 'outPath'>
 ): string[] {
   const args = ['-hide_banner', '-v', 'error', '-nostats', '-progress', 'pipe:1', '-y']
-  for (const path of inputPaths) args.push('-i', path)
+  inputPaths.forEach((path, index) => {
+    args.push(...(graph.inputOptions[index] ?? []), '-i', path)
+  })
   args.push('-filter_complex', graph.filterComplex)
   if (graph.videoLabel) args.push('-map', graph.videoLabel)
   if (graph.audioLabel) args.push('-map', graph.audioLabel)
@@ -84,10 +92,15 @@ export async function runExportJob(
     )
     sounds.set(item.id, probed.audio.length > 0)
   }
+  const sizeOf = (id: string) => sizes.get(id) ?? null
+  // Text overlays and captions are burnt in from an ASS script next to the output, removed after the job.
+  const subtitles = buildOverlaySubtitles(input.timeline, { fps: input.fps, sizeOf })
+  const subtitlesPath = subtitles ? `${input.outPath}.subs.ass` : undefined
   const graph = buildRenderGraph(input.timeline, {
     fps: input.fps,
-    sizeOf: (id) => sizes.get(id) ?? null,
-    hasAudio: (id) => sounds.get(id) ?? false
+    sizeOf,
+    hasAudio: (id) => sounds.get(id) ?? false,
+    subtitlesPath
   })
   if (!graph.videoLabel) {
     throw new UserFacingError('This short has nothing to export.')
@@ -103,27 +116,46 @@ export async function runExportJob(
     deps.makeFolder ?? ((folder) => mkdir(folder, { recursive: true }).then(() => undefined))
   const commit = deps.commit ?? ((from, to) => rename(from, to))
   const discard = deps.discard ?? ((file) => rm(file, { force: true }))
+  const writeText = deps.writeText ?? ((file, text) => writeFile(file, text, 'utf8'))
   await makeFolder(dirname(input.outPath))
   try {
-    let pending = ''
-    await deps.run(
-      deps.ffmpeg,
-      exportArgs(graph, inputPaths, { ...input, outPath: partial }),
-      deps.signal,
-      (chunk) => {
-        // Progress lines can split across chunks, so only whole lines are read.
-        const lines = (pending + chunk).split('\n')
-        pending = lines.pop() ?? ''
-        for (const line of lines) {
-          const fraction = exportProgressFromLine(line, graph.durationMs)
-          if (fraction !== undefined) deps.onProgress?.(fraction)
-        }
+    if (subtitles && subtitlesPath) await writeText(subtitlesPath, subtitles)
+    // A hardware encoder that fails is retried once with x264 (see encoderFallback.ts). Anything else ends the job.
+    let encoder = input.encoder
+    for (;;) {
+      let pending = ''
+      try {
+        await deps.run(
+          deps.ffmpeg,
+          exportArgs(graph, inputPaths, { ...input, encoder, outPath: partial }),
+          deps.signal,
+          (chunk) => {
+            // Progress lines can split across chunks, so only whole lines are read.
+            const lines = (pending + chunk).split('\n')
+            pending = lines.pop() ?? ''
+            for (const line of lines) {
+              const fraction = exportProgressFromLine(line, graph.durationMs)
+              if (fraction !== undefined) deps.onProgress?.(fraction)
+            }
+          }
+        )
+        break
+      } catch (error) {
+        const next = fallbackEncoder(encoder, {
+          cancelled: deps.signal?.aborted === true,
+          details: error instanceof UserFacingError ? error.details : undefined
+        })
+        if (!next) throw error
+        encoder = next
+        deps.onEncoderFallback?.(next)
       }
-    )
+    }
     await commit(partial, input.outPath)
   } catch (error) {
     await discard(partial)
     throw error
+  } finally {
+    if (subtitlesPath) await discard(subtitlesPath)
   }
   return { outPath: input.outPath }
 }

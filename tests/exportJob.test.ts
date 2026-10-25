@@ -76,6 +76,7 @@ describe('exportArgs', () => {
   const graph: RenderGraph = {
     filterComplex: '[0:v]null[vout]',
     inputs: ['cam-a'],
+    inputOptions: [[]],
     videoLabel: '[vout]',
     audioLabel: '[aout]',
     durationMs: 4000
