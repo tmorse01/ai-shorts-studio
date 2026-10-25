@@ -92,6 +92,8 @@ void app.whenReady().then(async () => {
       onAnalysisChanged: (change) => emitIpcEvent('analysis:changed', change),
       onBatchChanged: (projectFolder, batch) =>
         emitIpcEvent('batch:changed', { projectFolder, batch }),
+      onRenderQueueChanged: (jobs) => emitIpcEvent('export:queue:changed', { jobs }),
+      onShortExported: (event) => emitIpcEvent('export:shortExported', event),
       mediaSources,
       system: {
         pickFolder: async () => {

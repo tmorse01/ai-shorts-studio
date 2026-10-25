@@ -65,7 +65,8 @@ describe('JobQueue hold', () => {
         proxy: async () => undefined,
         poster: async () => undefined,
         analysis: () => new Promise<never>(() => undefined),
-        script: async () => []
+        script: async () => [],
+        export: async () => ({ outPath: 'clip.mp4' })
       } as JobExecutors,
       2
     )

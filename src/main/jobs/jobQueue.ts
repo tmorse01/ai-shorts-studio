@@ -8,6 +8,7 @@ import type { ProbeResult } from '@shared/media/probe'
 import type { AnalysisStage, StageResult } from '@shared/analysis/analysis'
 import type { GeneratedScript, ScriptRunInput } from '@shared/ai/scriptGeneration'
 import { UserFacingError } from '../errors'
+import type { ExportJobInput } from '../export/exportJob'
 
 export interface JobInput {
   path: string
@@ -27,6 +28,8 @@ export interface JobInput {
   resultFile?: string
   /** The script draft request a script job runs. Set for script jobs only. */
   scriptRequest?: ScriptRunInput
+  /** What an export job renders: the short, its footage and the encoder settings. Set for export jobs. */
+  export?: ExportJobInput
 }
 
 export interface JobContext {
@@ -45,6 +48,8 @@ export interface JobResults {
   poster: void
   analysis: StageResult
   script: GeneratedScript[]
+  /** The file the export wrote, after it was renamed into place. */
+  export: { outPath: string }
 }
 
 export type JobExecutors = {
@@ -60,7 +65,9 @@ export const JOB_PRIORITY: Record<JobKind, number> = {
   proxy: 3,
   poster: 1,
   analysis: 4,
-  script: 4
+  script: 4,
+  // Exports are user-started and long. They run after probing and thumbnails, ahead of analysis.
+  export: 3
 }
 
 const JOB_TITLES: Record<JobKind, string> = {
@@ -70,7 +77,8 @@ const JOB_TITLES: Record<JobKind, string> = {
   proxy: 'Making a proxy file',
   poster: 'Making a poster frame',
   analysis: 'Analyzing the footage',
-  script: 'Drafting a script'
+  script: 'Drafting a script',
+  export: 'Exporting the short'
 }
 
 const DEFAULT_CONCURRENCY = 2
@@ -291,6 +299,7 @@ export function unavailableExecutors(): JobExecutors {
     proxy: unavailable('proxy'),
     poster: unavailable('poster'),
     analysis: unavailable('analysis'),
-    script: unavailable('script')
+    script: unavailable('script'),
+    export: unavailable('export')
   }
 }

@@ -1,6 +1,9 @@
 import { readLayoutFile, writeLayoutFile } from '../layoutFile'
 import { readExportSettingsFile, writeExportSettingsFile } from '../export/exportSettingsFile'
+import { RenderQueueService, type ShortExportedEvent } from '../export/renderQueue'
 import type { EncoderInfo, ExportSettings } from '@shared/export/exportSettings'
+import type { RenderJob } from '@shared/export/renderQueue'
+import { access } from 'node:fs/promises'
 import {
   createProject,
   openProject,
@@ -108,6 +111,10 @@ export interface IpcHandlerOptions {
   suggestionFootage?: SuggestionFootageSource
   /** Told whenever a batch changes. The app forwards it to the renderer. */
   onBatchChanged?: (projectFolder: string, batch: Batch) => void
+  /** Told whenever an export in the render queue changes. The app forwards it to the renderer. */
+  onRenderQueueChanged?: (jobs: RenderJob[]) => void
+  /** Told when an export finished and its short is recorded as Exported. */
+  onShortExported?: (event: ShortExportedEvent) => void
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -128,7 +135,9 @@ export function createIpcHandlers({
   }),
   scriptFootage = readScriptFootage,
   suggestionFootage = readSuggestionFootage,
-  onBatchChanged
+  onBatchChanged,
+  onRenderQueueChanged,
+  onShortExported
 }: IpcHandlerOptions): IpcHandlers {
   const analysis = new AnalysisService({
     queue: jobs,
@@ -168,6 +177,27 @@ export function createIpcHandlers({
   const pendingPosters = new Set<string>()
   // Export settings when no file is given (tests): kept for the life of the handlers.
   let memoryExportSettings: ExportSettings | null = null
+  // Exports run on the media job queue. The render queue lists them and records each finished short.
+  const renders = new RenderQueueService({
+    queue: jobs,
+    readProject: async (folderPath) => (await openProject(folderPath)).project,
+    writeProject: saveProject,
+    readSettings: () =>
+      exportSettingsFile
+        ? readExportSettingsFile(exportSettingsFile)
+        : Promise.resolve(memoryExportSettings),
+    encoder: exportEncoder,
+    fileExists: (file) =>
+      access(file).then(
+        () => true,
+        () => false
+      ),
+    reveal: (path) => actions.revealFolder(path),
+    onChange: onRenderQueueChanged,
+    onExported: onShortExported,
+    onError: (summary) =>
+      logError({ occurredAt: new Date().toISOString(), source: 'main', summary })
+  })
 
   return {
     'app:echo': ({ text }) => ({ text, length: text.length }),
@@ -239,6 +269,15 @@ export function createIpcHandlers({
       if (exportSettingsFile) await writeExportSettingsFile(exportSettingsFile, settings)
       else memoryExportSettings = settings
       return { saved: true }
+    },
+    'export:queue:list': () => ({ jobs: renders.list() }),
+    'export:start': async ({ projectFolder, shortIds }) => ({
+      jobs: await renders.start(projectFolder, shortIds)
+    }),
+    'export:cancel': ({ jobId }) => ({ cancelled: renders.cancel(jobId) }),
+    'export:reveal': ({ jobId }) => {
+      renders.reveal(jobId)
+      return { revealed: true }
     },
     'ui:layout:load': async () => ({ layout: await readLayoutFile(layoutFile) }),
     'ui:layout:save': async ({ layout }) => {
