@@ -146,6 +146,19 @@
   opacity: 0.9;
 }
 
+/* The lock badge on a locked clip: a clip pinned against assembly re-runs. */
+.lockBadge {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: flex;
+  padding: var(--space-1);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  color: var(--color-text);
+  pointer-events: none;
+}
+
 .label {
   position: absolute;
   left: var(--space-1);
