@@ -128,6 +128,14 @@ traces to the user.
 - Before opening a PR, run `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build`. CI runs
   the same checks on Windows.
 
+### End-to-end tests
+
+- `pnpm e2e` builds, then runs `e2e/*.spec.ts` against the built app (Playwright `_electron`).
+- Every test gets a fresh profile through `AISS_USER_DATA`. Use the fixture in `e2e/test.ts`.
+- `AISS_E2E=1` fakes Claude, ElevenLabs and Parakeet and takes file picks from the test. FFmpeg is real.
+- Fixtures are generated into `e2e/.fixtures/` (gitignored), never committed.
+- Target controls with `data-testid="area-thing"`, and only where a spec needs one.
+
 ## Adding a pane or feature
 
 1. Check `DESIGN.md` for the area and the components it needs. Reuse primitives from

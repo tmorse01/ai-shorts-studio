@@ -75,14 +75,18 @@ export function DashboardGallery(): JSX.Element {
   const visible = projects !== null && !showAll ? projects.slice(0, RECENT_LIMIT) : (projects ?? [])
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} data-testid="dashboard-page">
       <section className={styles.hero} aria-labelledby="dashboard-heading">
         <p className={styles.tagline}>Footage in · Shorts out · Kept on your machine</p>
         <h1 id="dashboard-heading" className={styles.heading}>
           Projects
         </h1>
         <div className={styles.actions}>
-          <Button variant="primary" onClick={() => setCreating(true)}>
+          <Button
+            variant="primary"
+            data-testid="dashboard-new-project"
+            onClick={() => setCreating(true)}
+          >
             Create project
           </Button>
           <Button variant="secondary" onClick={() => void openFolder()}>
