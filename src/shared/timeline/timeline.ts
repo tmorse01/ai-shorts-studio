@@ -90,7 +90,7 @@ export const trackSchema = z.object({
 })
 export type Track = z.infer<typeof trackSchema>
 
-export const transitionKindSchema = z.enum(['crossfade', 'dip-to-black'])
+export const transitionKindSchema = z.enum(['crossfade', 'dip-to-black', 'whip', 'zoom'])
 export type TransitionKind = z.infer<typeof transitionKindSchema>
 
 // A transition on the cut between two adjacent clips on the same track. It is centred on the cut and

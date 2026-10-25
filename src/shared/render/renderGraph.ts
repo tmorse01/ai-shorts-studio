@@ -27,7 +27,7 @@ import {
   transitionRoles,
   type TransitionRole
 } from '../timeline/resolveFrame'
-import { isCut } from '../timeline/transitions'
+import { isCut, transitionMotion, type MotionRange } from '../timeline/transitions'
 import type { Clip, Timeline, Track, Transform } from '../timeline/timeline'
 
 export const DEFAULT_RENDER_FPS = 30
@@ -95,6 +95,9 @@ function sec(ms: number): string {
 interface PanPlacement {
   width: string
   height: string
+  // The centre of the picture, as expressions of t, before the overlay takes off half its size.
+  centreX: string
+  centreY: string
   position: string
 }
 
@@ -126,14 +129,66 @@ export function panPlacement(clip: Clip, source: SourceSize | null): PanPlacemen
   // The crop centre sits off the source centre by x (or y) times the room it has, scaled to the canvas.
   const centreX = `${num(CANVAS_WIDTH / 2 + transform.x)}-${x}*${num(CANVAS_WIDTH)}*(${num(source.width)}*${scale}-${num(cover.width)})/(2*${num(cover.width)})`
   const centreY = `${num(CANVAS_HEIGHT / 2 + transform.y)}-${y}*${num(CANVAS_WIDTH)}*(${num(source.height)}*${scale}-${num(cover.height)})/(2*${num(cover.width)})`
-  return { width, height, position: `x='round(${centreX})-w/2':y='round(${centreY})-h/2'` }
+  return {
+    width,
+    height,
+    centreX,
+    centreY,
+    position: `x='round(${centreX})-w/2':y='round(${centreY})-h/2'`
+  }
 }
 
-function placementFilters(placement: Placement, pan: PanPlacement | null = null): string[] {
+// The per-frame scale and horizontal offset of a transition's motion, as expressions of t (seconds).
+// Outside every window both are neutral: scale 1 and offset 0. Null when no clip role moves.
+interface MotionExpressions {
+  scale: string
+  offsetX: string
+}
+
+// Builds the motion expressions from the transition roles of one clip. Each role's window gives the
+// same linear ranges transitionMotion gives the preview, so a frame moves the same way in both.
+export function motionExpressions(roles: readonly TransitionRole[]): MotionExpressions | null {
+  let scale: string | null = null
+  let offsetX: string | null = null
+  for (const role of roles) {
+    const motion = transitionMotion(role.kind, role.role === 'out' ? 'outgoing' : 'incoming')
+    if (!motion) continue
+    const { startMs, endMs } = role.window
+    const progress = `clip((t-${sec(startMs)})/${sec(endMs - startMs)},0,1)`
+    const linear = (range: MotionRange): string =>
+      `(${num(range.from)}+(${num(range.to - range.from)})*${progress})`
+    const inWindow = `gte(t,${sec(startMs)})*lt(t,${sec(endMs)})`
+    if (motion.scale) scale = `if(${inWindow},${linear(motion.scale)},${scale ?? '1'})`
+    if (motion.offsetX) offsetX = `if(${inWindow},${linear(motion.offsetX)},${offsetX ?? '0'})`
+  }
+  if (scale === null && offsetX === null) return null
+  return { scale: scale ?? '1', offsetX: offsetX ?? '0' }
+}
+
+// The overlay position of a picture whose centre is given as expressions. Its scale and offset move it the
+// way applyTransitionMotion does: scaled about the canvas centre, then shifted by offsetX of the canvas width.
+function motionPosition(centreX: string, centreY: string, motion: MotionExpressions): string {
+  const halfWidth = num(CANVAS_WIDTH / 2)
+  const halfHeight = num(CANVAS_HEIGHT / 2)
+  const x = `round(${halfWidth}+((${centreX})-${halfWidth})*(${motion.scale})+(${motion.offsetX})*${num(CANVAS_WIDTH)})-w/2`
+  const y = `round(${halfHeight}+((${centreY})-${halfHeight})*(${motion.scale}))-h/2`
+  return `x='${x}':y='${y}'`
+}
+
+function placementFilters(
+  placement: Placement,
+  pan: PanPlacement | null = null,
+  scale: string | null = null
+): string[] {
   const width = Math.max(1, Math.round(placement.width))
   const height = Math.max(1, Math.round(placement.height))
+  // With a moving scale the size is an expression of t: the pan's size, or the placement's, times the scale.
+  const sized = (base: string, factor: string | null): string =>
+    factor ? `round((${base})*(${factor}))` : base
   const filters = [
-    pan ? `scale=w='${pan.width}':h='${pan.height}':eval=frame` : `scale=${width}:${height}`
+    pan || scale
+      ? `scale=w='${sized(pan?.width ?? num(width), scale)}':h='${sized(pan?.height ?? num(height), scale)}':eval=frame`
+      : `scale=${width}:${height}`
   ]
   if (placement.rotationDeg !== 0) {
     const radians = num((placement.rotationDeg * Math.PI) / 180)
@@ -164,7 +219,8 @@ function transitionRamps(roles: readonly TransitionRole[]): Ramp[] {
         ramps.push({ direction: 'in', startMs: midMs, durationMs: endMs - midMs, video: true })
       }
     } else if (role.role === 'in') {
-      ramps.push({ direction: 'in', startMs, durationMs: length, video: true })
+      // A whip keeps the incoming picture opaque and moves it, so only its sound fades.
+      ramps.push({ direction: 'in', startMs, durationMs: length, video: role.kind !== 'whip' })
     } else {
       ramps.push({ direction: 'out', startMs, durationMs: length, video: false })
     }
@@ -226,7 +282,8 @@ function videoLayerChain(
   layer: FrameLayer,
   input: string,
   out: string,
-  pan: PanPlacement | null
+  pan: PanPlacement | null,
+  motion: MotionExpressions | null
 ): { parts: string[]; out: string } {
   const srcStartMs = item.clip.sourceInMs - (item.clip.startMs - item.startMs)
   const trim = `trim=start=${sec(srcStartMs)}:duration=${sec(item.endMs - item.startMs)},setpts=PTS-STARTPTS+${sec(item.startMs)}/TB,format=rgba`
@@ -237,7 +294,11 @@ function videoLayerChain(
     )
   const render: LayerRender = layer.render
   if (render.mode === 'direct') {
-    const filters = [trim, ...placementFilters(layer.placement, pan), ...fades]
+    const filters = [
+      trim,
+      ...placementFilters(layer.placement, pan, motion?.scale ?? null),
+      ...fades
+    ]
     return { parts: [`${input}${filters.join(',')}[${out}]`], out }
   }
   const fg = `${out}fg`
@@ -250,12 +311,20 @@ function videoLayerChain(
     `crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT}`
   ]
   const foreground = placementFilters(render.foreground)
+  // A moving blurFit layer scales its whole composite about the canvas centre, as applyTransitionMotion does.
+  const moved = motion
+    ? [
+        `[${out}pre]scale=w='round(${num(CANVAS_WIDTH)}*(${motion.scale}))':h='round(${num(CANVAS_HEIGHT)}*(${motion.scale}))':eval=frame[${out}mv]`
+      ]
+    : []
+  const composite = motion ? `${out}mv` : `${out}pre`
   const parts = [
     `${input}${trim},split=2[${fg}src][${bgTaps}]`,
     `[${bgTaps}]${background.join(',')}[${bg}]`,
     `[${fg}src]${foreground.join(',')}[${fg}]`,
     `[${bg}][${fg}]overlay=${overlayPosition(render.foreground)}[${out}pre]`,
-    `[${out}pre]${fades.join(',') || 'null'}[${out}]`
+    ...moved,
+    `[${composite}]${fades.join(',') || 'null'}[${out}]`
   ]
   return { parts, out }
 }
@@ -266,7 +335,10 @@ function layerFor(
   item: Item,
   sizeOf: (mediaId: string) => SourceSize | null
 ): FrameLayer {
-  const layer = describeFrame(timeline, item.clip.startMs, sizeOf).layers.find(
+  // The layer's static placement, without transitions: their motion is an expression of t in the graph
+  // (see motionExpressions), so reading it here would count it twice for a clip that starts inside a window.
+  const withoutTransitions: Timeline = { ...timeline, transitions: [] }
+  const layer = describeFrame(withoutTransitions, item.clip.startMs, sizeOf).layers.find(
     (candidate) => candidate.clipId === item.clip.id
   )
   if (!layer) throw new Error(`Clip ${item.clip.id} is not on the frame at its start`)
@@ -409,12 +481,21 @@ export function buildRenderGraph(
       item.track.kind === 'video' && layer.render.mode === 'direct'
         ? panPlacement(item.clip, source)
         : null
-    const chain = videoLayerChain(item, layer, videoTaps.take(item.input), layerOut, pan)
+    const motion = motionExpressions(item.roles)
+    const chain = videoLayerChain(item, layer, videoTaps.take(item.input), layerOut, pan, motion)
     parts.push(...chain.parts)
     const position =
       layer.render.mode === 'direct'
-        ? (pan?.position ?? overlayPosition(layer.placement))
-        : 'x=0:y=0'
+        ? motion
+          ? motionPosition(
+              pan?.centreX ?? num(layer.placement.centerX),
+              pan?.centreY ?? num(layer.placement.centerY),
+              motion
+            )
+          : (pan?.position ?? overlayPosition(layer.placement))
+        : motion
+          ? motionPosition(num(CANVAS_WIDTH / 2), num(CANVAS_HEIGHT / 2), motion)
+          : 'x=0:y=0'
     const next = `vc${index}`
     parts.push(
       `[${current}][${chain.out}]overlay=${position}:eof_action=pass:enable='between(t,${sec(item.startMs)},${sec(item.endMs)})'[${next}]`

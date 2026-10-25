@@ -9,6 +9,7 @@ import {
   type FramingPose
 } from '../timeline/framing'
 import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
+import type { TransitionFade } from '../timeline/transitions'
 import { IDENTITY_TRANSFORM, type Timeline, type Transform } from '../timeline/timeline'
 import type { TextItem } from '../text/textItem'
 import { describeText, type TextRender } from '../text/textRender'
@@ -165,6 +166,27 @@ export function placeTransform(transform: Transform, source: SourceSize | null):
   }
 }
 
+// A placement moved by a transition's motion (whip, zoom). The picture scales about the canvas centre and
+// then shifts by offsetX of the canvas width. Without motion the placement is returned as it is. Export
+// applies the same maths per frame (see renderGraph.ts), so both draw the same place.
+export function applyTransitionMotion(
+  placement: Placement,
+  fade: TransitionFade | undefined
+): Placement {
+  if (!fade || (fade.scale === undefined && fade.offsetX === undefined)) return placement
+  const scale = fade.scale ?? 1
+  return {
+    centerX:
+      CANVAS_WIDTH / 2 +
+      (placement.centerX - CANVAS_WIDTH / 2) * scale +
+      (fade.offsetX ?? 0) * CANVAS_WIDTH,
+    centerY: CANVAS_HEIGHT / 2 + (placement.centerY - CANVAS_HEIGHT / 2) * scale,
+    width: placement.width * scale,
+    height: placement.height * scale,
+    rotationDeg: placement.rotationDeg
+  }
+}
+
 // The background for a blurFit layer: the source scaled to cover the canvas, centred and unrotated.
 // It is padded by `marginPx` on every side, so the blur does not fade out at the canvas edge. A source
 // of unknown size fills the padded area.
@@ -271,17 +293,24 @@ export function describeFrame(
     const image = describeLayerImage(layer, source)
     // A text overlay sits where its item says, and its box is the text block. Off its clip, or with no
     // words, it has no box: a zero-size placement at its anchor, so it cannot be picked by accident.
-    const placement = layer.textItem
+    const placed = layer.textItem
       ? textPlacement(layer.textItem, text)
       : image
         ? image.placement
         : framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
           ? placeFramed(layer.transform, framing, source)
           : placeTransform(layer.transform, source)
+    // A transition's motion moves a picture, never a text box (its text is placed by its own item).
+    const moving = layer.textItem ? undefined : layer.fade
+    const placement = applyTransitionMotion(placed, moving)
+    let render = describeLayerRender(placement, framing, source)
+    if (render.mode === 'blurFit') {
+      render = { ...render, background: applyTransitionMotion(render.background, moving) }
+    }
     const description: FrameLayer = {
       ...layer,
       placement,
-      render: describeLayerRender(placement, framing, source),
+      render,
       ...(source && source.width > 0 && source.height > 0 ? { source } : {})
     }
     if (text) description.text = text
