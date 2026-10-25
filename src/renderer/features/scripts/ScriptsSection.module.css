@@ -86,11 +86,6 @@
   font-variant-numeric: lining-nums;
 }
 
-.footer {
-  display: flex;
-  justify-content: flex-start;
-}
-
 .approved {
   color: var(--color-success);
   font-weight: 600;

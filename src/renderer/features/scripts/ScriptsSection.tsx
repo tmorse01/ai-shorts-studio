@@ -4,7 +4,7 @@ import { Button } from '@renderer/ui/Button'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { useProjectStore } from '../project/useProjectStore'
 import { assemblyStatusLabel } from '../assembly/assemblyQueue'
-import { startAssemblyBatch, useAssemblyQueueStore } from '../assembly/assemblyQueueStore'
+import { useAssemblyQueueStore } from '../assembly/assemblyQueueStore'
 import { GenerateScriptsDialog } from './GenerateScriptsDialog'
 import { NewScriptDialog } from './NewScriptDialog'
 import { ScriptEditor } from './ScriptEditor'
@@ -22,13 +22,6 @@ export function ScriptsSection(): JSX.Element {
   const [creating, setCreating] = useState(false)
   const [drafting, setDrafting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const approvedIds = scripts.filter((script) => script.approval === 'approved').map((s) => s.id)
-
-  // Starts one batch that matches footage for every approved script. Nothing reaches a short until its plan
-  // is reviewed and applied in the script's review panel.
-  function assembleApproved() {
-    void startAssemblyBatch(approvedIds, false)
-  }
 
   return (
     <section aria-label="Scripts" className={styles.section}>
@@ -75,16 +68,6 @@ export function ScriptsSection(): JSX.Element {
             )
           })}
         </ul>
-      )}
-
-      {approvedIds.length > 0 && (
-        <div className={styles.footer}>
-          <Button variant="ghost" size="sm" onClick={assembleApproved}>
-            {approvedIds.length === 1
-              ? 'Assemble 1 approved script'
-              : `Assemble ${approvedIds.length} approved scripts`}
-          </Button>
-        </div>
       )}
 
       <NewScriptDialog open={creating} onOpenChange={setCreating} onCreated={setEditingId} />
