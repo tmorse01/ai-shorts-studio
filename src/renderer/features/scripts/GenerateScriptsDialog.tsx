@@ -16,6 +16,7 @@ import { Input } from '@renderer/ui/Input'
 import { Switch } from '@renderer/ui/Switch'
 import { toast } from '../toasts/toast'
 import { useProjectStore } from '../project/useProjectStore'
+import { startAssemblyBatch } from '../assembly/assemblyQueueStore'
 import { estimateScriptDrafts, startScriptBatch } from './scriptDrafts'
 import styles from './GenerateScriptsDialog.module.css'
 
@@ -47,6 +48,9 @@ interface Estimated {
 
 function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
   const current = useProjectStore((state) => state.current)
+  const approvedIds = (current?.project.scripts ?? [])
+    .filter((script) => script.approval === 'approved')
+    .map((script) => script.id)
   const [topic, setTopic] = useState('')
   const [count, setCount] = useState('3')
   const [seconds, setSeconds] = useState('')
@@ -96,6 +100,14 @@ function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
     const estimate = await estimateScriptDrafts(window.api, input)
     setBusy(false)
     if (estimate) setEstimated({ input, estimate })
+  }
+
+  // Starts one assembly batch for every approved script, then closes the dialog. Nothing reaches a
+  // short until its plan is reviewed and applied in the script's review panel.
+  function assembleApproved() {
+    if (approvedIds.length === 0) return
+    void startAssemblyBatch(approvedIds, false)
+    onDone()
   }
 
   // Starts a persisted batch with one item per script. The batch runs on the job queue, and each
@@ -221,8 +233,17 @@ function GenerateForm({ onDone }: { onDone: () => void }): JSX.Element {
         <Button variant="ghost" onClick={onDone} disabled={busy}>
           Cancel
         </Button>
-        <Button type="submit" variant="primary" loading={busy} disabled={!current}>
+        <Button type="submit" variant="secondary" loading={busy} disabled={!current}>
           Review cost
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          disabled={approvedIds.length === 0 || busy}
+          title={approvedIds.length === 0 ? 'Approve a script first' : undefined}
+          onClick={assembleApproved}
+        >
+          Assemble approved
         </Button>
       </div>
     </form>

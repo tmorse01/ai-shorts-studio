@@ -178,12 +178,16 @@ export function ShortsGrid(): JSX.Element | null {
     <section aria-label="Shorts" className={styles.section}>
       <div className={styles.toolbar}>
         <div className={styles.filters}>
-          <Select
-            aria-label="Sort shorts"
-            options={SORT_OPTIONS}
-            value={sortMode}
-            onValueChange={(value) => setSortMode(value as SortMode)}
-          />
+          <h2 className={styles.heading}>Shorts</h2>
+          <label className={styles.sortLabel}>
+            Sort:
+            <Select
+              aria-label="Sort shorts"
+              options={SORT_OPTIONS}
+              value={sortMode}
+              onValueChange={(value) => setSortMode(value as SortMode)}
+            />
+          </label>
           {STATUS_FILTERS.map((filter) => {
             const pressed = statuses.includes(filter.value)
             return (

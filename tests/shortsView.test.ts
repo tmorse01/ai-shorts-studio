@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Short } from '@shared/project/schema'
-import { filterShorts, sortShorts } from '@renderer/features/shorts/shortsView'
+import { filterShorts, isShortEmpty, sortShorts } from '@renderer/features/shorts/shortsView'
 
 function short(id: string, patch: Partial<Short>): Short {
   return {
@@ -62,5 +62,24 @@ describe('filterShorts', () => {
 
   it('keeps shorts with any of the chosen statuses', () => {
     expect(ids(filterShorts(shorts, ['draft', 'exported']))).toEqual(['a', 'b'])
+  })
+})
+
+describe('isShortEmpty', () => {
+  it('is true when no track has a clip', () => {
+    expect(isShortEmpty(short('a', { timeline: { tracks: [] } }))).toBe(true)
+  })
+
+  it('is false as soon as any track has a clip', () => {
+    const clip = { id: 'c1' } as unknown as Short['timeline']['tracks'][number]['clips'][number]
+    const withClip = short('a', {
+      timeline: {
+        tracks: [
+          { id: 't1', kind: 'video', role: 'main', muted: false, clips: [] },
+          { id: 't2', kind: 'audio', role: 'overlay', muted: false, clips: [clip] }
+        ]
+      }
+    })
+    expect(isShortEmpty(withClip)).toBe(false)
   })
 })

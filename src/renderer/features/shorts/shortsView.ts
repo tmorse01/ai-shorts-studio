@@ -64,3 +64,8 @@ export function canRegenerateBatchDraft(short: Short, scripts: readonly Script[]
     scripts.some((script) => script.id === short.scriptId)
   )
 }
+
+/** A short with no clip on any track. Its card shows the empty frame instead of a poster. */
+export function isShortEmpty(short: Short): boolean {
+  return short.timeline.tracks.every((track) => track.clips.length === 0)
+}
