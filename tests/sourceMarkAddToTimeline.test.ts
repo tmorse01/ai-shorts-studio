@@ -3,9 +3,11 @@ import type { MediaRef } from '@shared/project/schema'
 import { markedRange } from '@shared/media/sourceMarks'
 import { momentPayload, rangePayload } from '@shared/timeline/dragPayload'
 import type { Timeline } from '@shared/timeline/timeline'
+import { buildRenderGraph } from '@shared/render/renderGraph'
+import { resolveFrame } from '@shared/timeline/resolveFrame'
 import { appendFootageToMain } from '@renderer/features/clipFinder/clipFinderTimeline'
 import { playbackStore } from '@renderer/features/playback/playbackStore'
-import { sourceStore } from '@renderer/features/source/sourceStore'
+import { setEditorPlaybackDuration, sourceStore } from '@renderer/features/source/sourceStore'
 
 const identity = { x: 0, y: 0, scale: 1, rotationDeg: 0 }
 
@@ -54,7 +56,7 @@ function markInAndOut(): void {
   // The source viewer reads the file's length when it loads.
   playbackStore.getState().setDurationMs(30_000)
   // The editor's timeline writes its own length while the source is open.
-  playbackStore.getState().setDurationMs(3_000)
+  setEditorPlaybackDuration(3_000)
   playbackStore.getState().seek(5_000)
   sourceStore.getState().markInAtPlayhead()
   playbackStore.getState().seek(8_000)
@@ -112,5 +114,40 @@ describe('adding a marked In to Out range to the timeline', () => {
       durationMs: 3000,
       momentId: 'moment-1'
     })
+  })
+})
+
+describe('the marked range in preview and export', () => {
+  it('the first frame of the clip is the frame at In in the source viewer', () => {
+    markInAndOut()
+    const range = markedRange(sourceStore.getState())
+    const timeline = appendFootageToMain(
+      shortTimeline(),
+      media,
+      rangePayload('clip', range?.startMs ?? -1, range?.endMs ?? -1),
+      'new'
+    )
+    const clip = firstClip(timeline)
+    const [layer] = resolveFrame(timeline, clip.startMs)
+    expect(layer).toMatchObject({ clipId: 'new', mediaId: 'clip', sourceTimeMs: 5000 })
+  })
+
+  it('export trims the clip from In and keeps its 3 s length', () => {
+    markInAndOut()
+    const range = markedRange(sourceStore.getState())
+    const timeline = appendFootageToMain(
+      shortTimeline(),
+      media,
+      rangePayload('clip', range?.startMs ?? -1, range?.endMs ?? -1),
+      'new'
+    )
+    const clip = firstClip(timeline)
+    const graph = buildRenderGraph(timeline)
+    // The export trims each video and sound clip from its source In, for its length on the timeline.
+    const start = clip.startMs
+    expect(graph.filterComplex).toContain(
+      `trim=start=5:duration=3,setpts=PTS-STARTPTS+${start / 1000}/TB`
+    )
+    expect(graph.filterComplex).toContain('atrim=start=5:duration=3')
   })
 })

@@ -35,6 +35,15 @@ export interface SourceActions {
 
 export type SourceStore = SourceState & SourceActions
 
+// The editor's timeline length is the playback length only while a short is on screen. A source clip
+// sets its own length when its file loads, and the In and Out marks are checked against that length.
+// Without this guard, a timeline write during source view (for example a clip added to the short)
+// clamps the marks to the timeline's length, so the marked range is lost or starts at 0.
+export function setEditorPlaybackDuration(durationMs: number): void {
+  if (sourceStore.getState().mode !== 'short') return
+  playbackStore.getState().setDurationMs(durationMs)
+}
+
 export const sourceStore = createStore<SourceStore>()((set, get) => {
   // Marks only apply while a source is on screen.
   const canMark = () => get().mode === 'source' && get().sourceId !== null
