@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
 import { encoderInfoSchema, exportSettingsSchema } from './export/exportSettings'
+import { renderJobSchema } from './export/renderQueue'
 import { mediaKindSchema, pathKindSchema, projectSchema } from './project/schema'
 import { posterFrameRefSchema } from './shorts/poster'
 import { recentProjectSchema } from './project/recentProjects'
@@ -92,6 +93,9 @@ const relinkResultSchema = z.object({
   // File names of offline media the searched folder did not contain.
   unmatchedFileNames: z.array(z.string())
 })
+
+// Most shorts one export request can start. Keeps a single request from queuing a whole project by accident.
+const MAX_EXPORT_SHORTS = 100
 
 export const ipcChannels = {
   'app:echo': {
@@ -194,6 +198,32 @@ export const ipcChannels = {
   'export:settings:save': {
     input: z.object({ settings: exportSettingsSchema }),
     output: z.object({ saved: z.literal(true) })
+  },
+  // The render queue: exports of shorts, run on the media job queue. Main reads each short from the
+  // project on disk, so the renderer saves its pending edits before it asks.
+  'export:queue:list': {
+    input: z.object({}),
+    output: z.object({ jobs: z.array(renderJobSchema) })
+  },
+  'export:start': {
+    input: z
+      .object({
+        projectFolder: z.string().trim().min(1),
+        shortIds: z.array(z.string().min(1)).min(1).max(MAX_EXPORT_SHORTS)
+      })
+      .refine((input) => new Set(input.shortIds).size === input.shortIds.length, {
+        message: 'A short can be in an export only once.'
+      }),
+    output: z.object({ jobs: z.array(renderJobSchema) })
+  },
+  'export:cancel': {
+    input: z.object({ jobId: z.string().min(1) }),
+    output: z.object({ cancelled: z.boolean() })
+  },
+  // Opens Explorer on the export's file once it is finished, or on its folder before that.
+  'export:reveal': {
+    input: z.object({ jobId: z.string().min(1) }),
+    output: z.object({ revealed: z.literal(true) })
   },
   // Reads a media file's streams with ffprobe. Runs as a probe job, ahead of other media jobs.
   'media:probe': {
@@ -544,7 +574,17 @@ export const ipcEvents = {
     payload: z.object({ projectFolder: z.string().min(1), file: analysisFileSchema })
   },
   // Sent whenever the AI settings, key state or monthly usage change.
-  'ai:changed': { payload: z.object({ status: aiStatusSchema }) }
+  'ai:changed': { payload: z.object({ status: aiStatusSchema }) },
+  // Sent whenever an export in the render queue changes status or progress.
+  'export:queue:changed': { payload: z.object({ jobs: z.array(renderJobSchema) }) },
+  // Sent when an export finished and its short is recorded as Exported in the project on disk.
+  'export:shortExported': {
+    payload: z.object({
+      projectFolder: z.string().min(1),
+      shortId: z.string().min(1),
+      exportedAt: z.string().min(1)
+    })
+  }
 } satisfies Record<string, { payload: z.ZodType }>
 
 export type IpcEventName = keyof typeof ipcEvents

@@ -38,6 +38,9 @@ export interface ProjectActions {
   // Keeps a batch that main changed in the open project's copy, so a later autosave does not write
   // the old batch back. Does not schedule a save: main has already written the batch.
   applyBatch: (folderPath: string, batch: Batch) => void
+  // Marks a short Exported in the open copy, after main wrote it to disk (Epic 17, #152). Schedules a save,
+  // so the copy here and the file agree from then on.
+  applyShortExported: (folderPath: string, shortId: string, exportedAt: string) => void
 }
 
 export type ProjectStore = ProjectState & ProjectActions
@@ -87,6 +90,18 @@ export function createProjectStore(saveOpened: (opened: OpenProject) => Promise<
     },
 
     flush: () => autosaver.flush(),
+
+    applyShortExported: (folderPath, shortId, exportedAt) => {
+      const { current } = get()
+      if (!current || current.folderPath !== folderPath) return
+      get().edit((draft) => {
+        const short = draft.shorts.find((item) => item.id === shortId)
+        if (!short) return
+        short.status = 'exported'
+        short.exportedAt = exportedAt
+        short.editedSinceExport = false
+      })
+    },
 
     applyBatch: (folderPath, batch) => {
       const { current } = get()

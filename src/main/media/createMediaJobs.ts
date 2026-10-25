@@ -7,6 +7,8 @@ import { resolveBinary, type BinaryLocation } from './binaries'
 import { probeMedia } from './probeMedia'
 import { makeFilmstrip, makeThumb } from './thumbnails'
 import { makeProxy } from './proxies'
+import { runTool } from './runTool'
+import { runExportJob } from '../export/exportJob'
 import { makePosterFrame } from './posters'
 import { UserFacingError } from '../errors'
 import { analysisExecutor, liveStageRunners } from '../analysis/stageRunners'
@@ -72,6 +74,18 @@ export function createMediaJobs(ai: AiService): JobQueue {
         )
       )
     ),
+    // Renders a short to its MP4. The encode runs in FFmpeg, and the render queue records the result.
+    export: ({ export: request }, { signal, reportProgress }) => {
+      if (!request) throw new UserFacingError('The export job lost its details.')
+      return runExportJob(request, {
+        ffmpeg: resolveBinary('ffmpeg', location),
+        probe: (path, probeSignal) =>
+          probeMedia(path, { ffprobe: resolveBinary('ffprobe', location), signal: probeSignal }),
+        run: runTool,
+        signal,
+        onProgress: reportProgress
+      })
+    },
     filmstrip: ({ path, outDir, durationSec }, { signal }) => {
       if (!outDir || durationSec === undefined) {
         throw new UserFacingError('The filmstrip job lost its details.')

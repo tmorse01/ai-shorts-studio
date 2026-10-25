@@ -24,9 +24,12 @@ import { editorHistory } from '../history/editorHistory'
 import { pickFolder } from '../dashboard/projectActions'
 import { playbackStore } from '../playback/playbackStore'
 import { useProjectStore } from '../project/useProjectStore'
+import { projectStore } from '../project/projectStore'
 import { useShortPosters } from '../shorts/useShortPosters'
 import { toast } from '../toasts/toast'
 import { exportStore } from './exportStore'
+import { ExportQueuePanel } from './ExportQueuePanel'
+import { renderQueueStore } from './renderQueueStore'
 import styles from './ExportPanel.module.css'
 
 const NO_SHORTS: Short[] = []
@@ -70,6 +73,14 @@ export function ExportPanel(): JSX.Element {
   const durationMs = timelineDurationMs(short.timeline)
   const estimate = estimateExport(durationMs, preset, encoder?.hardware ?? false)
   const poster = posters[short.id]
+  const readyIds = shorts.filter((item) => item.status === 'ready').map((item) => item.id)
+
+  // Saves pending edits first, so the export renders the timeline the user sees.
+  async function exportShorts(shortIds: string[]): Promise<void> {
+    if (!folderPath || shortIds.length === 0) return
+    await projectStore.getState().flush()
+    await renderQueueStore.getState().start(folderPath, shortIds)
+  }
 
   async function chooseFolder(): Promise<void> {
     const picked = await pickFolder()
@@ -171,10 +182,23 @@ export function ExportPanel(): JSX.Element {
         </p>
       )}
 
-      <Button variant="primary" className={styles.exportButton} disabled>
+      <Button
+        variant="primary"
+        className={styles.exportButton}
+        disabled={!encoder}
+        onClick={() => void exportShorts([short.id])}
+      >
         Export video
       </Button>
-      <p className={styles.hint}>Rendering is not connected yet.</p>
+      <Button
+        variant="secondary"
+        className={styles.exportButton}
+        disabled={!encoder || readyIds.length === 0}
+        onClick={() => void exportShorts(readyIds)}
+      >
+        Export all Ready ({readyIds.length})
+      </Button>
+      <ExportQueuePanel />
     </div>
   )
 }
