@@ -49,13 +49,14 @@ function readSavedProject(folder: string): { media: SavedMedia[]; mediaTags: { n
   return JSON.parse(readFileSync(join(folder, 'project.json'), 'utf8'))
 }
 
-// Thumbnails and filmstrips are cache files. Each one existing means its job reached ready. Proxies
-// are not checked here: the app makes none for 1080p H.264 footage, which the tutorial does not say.
+// Thumbnails and filmstrips are cache files. Each one existing means its job reached ready. A video
+// gets poster.jpg and filmstrip.jpg, a still gets thumb.jpg. Proxies are not checked here: the app
+// makes none for 1080p H.264 footage, which the tutorial does not say (bug #291).
 function mediaReady(folder: string, media: SavedMedia[]): boolean {
   return media.every((ref) => {
     const thumbs = join(folder, 'cache', 'thumbs', ref.id)
-    if (!existsSync(join(thumbs, 'thumb.jpg'))) return false
-    return ref.kind !== 'video' || existsSync(join(thumbs, 'filmstrip.jpg'))
+    if (ref.kind !== 'video') return existsSync(join(thumbs, 'thumb.jpg'))
+    return existsSync(join(thumbs, 'poster.jpg')) && existsSync(join(thumbs, 'filmstrip.jpg'))
   })
 }
 
@@ -82,7 +83,8 @@ async function waitForJobsIdle(page: Page): Promise<void> {
 // Opens a project from the dashboard by its name, the way a user clicks its card.
 async function openFromDashboard(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId('dashboard-page')).toBeVisible()
-  await page.getByText(name, { exact: true }).first().click()
+  // The card's button. The same name also appears as a sidebar link, which is not the card.
+  await page.getByRole('button', { name: new RegExp(`^${name}`) }).click()
   await expect(page.getByTestId('project-home')).toBeVisible()
 }
 
@@ -144,7 +146,7 @@ test('imports two clips and a PNG by button and by drop, and thumbnails, filmstr
         const media = readSavedProject(folder).media
         return media.length === 3 && mediaReady(folder, media)
       },
-      { timeout: READY_TIMEOUT, message: 'thumbnails, filmstrips and proxies are not ready' }
+      { timeout: READY_TIMEOUT, message: 'thumbnails or filmstrips are not ready' }
     )
     .toBe(true)
 })
