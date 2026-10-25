@@ -258,8 +258,8 @@ test('edits a short on the timeline, undoes and redoes every step, and survives 
     // pixels wide at this zoom and a clip edge covers it, so the press is sent to it directly.
     await transition.dispatchEvent('pointerdown', { button: 0, bubbles: true })
     await page.getByRole('button', { name: 'Transitions' }).click()
-    await page.getByLabel('Transition duration').fill('0:00.20')
-    await page.getByLabel('Transition duration').press('Enter')
+    await page.getByLabel('Transition duration').first().fill('0:00.20')
+    await page.getByLabel('Transition duration').first().press('Enter')
     await recordEdit()
     expect(parseSaved(latest()).transitions?.[0]?.durationMs).toBe(200)
   })
