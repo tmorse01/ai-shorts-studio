@@ -9,6 +9,7 @@ import { TranscriptSection } from '@renderer/features/transcript/TranscriptSecti
 import { FramingSection } from '@renderer/features/framing/FramingSection'
 import { TransitionSection } from '@renderer/features/transition/TransitionSection'
 import { TextSection } from '@renderer/features/text/TextSection'
+import { CaptionStyleSection } from '@renderer/features/captions/CaptionStyleSection'
 import { SELECTION_TYPES, type InspectorSectionDef } from './inspectorModel'
 
 export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
@@ -68,6 +69,15 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     order: 10,
     selections: ['text-clip'],
     Component: TextSection
+  },
+  {
+    // The short's caption style: preset picker, and the fields of the preset it uses (Epic 11, #121).
+    id: 'caption-style',
+    title: 'Captions',
+    tab: 'video',
+    order: 30,
+    selections: ['short'],
+    Component: CaptionStyleSection
   },
   {
     id: 'transition',

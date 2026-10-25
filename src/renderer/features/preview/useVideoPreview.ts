@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useStore } from 'zustand'
 import type { Timeline } from '@shared/timeline/timeline'
+import type { CaptionOptions } from '@shared/captions/captionLayout'
 import { usePlaybackStore } from '../playback/usePlaybackStore'
 import { NO_DROPPED_FRAMES, type DroppedFrameState } from '../compositor/droppedFrames'
 import { mediaSourceStore } from './mediaSourceStore'
@@ -18,7 +19,8 @@ export interface VideoPreviewState {
 
 export function useVideoPreview(
   canvasRef: RefObject<HTMLCanvasElement>,
-  timeline: Timeline
+  timeline: Timeline,
+  captionOptions?: CaptionOptions
 ): VideoPreviewState {
   const playheadMs = usePlaybackStore((state) => state.playheadMs)
   const playing = usePlaybackStore((state) => state.playing)
@@ -40,9 +42,17 @@ export function useVideoPreview(
     const renderer = rendererRef.current
     if (!canvas || !renderer) return
     setOffline(
-      renderer.show({ canvas, timeline, playheadMs, playing, useOriginals, sources }).offline
+      renderer.show({
+        canvas,
+        timeline,
+        playheadMs,
+        playing,
+        useOriginals,
+        sources,
+        captionOptions
+      }).offline
     )
-  }, [timeline, playheadMs, playing, useOriginals, sources, canvasRef])
+  }, [timeline, playheadMs, playing, useOriginals, sources, canvasRef, captionOptions])
 
   // Stop the shown elements when the preview unmounts.
   useEffect(

@@ -6,7 +6,7 @@ import type { Timeline } from '../timeline/timeline'
 import type { SafeZoneInsets } from '../preview/previewView'
 import { TEXT_FONT_STACKS, TEXT_PALETTE } from '../text/textStyles'
 import type { CaptionBlock } from './captionBlock'
-import { resolveCaptionPreset, type CaptionPreset } from './captionPreset'
+import { captionAnchorOf, resolveCaptionPreset, type CaptionPreset } from './captionPreset'
 import { blockSpanMs, highlightIndex, isBlockActive, popInScale } from './captionTiming'
 
 // Where a caption sits when nothing else pulls it: 72% down the frame, the lower third.
@@ -85,9 +85,10 @@ export function wrapWordIndexes(lengths: readonly number[], maxChars: number): n
 export function captionCenterY(
   canvasHeight: number,
   boxHeight: number,
-  insets: SafeZoneInsets | null
+  insets: SafeZoneInsets | null,
+  anchorFraction: number = CAPTION_ANCHOR_Y
 ): number {
-  const anchor = canvasHeight * CAPTION_ANCHOR_Y
+  const anchor = canvasHeight * anchorFraction
   if (!insets) return anchor
   const top = canvasHeight * insets.top
   const bottom = canvasHeight * (1 - insets.bottom)
@@ -133,7 +134,12 @@ export function describeCaptionBlock(
       ? { color: TEXT_PALETTE[preset.stroke.color], widthPx: preset.stroke.widthPx }
       : null,
     centerX: canvas.width / 2,
-    centerY: captionCenterY(canvas.height, lineHeightPx * lines.length, insets),
+    centerY: captionCenterY(
+      canvas.height,
+      lineHeightPx * lines.length,
+      insets,
+      captionAnchorOf(preset)
+    ),
     scale: preset.popIn ? popInScale(tMs - startMs) : 1
   }
 }
