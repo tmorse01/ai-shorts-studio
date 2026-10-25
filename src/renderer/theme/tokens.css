@@ -97,6 +97,14 @@
   --titlebar-h: 32px;
   --titlebar-controls-w: 138px;
 
+  /* Media grid (task 03.12): every tile is this wide, so the grid never scrolls sideways. */
+  --media-tile-w: 148px;
+
+  /* Scrollbars: thin and drawn from the palette, never the browser's white track. */
+  --scrollbar-thumb: var(--color-subtle-border);
+  --scrollbar-thumb-hover: var(--color-muted-moss);
+  --scrollbar-track: transparent;
+
   /* Shape and elevation */
   --radius: 4px;
   --border-width: 1px;

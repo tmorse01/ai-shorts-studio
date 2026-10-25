@@ -1,7 +1,7 @@
-// The Media tool panel: the project's footage as a grid of cards or a sortable list, with search,
-// filters and tags. Selection, sort, view and filter live in mediaPanelStore; the footage and its tags
-// live in projectStore. Tag edits run as project commands, so they can be undone.
-import { useState, type JSX, type MouseEvent } from 'react'
+// The Media tool panel: the project's footage as a grid of fixed-size tiles or a sortable list, with
+// search, filters and tags. Selection, sort, view and filter live in mediaPanelStore; the footage and its
+// tags live in projectStore. Tag edits run as project commands, so they can be undone.
+import { useState, type DragEvent, type JSX, type MouseEvent } from 'react'
 import { useStore } from 'zustand'
 import {
   ChevronDown,
@@ -10,13 +10,18 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   List,
+  MoreHorizontal,
   Music,
   Settings2,
-  Trash2
+  Trash2,
+  Upload
 } from 'lucide-react'
 import type { MediaRef } from '@shared/project/schema'
+import { clipPayload, DRAG_MIME, encodeDragPayload } from '@shared/timeline/dragPayload'
+import { mediaUsageIndex, shortCountForMedia, usedInLabel } from '@shared/timeline/mediaUsage'
 import { Button } from '@renderer/ui/Button'
 import { Dialog } from '@renderer/ui/Dialog'
+import { DropdownMenu } from '@renderer/ui/DropdownMenu'
 import { IconButton } from '@renderer/ui/IconButton'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { applyProjectCommand } from '../shorts/shortActions'
@@ -24,15 +29,15 @@ import { analysisStore } from '../analysis/analysisStore'
 import { reanalyzeMedia, setAnalyzeAutomatically } from '../analysis/analysisSync'
 import { analysisErrorText, analysisStatusLabel } from '../analysis/analysisStatus'
 import { projectStore } from '../project/projectStore'
-import { pickAndImportMedia } from './importMedia'
-import { MediaFilterBar } from './MediaFilterBar'
-import { MediaTagsDialog } from './MediaTagsDialog'
-import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
 import { sourceStore } from '../source/sourceStore'
 import { MomentRows } from '../moments/MomentRows'
 import { momentsOfMedia } from '../moments/momentView'
-import { clipPayload, DRAG_MIME, encodeDragPayload } from '@shared/timeline/dragPayload'
-import { mediaUsageIndex, shortCountForMedia, usedInLabel } from '@shared/timeline/mediaUsage'
+import { pickAndImportMedia } from './importMedia'
+import { LoadedMediaTile } from './MediaTile'
+import { tileStatus } from './mediaTileModel'
+import { MediaFilterBar } from './MediaFilterBar'
+import { MediaTagsDialog } from './MediaTagsDialog'
+import { mediaPanelStore, type MediaViewMode } from './mediaPanelStore'
 import { allMediaTags, setMediaTagCommand, tagCoverage, tagsOfMedia } from './mediaTags'
 import {
   EMPTY_MEDIA_FILTER,
@@ -84,6 +89,7 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
     )
   }
 
+  const folderPath = current.folderPath
   const activeView: MediaViewMode = view ?? 'grid'
   const tags = allMediaTags(current.project)
   // Which shorts use each file, from their timelines. The card badges and drag payloads read this.
@@ -123,20 +129,54 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
     applyProjectCommand(setMediaTagCommand(selectedIds, tagId, coverage !== 'all'))
   }
 
-  const renderTags = (ref: MediaRef) => {
-    const chips = tagsOfMedia(ref, current.project)
-    if (chips.length === 0) return null
+  const toggleMoments = (id: string) =>
+    setOpenMomentIds((ids) => (ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]))
+
+  // The shared click and drag behaviour of a clip, for the grid tile and the list row.
+  const itemProps = (ref: MediaRef) => ({
+    // Only footage with a known length drags as a clip. Stills have none.
+    draggable: ref.durationMs !== undefined,
+    onClick: (event: MouseEvent<HTMLButtonElement>) => onItemClick(ref.id, event),
+    onDragStart: (event: DragEvent<HTMLButtonElement>) => {
+      if (ref.durationMs === undefined) return
+      event.dataTransfer.setData(DRAG_MIME, encodeDragPayload(clipPayload(ref.id, ref.durationMs)))
+      event.dataTransfer.effectAllowed = 'copy'
+    }
+  })
+
+  // One grid tile: a fixed-size card with its thumbnail, name, status, badges and moments.
+  const renderTile = (ref: MediaRef) => {
+    const record = analysisFile?.records[ref.id]
+    const status = tileStatus(record)
+    const moments = momentsOfMedia(current.project.moments, ref.id)
+    const showMoments = moments.length > 0 && openMomentIds.includes(ref.id)
     return (
-      <span className={styles.chips}>
-        {chips.map((tag) => (
-          <span key={tag.id} className={styles.chip}>
-            {tag.name}
-          </span>
-        ))}
-      </span>
+      <LoadedMediaTile
+        key={ref.id}
+        folderPath={folderPath}
+        mediaId={ref.id}
+        kind={ref.kind}
+        fileName={ref.fileName}
+        durationMs={ref.durationMs}
+        tagNames={tagsOfMedia(ref, current.project).map((tag) => tag.name)}
+        selected={selectedIds.includes(ref.id)}
+        status={status}
+        shortCount={shortCountForMedia(usage, ref.id)}
+        momentCount={moments.length}
+        momentsOpen={showMoments}
+        onToggleMoments={() => toggleMoments(ref.id)}
+        onRetry={
+          status.kind === 'failed'
+            ? () => void reanalyzeMedia(window.api, folderPath, ref)
+            : undefined
+        }
+        itemProps={itemProps(ref)}
+        momentRows={showMoments ? <MomentRows moments={moments} project={current.project} /> : null}
+      />
     )
   }
 
+  // One list row: the compact view of the same file, with the file's details on one line each.
   const renderRow = (ref: MediaRef) => {
     const Icon = KIND_ICON[ref.kind]
     const isSelected = selectedIds.includes(ref.id)
@@ -144,38 +184,31 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
     const errorText = record ? analysisErrorText(record) : undefined
     const moments = momentsOfMedia(current.project.moments, ref.id)
     const showMoments = moments.length > 0 && openMomentIds.includes(ref.id)
-    const toggleMoments = () =>
-      setOpenMomentIds((ids) =>
-        ids.includes(ref.id) ? ids.filter((id) => id !== ref.id) : [...ids, ref.id]
-      )
+    const chips = tagsOfMedia(ref, current.project)
     return (
       <div key={ref.id} className={styles.cell} data-expanded={showMoments ? 'true' : undefined}>
         <button
           type="button"
           aria-pressed={isSelected}
           className={`${styles.item} ${isSelected ? styles.selected : ''}`}
-          // Only footage with a known length drags as a clip. Stills have none.
-          draggable={ref.durationMs !== undefined}
           title="Drag onto the timeline"
-          onClick={(event) => onItemClick(ref.id, event)}
-          onDragStart={(event) => {
-            if (ref.durationMs === undefined) return
-            event.dataTransfer.setData(
-              DRAG_MIME,
-              encodeDragPayload(clipPayload(ref.id, ref.durationMs))
-            )
-            event.dataTransfer.effectAllowed = 'copy'
-          }}
+          {...itemProps(ref)}
         >
           <span className={styles.kind}>
             <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
           </span>
           <span className={styles.name}>{ref.fileName}</span>
-          {renderTags(ref)}
-          <span className={styles.meta}>{formatDuration(ref.durationMs)}</span>
-          {activeView === 'list' ? (
-            <span className={styles.meta}>{formatBytes(ref.sizeBytes)}</span>
+          {chips.length > 0 ? (
+            <span className={styles.chips}>
+              {chips.map((tag) => (
+                <span key={tag.id} className={styles.chip}>
+                  {tag.name}
+                </span>
+              ))}
+            </span>
           ) : null}
+          <span className={styles.meta}>{formatDuration(ref.durationMs)}</span>
+          <span className={styles.meta}>{formatBytes(ref.sizeBytes)}</span>
           {ref.useProxy ? <span className={styles.badge}>Proxy</span> : null}
           {shortCountForMedia(usage, ref.id) > 0 ? (
             <span className={styles.usage}>{usedInLabel(shortCountForMedia(usage, ref.id))}</span>
@@ -194,7 +227,7 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
             type="button"
             className={styles.momentToggle}
             aria-expanded={showMoments}
-            onClick={toggleMoments}
+            onClick={() => toggleMoments(ref.id)}
           >
             {showMoments ? (
               <ChevronDown size={12} strokeWidth={1.75} aria-hidden="true" />
@@ -225,48 +258,59 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
     </button>
   )
 
+  const toggleView = () =>
+    mediaPanelStore.getState().setView(folderPath, activeView === 'grid' ? 'list' : 'grid')
+  const toggleAutoAnalyze = () =>
+    void setAnalyzeAutomatically(window.api, folderPath, !autoAnalyze, current.project.media)
+  const reanalyzeSelected = () =>
+    selectedRef && void reanalyzeMedia(window.api, folderPath, selectedRef)
+
   return (
     <div className={styles.panel}>
       <div className={styles.toolbar}>
-        <IconButton
-          icon={activeView === 'grid' ? List : LayoutGrid}
-          label={activeView === 'grid' ? 'Show as list' : 'Show as grid'}
-          onClick={() =>
-            mediaPanelStore
-              .getState()
-              .setView(current.folderPath, activeView === 'grid' ? 'list' : 'grid')
-          }
-        />
         {showImport ? (
-          <Button variant="ghost" size="sm" onClick={() => void pickAndImportMedia()}>
+          <Button variant="primary" size="sm" onClick={() => void pickAndImportMedia()}>
+            <Upload size={14} strokeWidth={1.75} aria-hidden="true" />
             Import
           </Button>
         ) : null}
-        <label className={styles.autoToggle}>
-          <input
-            type="checkbox"
-            checked={autoAnalyze}
-            onChange={(event) =>
-              void setAnalyzeAutomatically(
-                window.api,
-                current.folderPath,
-                event.target.checked,
-                current.project.media
-              )
-            }
+        <div className={styles.inline}>
+          <IconButton
+            icon={activeView === 'grid' ? List : LayoutGrid}
+            label={activeView === 'grid' ? 'Show as list' : 'Show as grid'}
+            onClick={toggleView}
           />
-          Analyze automatically
-        </label>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={!selectedRef}
-          onClick={() =>
-            selectedRef && void reanalyzeMedia(window.api, current.folderPath, selectedRef)
-          }
-        >
-          Re-analyze
-        </Button>
+          <label className={styles.autoToggle}>
+            <input type="checkbox" checked={autoAnalyze} onChange={toggleAutoAnalyze} />
+            Analyze automatically
+          </label>
+          <Button variant="ghost" size="sm" disabled={!selectedRef} onClick={reanalyzeSelected}>
+            Re-analyze
+          </Button>
+        </div>
+        {/* Shown instead of the three controls above when the toolbar is narrow (see the CSS). */}
+        <div className={styles.overflow}>
+          <DropdownMenu
+            trigger={<IconButton icon={MoreHorizontal} label="More media actions" />}
+            items={[
+              {
+                label: activeView === 'grid' ? 'Show as list' : 'Show as grid',
+                onSelect: toggleView
+              },
+              {
+                label: 'Analyze automatically',
+                detail: autoAnalyze ? 'On' : 'Off',
+                onSelect: toggleAutoAnalyze
+              },
+              {
+                label: 'Re-analyze',
+                disabled: !selectedRef,
+                onSelect: reanalyzeSelected
+              }
+            ]}
+          />
+        </div>
+        <span className={styles.spacer} />
         <IconButton icon={Settings2} label="Manage tags" onClick={() => setTagsOpen(true)} />
         <IconButton
           icon={Trash2}
@@ -276,7 +320,7 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
         />
       </div>
 
-      <MediaFilterBar folderPath={current.folderPath} filter={filter} tags={tags} />
+      <MediaFilterBar folderPath={folderPath} filter={filter} tags={tags} />
 
       {selectedIds.length > 0 ? (
         <div className={styles.tagBar} role="group" aria-label="Tag selected files">
@@ -313,7 +357,7 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
         <p className={styles.empty}>No files match the search and filters.</p>
       ) : (
         <div className={activeView === 'grid' ? styles.grid : styles.list}>
-          {items.map(renderRow)}
+          {activeView === 'grid' ? items.map(renderTile) : items.map(renderRow)}
         </div>
       )}
 
