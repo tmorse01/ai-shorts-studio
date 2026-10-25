@@ -7,6 +7,7 @@ import type { MediaKind } from '@shared/project/schema'
 import type { ProbeResult } from '@shared/media/probe'
 import type { AnalysisStage, StageResult } from '@shared/analysis/analysis'
 import { UserFacingError } from '../errors'
+import type { ExportJobInput } from '../export/exportJob'
 
 export interface JobInput {
   path: string
@@ -24,6 +25,8 @@ export interface JobInput {
   stage?: AnalysisStage
   /** The file an analysis stage keeps its results in, outside cache/. Set for the vision stage. */
   resultFile?: string
+  /** What an export job renders: the short, its footage and the encoder settings. Set for export jobs. */
+  export?: ExportJobInput
 }
 
 export interface JobContext {
@@ -41,6 +44,8 @@ export interface JobResults {
   proxy: void
   poster: void
   analysis: StageResult
+  /** The file the export wrote, after it was renamed into place. */
+  export: { outPath: string }
 }
 
 export type JobExecutors = {
@@ -55,7 +60,9 @@ export const JOB_PRIORITY: Record<JobKind, number> = {
   filmstrip: 2,
   proxy: 3,
   poster: 1,
-  analysis: 4
+  analysis: 4,
+  // Exports are user-started and long. They run after probing and thumbnails, ahead of analysis.
+  export: 3
 }
 
 const JOB_TITLES: Record<JobKind, string> = {
@@ -64,7 +71,8 @@ const JOB_TITLES: Record<JobKind, string> = {
   filmstrip: 'Making the filmstrip',
   proxy: 'Making a proxy file',
   poster: 'Making a poster frame',
-  analysis: 'Analyzing the footage'
+  analysis: 'Analyzing the footage',
+  export: 'Exporting the short'
 }
 
 const DEFAULT_CONCURRENCY = 2
@@ -284,6 +292,7 @@ export function unavailableExecutors(): JobExecutors {
     filmstrip: unavailable('filmstrip'),
     proxy: unavailable('proxy'),
     poster: unavailable('poster'),
-    analysis: unavailable('analysis')
+    analysis: unavailable('analysis'),
+    export: unavailable('export')
   }
 }
