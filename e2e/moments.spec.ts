@@ -4,6 +4,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Page } from '@playwright/test'
+import { currentSourceTimecode } from './previewHook'
 import { expect, test } from './test'
 import { FIXTURES } from './generateFixtures'
 
@@ -144,9 +145,13 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
     }
   })
 
-  await test.step('TODO(source-time hook): preview at clip start shows 00:05', async () => {
-    // Pending: needs the source-time test hook from another worker. Not on origin/rebuild yet.
-    // Once it lands, read the preview's source time at the first clip's start and expect 00:05.
+  await test.step('the preview at the clip start shows source time 00:05', async () => {
+    // The first clip starts at 0 on the main track, so the playhead goes there in the Short view.
+    await page.getByRole('button', { name: 'Short', exact: true }).click()
+    await seekTo(page, 0)
+    const frame = await currentSourceTimecode(page)
+    expect(frame.ms).toBe(5000)
+    expect(frame.timecode).toMatch(/^00:05/)
   })
 
   await test.step('the timeline label follows a renamed moment', async () => {
