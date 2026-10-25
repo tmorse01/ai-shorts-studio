@@ -2,10 +2,15 @@
 // The preview rasterises it with a 2D canvas, and export (Epic 17) can draw the same description. Line
 // breaks are estimated from the font size, not measured, so every consumer wraps text the same way.
 import { TEXT_PALETTE, TEXT_STYLES, TEXT_FONT_STACKS } from './textStyles'
-import type { TextItem, TextMotion } from './textItem'
+import type { TextItem } from './textItem'
+import {
+  TEXT_MOTION_DEFAULT_MS,
+  textMotionAlpha as motionAlpha,
+  textMotionTransform
+} from './textMotion'
 
-// The length of a fade-in or fade-out, in ms. A clip shorter than twice this fades for half its length.
-export const TEXT_FADE_MS = 250
+// The default length of a motion, in ms. A clip shorter than twice this moves for half its length.
+export const TEXT_FADE_MS = TEXT_MOTION_DEFAULT_MS
 
 // The widest a line may run, as a fraction of the frame width.
 const MAX_LINE_FRACTION = 0.84
@@ -38,6 +43,9 @@ export interface TextRender {
   centerY: number
   // Opacity from 0 to 1 for the item's enter and exit motion.
   alpha: number
+  // Size multiplier from the motion (pop). Already applied to boxWidthPx and boxHeightPx. A bitmap drawn
+  // at the text's natural size must be scaled by it too.
+  motionScale: number
 }
 
 export interface CanvasSize {
@@ -47,21 +55,25 @@ export interface CanvasSize {
 
 // The opacity of an item at elapsedMs into its clip of durationMs, from its enter and exit motion.
 export function textMotionAlpha(
-  motion: { enter?: TextMotion; exit?: TextMotion },
+  motion: Pick<TextItem, 'enter' | 'exit' | 'motionMs'>,
   elapsedMs: number,
   durationMs: number
 ): number {
-  const fadeMs = Math.min(TEXT_FADE_MS, durationMs / 2)
-  if (fadeMs <= 0) return 1
-  let alpha = 1
-  if (motion.enter === 'fade' && elapsedMs < fadeMs) {
-    alpha = Math.min(alpha, Math.max(0, elapsedMs) / fadeMs)
+  return motionAlpha(motion, elapsedMs, durationMs)
+}
+
+// The first `fraction` of the text's letters, for the typewriter motion. Lines keep their breaks, so the
+// words wrap the same way as the whole text. A fraction of 1 returns the lines unchanged.
+export function revealLines(lines: string[], fraction: number): string[] {
+  if (fraction >= 1) return lines
+  let budget = Math.floor(lines.reduce((count, line) => count + line.length, 0) * fraction)
+  const shown: string[] = []
+  for (const line of lines) {
+    if (budget <= 0) break
+    shown.push(line.slice(0, budget))
+    budget -= line.length
   }
-  const remainingMs = durationMs - elapsedMs
-  if (motion.exit === 'fade' && remainingMs < fadeMs) {
-    alpha = Math.min(alpha, Math.max(0, remainingMs) / fadeMs)
-  }
-  return alpha
+  return shown
 }
 
 // Greedy word wrap. Explicit line breaks are kept. A single word wider than the line stays whole.
@@ -110,10 +122,13 @@ export function describeText(
   // A backdrop needs room around the text, a fifth of the font size. A stroke needs its width.
   const backdropPadPx = backdrop ? Math.round(sizePx * 0.2) : 0
   const padPx = Math.max(stroke ? Math.ceil(stroke.widthPx) : 0, backdropPadPx)
-  const widestChars = Math.max(...lines.map((line) => line.length))
+  const motion = textMotionTransform(item, elapsedMs, durationMs)
+  const shownLines = revealLines(lines, motion.reveal)
+  if (shownLines.length === 0) return null
+  const widestChars = Math.max(...shownLines.map((line) => line.length))
   const lineHeightPx = Math.round(sizePx * 1.15)
   return {
-    lines,
+    lines: shownLines,
     fontCss: `${style.weight} ${sizePx}px ${TEXT_FONT_STACKS[style.font]}`,
     fontSizePx: sizePx,
     lineHeightPx,
@@ -122,10 +137,11 @@ export function describeText(
     stroke,
     backdrop,
     padPx,
-    boxWidthPx: widestChars * charWidthPx + padPx * 2,
-    boxHeightPx: lines.length * lineHeightPx + padPx * 2,
-    centerX: item.x * canvas.width,
-    centerY: item.y * canvas.height,
-    alpha: textMotionAlpha(item, elapsedMs, durationMs)
+    boxWidthPx: (widestChars * charWidthPx + padPx * 2) * motion.scale,
+    boxHeightPx: (shownLines.length * lineHeightPx + padPx * 2) * motion.scale,
+    centerX: (item.x + motion.dxFrac) * canvas.width,
+    centerY: (item.y + motion.dyFrac) * canvas.height,
+    alpha: motion.alpha,
+    motionScale: motion.scale
   }
 }
