@@ -64,7 +64,13 @@ function fileBody(path: string, range?: ByteRange): ReadableStream {
   return Readable.toWeb(stream) as ReadableStream
 }
 
-const notFound = (): Response => new Response('Not found', { status: 404 })
+// The renderer loads footage cross-origin (aism-media is not the page's origin). Without this header
+// Chromium gives silence from a MediaElementSource, so every response carries it: 200, 206, 404, 416.
+export const CORS_HEADERS: Readonly<Record<string, string>> = {
+  'Access-Control-Allow-Origin': '*'
+}
+
+const notFound = (): Response => new Response('Not found', { status: 404, headers: CORS_HEADERS })
 
 export async function serveMediaRequest(
   request: Request,
@@ -86,6 +92,7 @@ export async function serveMediaRequest(
   }
 
   const headers: Record<string, string> = {
+    ...CORS_HEADERS,
     'Accept-Ranges': 'bytes',
     'Content-Type': contentTypeOf(file)
   }

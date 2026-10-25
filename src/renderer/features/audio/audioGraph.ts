@@ -98,6 +98,8 @@ export class AudioGraph {
   private start(context: AudioContext, source: AudioSource): void {
     const element = new Audio()
     element.preload = 'auto'
+    // Set before src so the load is a CORS request. Without it the MediaElementSource is silent.
+    element.crossOrigin = 'anonymous'
     element.src = mediaUrl(source.mediaId, 'original')
     const node = context.createMediaElementSource(element)
     const gain = context.createGain()
