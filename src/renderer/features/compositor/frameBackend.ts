@@ -13,6 +13,9 @@ export interface VideoEffect {
   dim: number
 }
 
+// A rasterised layer: a text or caption canvas, or a loaded image (an image overlay, Epic 13, #129).
+export type BitmapSource = HTMLCanvasElement | HTMLImageElement
+
 export interface FrameBackend {
   readonly kind: 'webgl' | '2d'
   clear(background?: FrameBackground): void
@@ -26,7 +29,7 @@ export interface FrameBackend {
     opacity?: number
   ): void
   // Draws a rasterised layer, such as a text overlay, at its placement. Alpha as for drawVideo.
-  drawBitmap(bitmap: HTMLCanvasElement, placement: Placement, opacity?: number): void
+  drawBitmap(bitmap: BitmapSource, placement: Placement, opacity?: number): void
   dispose(): void
 }
 

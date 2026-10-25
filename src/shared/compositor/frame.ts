@@ -12,6 +12,7 @@ import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
 import { IDENTITY_TRANSFORM, type Timeline, type Transform } from '../timeline/timeline'
 import type { TextItem } from '../text/textItem'
 import { describeText, type TextRender } from '../text/textRender'
+import { describeImageOverlay } from '../image/imageOverlay'
 import {
   describeCaptions,
   type CaptionOptions,
@@ -66,6 +67,9 @@ export interface FrameLayer extends ResolvedLayer {
   source?: SourceSize
   // The text overlay to draw, for a text layer with a textItem. Opacity includes any transition fade.
   text?: TextRender
+  // The image overlay to draw, for an image layer. Its placement already includes the motion, and alpha
+  // includes the item's opacity and any transition fade. Set only on layers with an imageItem.
+  image?: { alpha: number }
   // The caption block to draw, for a caption layer. Set only on the layers made from caption blocks,
   // which have trackKind 'text' and no clip. Their placement is unused: the caption sizes itself.
   captions?: CaptionRender
@@ -232,6 +236,25 @@ function textPlacement(item: TextItem, text: TextRender | null): Placement {
   }
 }
 
+// The placement and opacity of an image overlay: its clip transform, with the entry and exit motion. Null
+// for a layer with no imageItem or no known time within its clip.
+function describeLayerImage(
+  layer: ResolvedLayer,
+  source: SourceSize | null
+): { placement: Placement; alpha: number } | null {
+  if (!layer.imageItem || layer.clipElapsedMs === undefined || layer.clipDurationMs === undefined) {
+    return null
+  }
+  return describeImageOverlay(
+    placeTransform(layer.transform, source),
+    layer.imageItem,
+    layer.clipElapsedMs,
+    layer.clipDurationMs,
+    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    layer.fade?.opacity ?? 1
+  )
+}
+
 // What is on the canvas at tMs. `sizeOf` gives the pixel size of a media item once it is known, so
 // video fits at its own aspect ratio. Until then the layer fills the canvas. Caption blocks on captions
 // tracks draw last, over everything else, with the given caption options.
@@ -245,13 +268,16 @@ export function describeFrame(
     const source = layer.mediaId ? sizeOf(layer.mediaId) : null
     const framing = layer.trackKind === 'video' ? layer.framing : undefined
     const text = describeLayerText(layer, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
+    const image = describeLayerImage(layer, source)
     // A text overlay sits where its item says, and its box is the text block. Off its clip, or with no
     // words, it has no box: a zero-size placement at its anchor, so it cannot be picked by accident.
     const placement = layer.textItem
       ? textPlacement(layer.textItem, text)
-      : framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
-        ? placeFramed(layer.transform, framing, source)
-        : placeTransform(layer.transform, source)
+      : image
+        ? image.placement
+        : framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
+          ? placeFramed(layer.transform, framing, source)
+          : placeTransform(layer.transform, source)
     const description: FrameLayer = {
       ...layer,
       placement,
@@ -259,6 +285,7 @@ export function describeFrame(
       ...(source && source.width > 0 && source.height > 0 ? { source } : {})
     }
     if (text) description.text = text
+    if (image) description.image = { alpha: image.alpha }
     return description
   })
   for (const caption of describeCaptions(

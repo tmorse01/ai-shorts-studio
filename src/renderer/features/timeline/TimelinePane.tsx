@@ -27,9 +27,11 @@ import {
   setClipLocked,
   swapClipAlternative,
   updateClipFraming,
+  updateClipImageItem,
   updateClipTextItem
 } from '@shared/timeline/edits'
 import { textOverlayOf } from '@shared/text/textClip'
+import { imageOverlayOf } from '@shared/image/imageOverlay'
 import { CENTRED_FILL } from '@shared/timeline/framing'
 import {
   DEFAULT_TRANSITION_MS,
@@ -559,6 +561,24 @@ export function TimelinePane({
     })
   }, [timeline, selectedIds, runEdit])
   useEffect(() => () => inspectorStore.getState().setTextTarget(null), [])
+
+  // The image section edits the one selected image overlay: its opacity and motion. Each change is one history
+  // entry. Publish it, or nothing.
+  useEffect(() => {
+    const overlay = selectedIds.length === 1 ? imageOverlayOf(timeline, selectedIds[0]) : null
+    if (!overlay) {
+      inspectorStore.getState().setImageTarget(null)
+      return
+    }
+    const clipId = overlay.clip.id
+    inspectorStore.getState().setImageTarget({
+      clip: overlay.clip,
+      item: overlay.clip.imageItem,
+      apply: (label, edit, mergeKey) =>
+        runEdit(label, (current) => updateClipImageItem(current, clipId, edit), mergeKey)
+    })
+  }, [timeline, selectedIds, runEdit])
+  useEffect(() => () => inspectorStore.getState().setImageTarget(null), [])
 
   // The transition section edits the one selected transition: its kind, its length (clamped to the
   // handles on its cut) and removal. Each is one history entry. Publish it, or nothing.

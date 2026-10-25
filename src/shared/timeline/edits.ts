@@ -3,6 +3,7 @@
 // which runs the Main-track check and keeps linked audio on its video clip's time (#91).
 import { CENTRED_FILL, clipFramingSchema, type ClipFraming } from './framing'
 import { textItemSchema, type TextItem } from '../text/textItem'
+import { imageItemSchema, type ImageItem } from '../image/imageItem'
 import type { Clip, Timeline, Track, Transform, Transition, TransitionKind } from './timeline'
 import { loopLayout } from './loopFill'
 import { duckingFor, duckingSchema, type DuckingSettings } from './ducking'
@@ -576,6 +577,21 @@ export function updateClipTextItem(
   return replaceTrack(timeline, {
     ...track,
     clips: track.clips.map((item) => (item.id === clip.id ? { ...item, textItem: next } : item))
+  })
+}
+
+// Changes an image overlay's item (opacity and motion). The result is checked against the schema, as text is.
+export function updateClipImageItem(
+  timeline: Timeline,
+  clipId: string,
+  update: (item: ImageItem) => ImageItem
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  if (!clip.imageItem) throw new TimelineEditError(`Clip "${clipId}" is not an image overlay.`)
+  const next = imageItemSchema.parse(update(clip.imageItem))
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? { ...item, imageItem: next } : item))
   })
 }
 
