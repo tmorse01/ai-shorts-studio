@@ -15,7 +15,10 @@ function newShortButton(page: import('@playwright/test').Page) {
 }
 
 // Every object in the saved project that carries a clip's source fields.
-function collectClips(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+function collectClips(
+  node: unknown,
+  out: Record<string, unknown>[] = []
+): Record<string, unknown>[] {
   if (Array.isArray(node)) node.forEach((item) => collectClips(item, out))
   else if (node && typeof node === 'object') {
     const record = node as Record<string, unknown>
