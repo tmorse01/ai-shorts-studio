@@ -37,6 +37,13 @@ import { createAnthropicClient } from '../ai/anthropicClient'
 import { estimateScriptRun, generateScripts } from '../ai/scriptGenerator'
 import { rewriteScriptLine } from '../ai/lineRewriter'
 import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage'
+import {
+  dismissSuggestions,
+  findMomentSuggestions,
+  readSuggestionFootage,
+  readSuggestions,
+  type SuggestionFootageSource
+} from '../analysis/suggestionsService'
 
 // Operating-system features the handlers need. The app passes Electron versions; tests pass fakes,
 // so this module never imports Electron.
@@ -79,6 +86,8 @@ export interface IpcHandlerOptions {
   ai?: AiService
   /** Reads the footage that script drafting is grounded in. Tests pass a fake, so no disk is read. */
   scriptFootage?: ScriptFootageSource
+  /** Reads the transcript, shots and descriptions that clip suggestions are based on. Tests pass a fake. */
+  suggestionFootage?: SuggestionFootageSource
 }
 
 // The main-process implementation of every channel. Input is already validated when a handler runs.
@@ -95,7 +104,8 @@ export function createIpcHandlers({
     state: memoryAiStateStorage(),
     createClient: (apiKey) => createAnthropicClient({ apiKey })
   }),
-  scriptFootage = readScriptFootage
+  scriptFootage = readScriptFootage,
+  suggestionFootage = readSuggestionFootage
 }: IpcHandlerOptions): IpcHandlers {
   const analysis = new AnalysisService({
     queue: jobs,
@@ -208,6 +218,12 @@ export function createIpcHandlers({
       transcripts: await transcribeMediaItems(projectFolder, items, jobs)
     }),
     'analysis:vision:read': ({ projectFolder, mediaId }) => readMediaVision(projectFolder, mediaId),
+    'analysis:suggestions:read': ({ projectFolder, mediaId }) =>
+      readSuggestions(projectFolder, mediaId, suggestionFootage),
+    'analysis:suggestions:findMoments': (input) =>
+      findMomentSuggestions(ai, input, suggestionFootage),
+    'analysis:suggestions:dismiss': ({ projectFolder, mediaId, keys }) =>
+      dismissSuggestions(projectFolder, mediaId, keys, suggestionFootage),
     'analysis:playback': ({ playing }) => {
       analysis.setPlaybackActive(playing)
       return { playing }

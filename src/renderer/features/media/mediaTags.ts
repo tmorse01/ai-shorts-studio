@@ -23,6 +23,15 @@ export function findMediaTag(
   return allMediaTags(project).find((tag) => tag.id === id)
 }
 
+// The tag with this name, matched the way names are compared (ignoring case and spaces), if there is one.
+export function findTagByName(
+  project: Pick<Project, 'mediaTags'>,
+  name: string
+): MediaTag | undefined {
+  const wanted = normaliseName(name)
+  return allMediaTags(project).find((tag) => normaliseName(tag.name) === wanted)
+}
+
 // The tags on one file, in tag-list order. Ids that no longer exist are skipped.
 export function tagsOfMedia(ref: MediaRef, project: Pick<Project, 'mediaTags'>): MediaTag[] {
   const ids = ref.tagIds ?? []

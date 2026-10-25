@@ -169,6 +169,20 @@ function upgradeTextClip(clip: unknown): unknown {
   return { ...clip, textItem: { text: clip.text, styleId: 'caption', x: 0.5, y: 0.85, scale: 1 } }
 }
 
+// v13 clips had no lock and no assembly metadata. Clips keep no such keys until one is set, so only the
+// version changes.
+export function migrateV13ToV14(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 14 }
+}
+
+// v14 had no caption presets and no per-short caption preset. Both keys are optional and read as their
+// defaults when unset, so only the version changes.
+export function migrateV14ToV15(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 15 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -177,13 +191,6 @@ function scriptLineOrNone(scriptId: string, value: unknown, index: number): unkn
     return [{ id, text: value.text }]
   }
   return []
-}
-
-// v13 had no caption presets and no per-short caption preset. Both keys are optional and read as their
-// defaults when unset, so only the version changes.
-export function migrateV13ToV14(data: unknown): unknown {
-  if (!isRecord(data)) throw new Error('the file is not a JSON object')
-  return { ...data, schemaVersion: 14 }
 }
 
 // The ordered list the app ships with. Append new migrations here; never edit an old one.
@@ -200,7 +207,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 10, to: 11, up: migrateV10ToV11 },
   { from: 11, to: 12, up: migrateV11ToV12 },
   { from: 12, to: 13, up: migrateV12ToV13 },
-  { from: 13, to: 14, up: migrateV13ToV14 }
+  { from: 13, to: 14, up: migrateV13ToV14 },
+  { from: 14, to: 15, up: migrateV14ToV15 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

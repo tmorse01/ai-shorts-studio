@@ -77,7 +77,7 @@ describe('schema 13 text migration', () => {
   })
 
   it('is registered after the schema 12 step', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(14)
+    expect(CURRENT_SCHEMA_VERSION).toBe(15)
     expect(projectMigrations.some((m) => m.from === 12 && m.to === 13)).toBe(true)
   })
 })
