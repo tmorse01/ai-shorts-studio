@@ -46,7 +46,12 @@ import styles from './MediaPanel.module.css'
 
 const KIND_ICON = { video: Film, audio: Music, image: ImageIcon } as const
 
-export function MediaPanel(): JSX.Element {
+export interface MediaPanelProps {
+  /** Project home already shows an import control above the grid, so it turns this off. */
+  showImport?: boolean
+}
+
+export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Element {
   const current = useStore(projectStore, (state) => state.current)
   const view = useStore(mediaPanelStore, (state) =>
     current ? state.viewByProject[current.folderPath] : undefined
@@ -232,9 +237,11 @@ export function MediaPanel(): JSX.Element {
               .setView(current.folderPath, activeView === 'grid' ? 'list' : 'grid')
           }
         />
-        <Button variant="ghost" size="sm" onClick={() => void pickAndImportMedia()}>
-          Import
-        </Button>
+        {showImport ? (
+          <Button variant="ghost" size="sm" onClick={() => void pickAndImportMedia()}>
+            Import
+          </Button>
+        ) : null}
         <label className={styles.autoToggle}>
           <input
             type="checkbox"
