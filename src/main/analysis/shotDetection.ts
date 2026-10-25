@@ -24,6 +24,8 @@ export interface ShotTools {
   durationSec: (path: string, signal?: AbortSignal) => Promise<number>
   /** Times, in seconds, where scene detection finds a cut. */
   sceneCuts: (path: string, sceneThreshold: number, signal?: AbortSignal) => Promise<number[]>
+  /** Whether the file has a video stream. Audio-only files have no shots. Unset means it has video. */
+  hasVideo?: (path: string, signal?: AbortSignal) => Promise<boolean>
   /** Writes one downscaled JPEG frame at the given time. */
   extractFrame: (
     path: string,
@@ -108,6 +110,8 @@ export function shotStageRunner(
 ): StageRunner {
   return async (path: string, ctx: JobContext, outDir?: string): Promise<StageData> => {
     if (!outDir) throw new UserFacingError('The shot job lost its frame folder.')
+    // An audio-only file has no picture to cut. Scene detection would fail on it, so the stage is skipped.
+    if (tools.hasVideo && !(await tools.hasVideo(path, ctx.signal))) return { outcome: 'skipped' }
     const shots = await detectShots(path, tools, rules, ctx.signal)
     await sampleShotFrames(path, shots, outDir, tools, ctx.signal, ctx.reportProgress)
     return { outcome: 'done', shots }
@@ -125,6 +129,10 @@ export function realShotTools(paths: ToolPaths): ShotTools {
     durationSec: async (path, signal) => {
       const probe = await probeMedia(path, { ffprobe: paths.ffprobe(), signal })
       return probe.durationSec
+    },
+    hasVideo: async (path, signal) => {
+      const probe = await probeMedia(path, { ffprobe: paths.ffprobe(), signal })
+      return probe.video !== null
     },
     sceneCuts: async (path, sceneThreshold, signal) => {
       let log = ''

@@ -15,6 +15,10 @@ export const FIXTURES = {
   clipB: join(FIXTURE_DIR, 'clip-b.mp4'),
   /** 60 s audio-only music track. */
   music: join(FIXTURE_DIR, 'music.m4a'),
+  /** 2 s audio-only music, short enough that Loop to fill repeats it inside a short. */
+  musicShort: join(FIXTURE_DIR, 'music-short.m4a'),
+  /** 3 s, 330 Hz tone as a 16-bit WAV, imported as narration. */
+  narrationWav: join(FIXTURE_DIR, 'narration.wav'),
   /** One still image. */
   still: join(FIXTURE_DIR, 'still.png')
 } as const
@@ -81,6 +85,26 @@ const COMMANDS: Record<keyof typeof FIXTURES, string[]> = {
     '-c:a',
     'aac',
     FIXTURES.music
+  ],
+  musicShort: [
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    'sine=frequency=330:duration=2',
+    '-c:a',
+    'aac',
+    FIXTURES.musicShort
+  ],
+  narrationWav: [
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    'sine=frequency=330:duration=3',
+    '-c:a',
+    'pcm_s16le',
+    FIXTURES.narrationWav
   ],
   still: ['-y', '-f', 'lavfi', '-i', 'testsrc=size=640x360', '-frames:v', '1', FIXTURES.still]
 }

@@ -32,6 +32,9 @@ export interface AudioUpdate {
 export class AudioGraph {
   private context: AudioContext | null = null
   private master: GainNode | null = null
+  // Taps the master output, so the level shows whether the mix is making sound.
+  private analyser: AnalyserNode | null = null
+  private samples: Float32Array<ArrayBuffer> | null = null
   private voices = new Map<string, Voice>()
   private playing = false
 
@@ -78,6 +81,15 @@ export class AudioGraph {
     return null
   }
 
+  // The peak level (0 to 1) of the master output in the last render quantum. Zero when nothing plays.
+  level(): number {
+    if (!this.analyser || !this.samples) return 0
+    this.analyser.getFloatTimeDomainData(this.samples)
+    let peak = 0
+    for (const sample of this.samples) peak = Math.max(peak, Math.abs(sample))
+    return peak
+  }
+
   // Pauses every element and removes the voices. The context stays, so the next update reuses it.
   stop(): void {
     this.playing = false
@@ -89,9 +101,14 @@ export class AudioGraph {
     if (typeof AudioContext === 'undefined') return null
     const context = new AudioContext()
     const master = context.createGain()
-    master.connect(context.destination)
+    const analyser = context.createAnalyser()
+    analyser.fftSize = 2048
+    master.connect(analyser)
+    analyser.connect(context.destination)
     this.context = context
     this.master = master
+    this.analyser = analyser
+    this.samples = new Float32Array(new ArrayBuffer(analyser.fftSize * 4))
     return context
   }
 

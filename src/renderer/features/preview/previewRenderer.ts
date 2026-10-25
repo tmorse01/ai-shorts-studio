@@ -8,7 +8,12 @@ import { chooseVariant, mediaUrl } from '@shared/media/previewSource'
 import type { MediaSourceInfo } from '@shared/media/mediaSources'
 import type { Timeline } from '@shared/timeline/timeline'
 import { resolveFrame } from '@shared/timeline/resolveFrame'
-import { previewFrameOf, publishPreviewFrame } from '@shared/e2e/previewHook'
+import {
+  previewFrameOf,
+  publishPreviewFrame,
+  publishPreviewTexts,
+  textLinesOf
+} from '@shared/e2e/previewHook'
 import { Compositor } from '../compositor/compositor'
 import { createFrameBackend, type BitmapSource } from '../compositor/frameBackend'
 import { layerFrameStore } from '../compositor/layerFrameStore'
@@ -209,6 +214,8 @@ export class PreviewRenderer {
         sizeOf(latest.elementByMedia.get(mediaId)) ?? imageSizeOf(latest.imageByMedia.get(mediaId)),
       this.captionOptions
     )
+    // The E2E hook reports the text and caption lines this frame draws. Off unless in E2E mode.
+    publishPreviewTexts(window, window.api?.e2eMode === true, textLinesOf(frame.layers))
     layerFrameStore.getState().setFrame(frame)
     const drawn = compositor.render(
       frame,

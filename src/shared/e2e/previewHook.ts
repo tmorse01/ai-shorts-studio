@@ -14,6 +14,10 @@ export interface E2ePreviewFrame {
 
 export interface E2eHook {
   preview: E2ePreviewFrame
+  /** The text and caption lines the preview draws at the playhead, top layer last. */
+  texts?: string[]
+  /** The peak level of the preview's audio graph (0 to 1) at the last audio update. */
+  audioLevel?: number
 }
 
 /** The window fields the hook writes. Only present once a frame has been published. */
@@ -36,5 +40,44 @@ export function publishPreviewFrame(
   frame: E2ePreviewFrame
 ): void {
   if (!enabled) return
-  host.__aissE2E = { preview: { ...frame } }
+  host.__aissE2E = { ...host.__aissE2E, preview: { ...frame } }
+}
+
+/** Publishes the text and caption lines the preview draws. Does nothing when the hook is off. */
+export function publishPreviewTexts(host: E2eHookHost, enabled: boolean, texts: string[]): void {
+  if (!enabled) return
+  host.__aissE2E = { ...host.__aissE2E, preview: host.__aissE2E?.preview ?? emptyFrame(), texts }
+}
+
+/** Publishes the audio graph's peak level. Does nothing when the hook is off. */
+export function publishAudioLevel(host: E2eHookHost, enabled: boolean, level: number): void {
+  if (!enabled) return
+  host.__aissE2E = {
+    ...host.__aissE2E,
+    preview: host.__aissE2E?.preview ?? emptyFrame(),
+    audioLevel: level
+  }
+}
+
+/** The text lines of a frame's text and caption layers, in draw order. Pure, for the preview to publish. */
+export function textLinesOf(
+  layers: readonly {
+    text?: { lines: readonly string[] }
+    captions?: { lines: readonly (readonly { text: string }[])[] }
+  }[]
+): string[] {
+  const lines: string[] = []
+  for (const layer of layers) {
+    if (layer.text) lines.push(...layer.text.lines)
+    if (layer.captions) {
+      for (const words of layer.captions.lines) {
+        lines.push(words.map((word) => word.text).join(' '))
+      }
+    }
+  }
+  return lines
+}
+
+function emptyFrame(): E2ePreviewFrame {
+  return { mediaId: null, sourceTimeMs: null }
 }

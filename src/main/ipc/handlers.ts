@@ -55,7 +55,7 @@ import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage
 import { SpeechService } from '../tts/speechService'
 import { createElevenLabsProvider } from '../tts/elevenLabsProvider'
 import { isE2eMode } from '../e2e/e2eMode'
-import { createFakeSpeechProvider } from '../e2e/fakes'
+import { createFakeSpeechProvider, withFakeSpeechKey } from '../e2e/fakes'
 import { saveNarrationTake } from '../narration/takeStorage'
 import {
   dismissSuggestions,
@@ -141,7 +141,7 @@ export function createIpcHandlers({
     createClient: (apiKey) => createAnthropicClient({ apiKey })
   }),
   speech = new SpeechService({
-    keys: ai,
+    keys: isE2eMode() ? withFakeSpeechKey(ai) : ai,
     createProvider: (apiKey) =>
       isE2eMode() ? createFakeSpeechProvider() : createElevenLabsProvider({ apiKey })
   }),

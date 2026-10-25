@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { E2E_SPEECH_KEY, withFakeSpeechKey } from '../src/main/e2e/fakes'
 import { DEFAULT_VISION_MODEL } from '../src/shared/ai/aiSettings'
 import { join } from 'node:path'
 import {
@@ -82,5 +83,39 @@ describe('E2E fakes', () => {
     const progress: number[] = []
     await expect(tools.ensureModel((fraction) => progress.push(fraction))).resolves.toEqual({})
     expect(progress).toEqual([1])
+  })
+})
+
+describe('E2E speech key', () => {
+  const base = {
+    speechKeyStorageAvailable: () => true,
+    speechKey: async (): Promise<string | null> => null,
+    saveSpeechKey: async (): Promise<void> => undefined,
+    clearSpeechKey: async (): Promise<void> => undefined
+  }
+
+  it('answers with the fake key when no key is saved, so the fake provider is reached', async () => {
+    const keys = withFakeSpeechKey(base)
+    expect(await keys.speechKey()).toBe(E2E_SPEECH_KEY)
+  })
+
+  it('keeps a saved key, and delegates save, clear and storage to the real store', async () => {
+    const calls: string[] = []
+    const keys = withFakeSpeechKey({
+      ...base,
+      speechKey: async () => 'real-key',
+      saveSpeechKey: async () => {
+        calls.push('save')
+      },
+      clearSpeechKey: async () => {
+        calls.push('clear')
+      },
+      speechKeyStorageAvailable: () => false
+    })
+    expect(await keys.speechKey()).toBe('real-key')
+    await keys.saveSpeechKey('x')
+    await keys.clearSpeechKey()
+    expect(calls).toEqual(['save', 'clear'])
+    expect(keys.speechKeyStorageAvailable()).toBe(false)
   })
 })
