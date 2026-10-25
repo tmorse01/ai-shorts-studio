@@ -1,0 +1,72 @@
+.strip {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  height: var(--titlebar-h);
+  min-width: 0;
+  padding-left: var(--space-3);
+  padding-right: var(--titlebar-controls-w);
+  background: var(--color-titlebar);
+  border-bottom: var(--border-width) solid var(--color-border);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The brand mark: a rounded frame with two bars, the stacked shape of the app icon. */
+.mark {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius);
+}
+
+.mark::before,
+.mark::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-primary);
+}
+
+.mark::before {
+  top: 3px;
+}
+
+.mark::after {
+  bottom: 3px;
+}
+
+.wordmark {
+  font-family: var(--font-heading);
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line);
+  font-weight: 600;
+  letter-spacing: var(--type-heading-tracking);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.project {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--type-small-size);
+  line-height: var(--type-small-line);
+  color: var(--color-text-2);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

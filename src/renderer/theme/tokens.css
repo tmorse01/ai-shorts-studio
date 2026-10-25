@@ -34,6 +34,9 @@
   --color-success: var(--color-muted-moss);
   --color-ai-secondary: var(--color-occult-mauve);
   --color-editorial: var(--color-aged-ivory);
+  /* The title strip (task 01.14): a step darker than the app background. Main sets the same colour
+     on the window's titleBarOverlay (TITLE_BAR_COLOR in shared/theme.ts). */
+  --color-titlebar: var(--color-void-black);
   /* The preview's safe-zone overlay: a dark shade outside the guide area and a fine line on its edge. */
   --color-safe-zone-shade: color-mix(in srgb, var(--color-void-black) 60%, transparent);
   --color-safe-zone-line: var(--color-ai);
@@ -88,6 +91,11 @@
       transparent 55%
     ),
     linear-gradient(160deg, var(--color-haunted-charcoal), var(--color-void-black));
+
+  /* Window chrome. --titlebar-controls-w is the room the native min, max and close buttons take at
+     the strip's right end. */
+  --titlebar-h: 32px;
+  --titlebar-controls-w: 138px;
 
   /* Shape and elevation */
   --radius: 4px;
