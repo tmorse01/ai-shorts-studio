@@ -294,6 +294,8 @@ test('edits a short on the timeline, undoes and redoes every step, and survives 
   })
 
   await test.step('overlay track with a B-roll clip', async () => {
+    // The Transitions tool replaced the media list, so bring the Media tool back.
+    await page.getByRole('button', { name: 'Media', exact: true }).click()
     await page.getByRole('button', { name: 'Add track' }).click()
     await page.getByRole('menuitem', { name: 'Overlay video' }).click()
     await recordEdit()
