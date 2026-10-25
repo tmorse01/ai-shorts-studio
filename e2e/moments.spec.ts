@@ -47,6 +47,9 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
   await test.step('open a short and the clip in the source viewer', async () => {
     await newShortButton(page).click()
     await expect(page.getByLabel('Playhead')).toBeVisible()
+    // The editor opens with the Media panel folded away. Show it, then click the clip.
+    const showMedia = page.getByRole('button', { name: 'Show media panel' })
+    if (await showMedia.isVisible()) await showMedia.click()
     await page.getByText('clip-a.mp4').first().click()
     await expect(page.getByLabel('Source: clip-a.mp4')).toBeVisible()
   })
