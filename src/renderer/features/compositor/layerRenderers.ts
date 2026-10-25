@@ -45,24 +45,28 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
     },
     { transformable: true }
   )
-  // A text overlay is drawn as a bitmap at the position its description gives. It is not transformable:
-  // its position lives on the text item, not on the clip's transform.
-  registry.register('text', (layer, context) => {
-    const text = layer.text
-    if (!text) return
-    const bitmap = textBitmap(text)
-    context.backend.drawBitmap(
-      bitmap,
-      {
-        centerX: text.centerX,
-        centerY: text.centerY,
-        width: bitmap.width,
-        height: bitmap.height,
-        rotationDeg: 0
-      },
-      text.alpha
-    )
-  })
+  // A text overlay is drawn as a bitmap at the position its description gives. It is transformable, but the
+  // gizmo moves and scales its text item, not the clip's transform (see useCanvasGizmo).
+  registry.register(
+    'text',
+    (layer, context) => {
+      const text = layer.text
+      if (!text) return
+      const bitmap = textBitmap(text)
+      context.backend.drawBitmap(
+        bitmap,
+        {
+          centerX: text.centerX,
+          centerY: text.centerY,
+          width: bitmap.width,
+          height: bitmap.height,
+          rotationDeg: 0
+        },
+        text.alpha
+      )
+    },
+    { transformable: true }
+  )
   return registry
 }
 

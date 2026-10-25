@@ -2,7 +2,14 @@
 // pointer (or grabs a handle of the selected one), a drag moves or scales it, and the arrow keys nudge
 // it while the canvas has focus. The maths is in shared/compositor/gizmo.ts; this hook only reads the
 // stores, converts coordinates and records each gesture as one command.
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from 'react'
+import {
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type RefObject
+} from 'react'
 import type { Clip, Timeline, Track, Transform } from '@shared/timeline/timeline'
 import {
   dragTransform,
@@ -18,6 +25,8 @@ import {
   type NudgeDirection
 } from '@shared/compositor/gizmo'
 import { CANVAS_HEIGHT, CANVAS_WIDTH, type FrameLayer } from '@shared/compositor/frame'
+import type { TextItem } from '@shared/text/textItem'
+import { moveTextItem, nudgeTextItem, scaleTextItem } from '@shared/text/textEdits'
 import {
   CENTRED_FILL,
   framingAfterGesture,
@@ -32,8 +41,10 @@ import { layerRegistry } from './layerRenderers'
 import { layerSelectionStore } from './layerSelectionStore'
 import { framingPointStore } from './framingPointStore'
 import { rememberFraming } from './framingMemory'
+import { textEditStore } from '../text/textEditStore'
 import {
   applyFramingEdit,
+  applyTextItemEdit,
   applyTransformEdit,
   GESTURE_MERGE_WINDOW_MS
 } from './layerTransformCommands'
@@ -93,6 +104,9 @@ interface ActiveDrag {
   label: string
   mergeKey: string
   framed: FramedEdit | null
+  // The text item a text overlay started the drag with. Set only for a text overlay, which moves and scales
+  // its item instead of the clip's transform.
+  startItem: TextItem | null
 }
 
 export interface UseCanvasGizmoOptions {
@@ -106,6 +120,7 @@ export interface CanvasGizmoHandlers {
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void
+  onDoubleClick: (event: MouseEvent<HTMLDivElement>) => void
 }
 
 export interface UseCanvasGizmoResult {
@@ -128,7 +143,9 @@ function transformableLayers() {
   const frame = layerFrameStore.getState().frame
   if (!frame) return []
   return frame.layers.filter(
-    (layer) => layer.mediaId !== undefined && layerRegistry.supportsTransform(layer.trackKind)
+    (layer) =>
+      (layer.mediaId !== undefined || layer.textItem !== undefined) &&
+      layerRegistry.supportsTransform(layer.trackKind)
   )
 }
 
@@ -170,7 +187,12 @@ export function useCanvasGizmo({
     // A locked track keeps its layers where they are; the layer stays selected.
     if (!found || found.track.locked) return
 
-    const start: Transform = found.clip.transform
+    // A text overlay's gesture starts from an identity transform at its item's scale: the drag's offset is
+    // then the move in canvas pixels and its scale ratio is the new scale.
+    const startItem = found.clip.textItem ?? null
+    const start: Transform = startItem
+      ? { x: 0, y: 0, scale: startItem.scale, rotationDeg: 0 }
+      : found.clip.transform
     const session: DragSession =
       hit.kind === 'move'
         ? { kind: 'move', start, startPlacement: target.placement, origin: point }
@@ -182,7 +204,8 @@ export function useCanvasGizmo({
       shortId,
       label: hit.kind === 'move' ? 'Move layer' : 'Scale layer',
       mergeKey: `gizmo:${target.clipId}:${dragCount.current}`,
-      framed: framedEditFor(target, found.clip)
+      framed: framedEditFor(target, found.clip),
+      startItem
     }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
@@ -196,6 +219,25 @@ export function useCanvasGizmo({
     const result = dragTransform(active.session, point, event.shiftKey)
     setGuides(result.guides)
     const next = result.transform
+    if (active.startItem) {
+      const item = active.startItem
+      const moved = moveTextItem(
+        item,
+        item.x * CANVAS_WIDTH + next.x,
+        item.y * CANVAS_HEIGHT + next.y,
+        { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }
+      )
+      const nextItem = scaleTextItem(moved, next.scale)
+      applyTextItemEdit(
+        active.shortId,
+        active.clipId,
+        active.label,
+        active.mergeKey,
+        () => nextItem,
+        GESTURE_MERGE_WINDOW_MS
+      )
+      return
+    }
     if (active.framed) {
       // The transform gives the drag's offset and scale ratio; the framing takes them from its start.
       const start = active.session.start
@@ -251,6 +293,14 @@ export function useCanvasGizmo({
     if (!found || found.track.locked) return
 
     const offset = nudgeOffset(direction, event.shiftKey)
+    if (found.clip.textItem) {
+      applyTextItemEdit(shortId, selectedId, 'Nudge text', `nudge:${selectedId}`, (current) =>
+        nudgeTextItem(current, offset.x, offset.y, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
+      )
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
     const layer = transformableLayers().find((item) => item.clipId === selectedId)
     const framed = layer ? framedEditFor(layer, found.clip) : null
     if (framed) {
@@ -276,13 +326,28 @@ export function useCanvasGizmo({
     event.stopPropagation()
   }
 
+  // A double click on a text overlay opens its editor on the canvas. Only a paused frame edits.
+  const onDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    const frame = frameRef.current
+    if (!shortId || !frame || playbackStore.getState().playing) return
+    const point = toCanvasPoint(event.clientX, event.clientY, frame.getBoundingClientRect())
+    const picked = pickLayer(point, transformableLayers())
+    if (!picked?.textItem) return
+    const found = findClip(timeline, picked.clipId)
+    if (!found || found.track.locked) return
+    layerSelectionStore.getState().select(picked.clipId)
+    textEditStore.getState().start(picked.clipId)
+    event.preventDefault()
+  }
+
   return {
     guides,
     handlers: {
       onPointerDown,
       onPointerMove,
       onPointerUp: endDrag,
-      onKeyDown
+      onKeyDown,
+      onDoubleClick
     }
   }
 }

@@ -10,6 +10,7 @@ import {
 } from '../timeline/framing'
 import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
 import type { Timeline, Transform } from '../timeline/timeline'
+import type { TextItem } from '../text/textItem'
 import { describeText, type TextRender } from '../text/textRender'
 
 export const CANVAS_WIDTH = 1080
@@ -196,6 +197,26 @@ function describeLayerText(layer: ResolvedLayer, canvas: SourceSize): TextRender
   return { ...text, alpha: text.alpha * (layer.fade?.opacity ?? 1) }
 }
 
+// The placement of a text overlay: its text block when it has words, else a zero-size box at its anchor.
+function textPlacement(item: TextItem, text: TextRender | null): Placement {
+  if (text) {
+    return {
+      centerX: text.centerX,
+      centerY: text.centerY,
+      width: text.boxWidthPx,
+      height: text.boxHeightPx,
+      rotationDeg: 0
+    }
+  }
+  return {
+    centerX: item.x * CANVAS_WIDTH,
+    centerY: item.y * CANVAS_HEIGHT,
+    width: 0,
+    height: 0,
+    rotationDeg: 0
+  }
+}
+
 // What is on the canvas at tMs. `sizeOf` gives the pixel size of a media item once it is known, so
 // video fits at its own aspect ratio. Until then the layer fills the canvas.
 export function describeFrame(
@@ -206,8 +227,12 @@ export function describeFrame(
   const layers = resolveFrame(timeline, tMs).map((layer) => {
     const source = layer.mediaId ? sizeOf(layer.mediaId) : null
     const framing = layer.trackKind === 'video' ? layer.framing : undefined
-    const placement =
-      framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
+    const text = describeLayerText(layer, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
+    // A text overlay sits where its item says, and its box is the text block. Off its clip, or with no
+    // words, it has no box: a zero-size placement at its anchor, so it cannot be picked by accident.
+    const placement = layer.textItem
+      ? textPlacement(layer.textItem, text)
+      : framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
         ? placeFramed(layer.transform, framing, source)
         : placeTransform(layer.transform, source)
     const description: FrameLayer = {
@@ -216,7 +241,6 @@ export function describeFrame(
       render: describeLayerRender(placement, framing, source),
       ...(source && source.width > 0 && source.height > 0 ? { source } : {})
     }
-    const text = describeLayerText(layer, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
     if (text) description.text = text
     return description
   })

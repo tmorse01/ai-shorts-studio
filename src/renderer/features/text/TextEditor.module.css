@@ -1,0 +1,25 @@
+/* Covers the preview frame. It takes no pointer events, so the frame stays usable around the field. */
+.layer {
+  position: absolute;
+  inset: 0;
+  container-type: inline-size;
+  pointer-events: none;
+}
+
+.field {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-height: 1.2em;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed var(--color-ai);
+  border-radius: var(--radius);
+  background: transparent;
+  text-align: center;
+  line-height: 1.15;
+  resize: none;
+  overflow: hidden;
+  pointer-events: auto;
+  caret-color: var(--color-ai);
+  outline: none;
+}

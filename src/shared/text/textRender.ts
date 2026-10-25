@@ -25,6 +25,14 @@ export interface TextRender {
   // A hex colour from the palette.
   fill: string
   stroke: { color: string; widthPx: number } | null
+  // A box drawn behind the text, or null for none. The box covers the text block plus padPx on each side.
+  backdrop: { color: string } | null
+  // Space around the text block for its stroke or backdrop, in canvas pixels.
+  padPx: number
+  // The size of the text block with its padding, in canvas pixels. It is estimated from the font size, the
+  // same way the lines are wrapped, so the canvas gizmo's box matches what the bitmap draws closely.
+  boxWidthPx: number
+  boxHeightPx: number
   // Centre of the text block in canvas pixels, measured from the top-left corner.
   centerX: number
   centerY: number
@@ -98,14 +106,24 @@ export function describeText(
         widthPx: style.stroke.widthPx * item.scale
       }
     : null
+  const backdrop = item.backdrop ? { color: TEXT_PALETTE[item.backdrop] } : null
+  // A backdrop needs room around the text, a fifth of the font size. A stroke needs its width.
+  const backdropPadPx = backdrop ? Math.round(sizePx * 0.2) : 0
+  const padPx = Math.max(stroke ? Math.ceil(stroke.widthPx) : 0, backdropPadPx)
+  const widestChars = Math.max(...lines.map((line) => line.length))
+  const lineHeightPx = Math.round(sizePx * 1.15)
   return {
     lines,
     fontCss: `${style.weight} ${sizePx}px ${TEXT_FONT_STACKS[style.font]}`,
     fontSizePx: sizePx,
-    lineHeightPx: Math.round(sizePx * 1.15),
+    lineHeightPx,
     letterSpacingPx,
-    fill: TEXT_PALETTE[style.fill],
+    fill: TEXT_PALETTE[item.color ?? style.fill],
     stroke,
+    backdrop,
+    padPx,
+    boxWidthPx: widestChars * charWidthPx + padPx * 2,
+    boxHeightPx: lines.length * lineHeightPx + padPx * 2,
     centerX: item.x * canvas.width,
     centerY: item.y * canvas.height,
     alpha: textMotionAlpha(item, elapsedMs, durationMs)

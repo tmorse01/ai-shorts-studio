@@ -164,6 +164,13 @@ export function migrateV12ToV13(data: unknown): unknown {
   return { ...data, schemaVersion: 13, shorts: upgradedShorts }
 }
 
+// v13 text items had no colour or backdrop. A text item keeps no such key until one is set, so only the
+// version changes.
+export function migrateV13ToV14(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 14 }
+}
+
 function upgradeTextClip(clip: unknown): unknown {
   if (!isRecord(clip) || typeof clip.text !== 'string' || clip.text.trim() === '') return clip
   return { ...clip, textItem: { text: clip.text, styleId: 'caption', x: 0.5, y: 0.85, scale: 1 } }
@@ -192,7 +199,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 9, to: 10, up: migrateV9ToV10 },
   { from: 10, to: 11, up: migrateV10ToV11 },
   { from: 11, to: 12, up: migrateV11ToV12 },
-  { from: 12, to: 13, up: migrateV12ToV13 }
+  { from: 12, to: 13, up: migrateV12ToV13 },
+  { from: 13, to: 14, up: migrateV13ToV14 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

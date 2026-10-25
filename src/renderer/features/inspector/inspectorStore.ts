@@ -6,6 +6,7 @@ import type { ClipAudioChange } from '@shared/timeline/edits'
 import type { DuckingSettings } from '@shared/timeline/ducking'
 import type { ClipFraming } from '@shared/timeline/framing'
 import type { Clip, Timeline, Transition, TransitionKind } from '@shared/timeline/timeline'
+import type { TextItem } from '@shared/text/textItem'
 import type { SoundValues } from '@renderer/features/audio/soundValues'
 import { defaultTabFor, type InspectorTab, type SelectionType } from './inspectorModel'
 import type { SharedProperties } from './sharedProperties'
@@ -48,6 +49,15 @@ export interface FramingTarget {
   apply: (label: string, edit: (framing: ClipFraming) => ClipFraming, mergeKey?: string) => void
 }
 
+// The one selected text overlay, for the text section (Epic 13, #127). The timeline pane publishes it. item is
+// the stored item. apply runs an edit on it as one history entry; calls with the same mergeKey fold into one
+// entry, so typing or a slider drag is one undo step.
+export interface TextClipTarget {
+  clip: Clip
+  item: TextItem
+  apply: (label: string, edit: (item: TextItem) => TextItem, mergeKey?: string) => void
+}
+
 // The one selected transition, for the transition section (Epic 08, #98). The timeline pane publishes
 // it. limitMs is the longest length the handles on its cut allow. Each change is one history entry, and
 // calls with the same mergeKey fold into one entry.
@@ -70,6 +80,7 @@ export interface InspectorState {
   videoTarget: VideoClipTarget | null
   framingTarget: FramingTarget | null
   transitionTarget: TransitionTarget | null
+  textTarget: TextClipTarget | null
 }
 
 export interface InspectorActions {
@@ -83,6 +94,7 @@ export interface InspectorActions {
   setVideoTarget: (target: VideoClipTarget | null) => void
   setFramingTarget: (target: FramingTarget | null) => void
   setTransitionTarget: (target: TransitionTarget | null) => void
+  setTextTarget: (target: TextClipTarget | null) => void
 }
 
 export type InspectorStore = InspectorState & InspectorActions
@@ -98,6 +110,8 @@ export function createInspectorStore() {
     videoTarget: null,
     framingTarget: null,
     transitionTarget: null,
+    textTarget: null,
+    setTextTarget: (textTarget) => set({ textTarget }),
     setTransitionTarget: (transitionTarget) => set({ transitionTarget }),
     setAudioTarget: (audioTarget) => set({ audioTarget }),
     setMusicTarget: (musicTarget) => set({ musicTarget }),
