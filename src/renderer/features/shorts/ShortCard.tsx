@@ -6,15 +6,19 @@ import { IconButton } from '@renderer/ui/IconButton'
 import { Input } from '@renderer/ui/Input'
 import { Button } from '@renderer/ui/Button'
 import type { ManualShortStatus } from './shortCommands'
+import { PosterFrame } from './PosterFrame'
+import type { PosterView } from './posterRequests'
 import { isShortEmpty } from './shortsView'
 import styles from './ShortCard.module.css'
+
+const NO_POSTER: PosterView = { status: 'empty' }
 
 export interface ShortCardProps {
   short: Short
   // Effective settings: the project defaults with this short's overrides applied.
   target: ShortDefaults
-  // The short's poster frame as a data URL. Undefined shows the placeholder ornament.
-  posterSrc?: string
+  // The short's poster view. Undefined counts as no poster, which shows the empty state.
+  posterView?: PosterView
   renaming: boolean
   onOpen: () => void
   onStartRename: () => void
@@ -43,7 +47,7 @@ const STATUS_LABEL: Record<ShortStatus, string> = {
 export function ShortCard({
   short,
   target,
-  posterSrc,
+  posterView,
   renaming,
   onOpen,
   onStartRename,
@@ -116,29 +120,37 @@ export function ShortCard({
         onDropHere()
       }}
     >
-      <button
-        type="button"
-        data-short-open
-        className={styles.poster}
-        aria-label={`Open ${short.name}`}
-        onDoubleClick={onOpen}
-        onKeyDown={onPosterKeyDown}
-      >
-        {posterSrc ? (
-          // The name sits under the card, so the poster is decorative for screen readers.
-          <img className={styles.image} src={posterSrc} alt="" draggable={false} />
-        ) : isShortEmpty(short) ? (
+      <div className={styles.posterArea}>
+        {/* The open control sits under the poster, so the poster's Edit thumbnail button stays clickable. */}
+        <button
+          type="button"
+          data-short-open
+          className={styles.openButton}
+          aria-label={`Open ${short.name}`}
+          onDoubleClick={onOpen}
+          onKeyDown={onPosterKeyDown}
+        />
+        {isShortEmpty(short) ? (
           <span className={styles.emptyFrame} data-empty="true">
             <span className={styles.ornament} aria-hidden="true" />
             <span className={styles.emptyText}>Empty · open to add clips</span>
           </span>
         ) : (
-          <span className={styles.ornament} aria-hidden="true" />
+          // The name sits under the card, so the poster image is decorative for screen readers.
+          <PosterFrame
+            view={posterView ?? NO_POSTER}
+            alt=""
+            emptyAction={
+              <Button variant="ghost" size="sm" onClick={onOpen}>
+                Edit thumbnail
+              </Button>
+            }
+          />
         )}
         {short.editedSinceExport && (
           <span className={styles.dot} role="img" aria-label="Edited since export" />
         )}
-      </button>
+      </div>
 
       <div className={styles.body}>
         {renaming ? (

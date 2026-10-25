@@ -3,9 +3,10 @@
 // ever handed to the renderer.
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { extname } from 'node:path'
+import { extname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { parseMediaUrl } from '@shared/media/previewSource'
+import { parsePosterUrl } from '@shared/media/posterSource'
 import type { MediaSourceRegistry } from './mediaSources'
 
 export interface ByteRange {
@@ -72,10 +73,39 @@ export const CORS_HEADERS: Readonly<Record<string, string>> = {
 
 const notFound = (): Response => new Response('Not found', { status: 404, headers: CORS_HEADERS })
 
+// A short's poster frame, read from its project's cache folder. The URL names the short and the cache
+// file, both checked by parsePosterUrl, so nothing else in the folder can be reached.
+async function servePoster(
+  shortId: string,
+  fileName: string,
+  registry: MediaSourceRegistry
+): Promise<Response> {
+  const folder = registry.posterFolder(shortId)
+  if (!folder) return notFound()
+  const file = join(folder, 'cache', 'posters', shortId, fileName)
+  try {
+    const info = await stat(file)
+    if (!info.isFile() || info.size === 0) return notFound()
+    return new Response(fileBody(file), {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        'Content-Type': 'image/jpeg',
+        'Content-Length': String(info.size),
+        'Cache-Control': 'no-cache'
+      }
+    })
+  } catch {
+    return notFound()
+  }
+}
+
 export async function serveMediaRequest(
   request: Request,
   registry: MediaSourceRegistry
 ): Promise<Response> {
+  const poster = parsePosterUrl(request.url)
+  if (poster) return servePoster(poster.shortId, poster.fileName, registry)
   const parsed = parseMediaUrl(request.url)
   const paths = parsed ? registry.get(parsed.mediaId) : undefined
   if (!parsed || !paths) return notFound()

@@ -27,6 +27,8 @@ import { playbackStore } from '../playback/playbackStore'
 import { useProjectStore } from '../project/useProjectStore'
 import { projectStore } from '../project/projectStore'
 import { useShortPosters } from '../shorts/useShortPosters'
+import { PosterFrame } from '../shorts/PosterFrame'
+import type { PosterView } from '../shorts/posterRequests'
 import { toast } from '../toasts/toast'
 import { exportStore } from './exportStore'
 import { checkShortsBeforeExport } from './checkShortsBeforeExport'
@@ -37,6 +39,7 @@ import styles from './ExportPanel.module.css'
 
 const NO_SHORTS: Short[] = []
 const NO_MEDIA: MediaRef[] = []
+const NO_POSTER: PosterView = { status: 'empty' }
 
 const PRESET_OPTIONS = EXPORT_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))
 const FPS_OPTIONS = EXPORT_FPS_OPTIONS.map((fps) => ({ value: String(fps), label: `${fps} fps` }))
@@ -80,7 +83,7 @@ export function ExportPanel(): JSX.Element {
   })
   const durationMs = timelineDurationMs(short.timeline)
   const estimate = estimateExport(durationMs, preset, encoder?.hardware ?? false)
-  const poster = posters[short.id]
+  const posterView = posters[short.id] ?? NO_POSTER
   const readyIds = shorts.filter((item) => item.status === 'ready').map((item) => item.id)
 
   // Saves pending edits first, so the export renders the timeline the user sees. Problems found by the
@@ -121,14 +124,20 @@ export function ExportPanel(): JSX.Element {
   return (
     <div className={styles.panel}>
       <div className={styles.preview}>
-        {poster ? (
-          <img className={styles.poster} src={poster} alt={`Poster for ${short.name}`} />
-        ) : (
-          <p className={styles.noPoster}>No poster frame yet</p>
+        <PosterFrame
+          view={posterView}
+          alt={`Poster for ${short.name}`}
+          emptyAction={
+            <Button variant="ghost" size="sm" onClick={editThumbnail}>
+              Edit thumbnail
+            </Button>
+          }
+        />
+        {posterView.status === 'ready' && (
+          <Button variant="ghost" size="sm" className={styles.editThumb} onClick={editThumbnail}>
+            Edit thumbnail
+          </Button>
         )}
-        <Button variant="ghost" size="sm" className={styles.editThumb} onClick={editThumbnail}>
-          Edit thumbnail
-        </Button>
       </div>
 
       <section className={styles.card} aria-label="Export settings">
