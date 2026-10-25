@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { APP_BACKGROUND } from '@shared/theme'
+import {
+  APP_BACKGROUND,
+  TITLE_BAR_COLOR,
+  TITLE_BAR_HEIGHT,
+  TITLE_BAR_SYMBOL_COLOR
+} from '@shared/theme'
 
 const tokensCss = readFileSync(resolve(__dirname, '../src/renderer/theme/tokens.css'), 'utf8')
 
@@ -53,7 +58,10 @@ describe('theme tokens', () => {
     ['color-text-2', 'color-canvas'],
     ['color-on-primary', 'color-primary'],
     ['color-on-ai', 'color-ai'],
-    ['color-on-destructive', 'color-destructive']
+    ['color-on-destructive', 'color-destructive'],
+    // The title strip: its wordmark and project name (task 01.14)
+    ['color-text', 'color-titlebar'],
+    ['color-text-2', 'color-titlebar']
   ]
 
   it.each(textPairs)('--%s on --%s meets WCAG AA for text', (fg, bg) => {
@@ -77,5 +85,11 @@ describe('theme tokens', () => {
 
   it('the window background in the main process matches --color-bg', () => {
     expect(APP_BACKGROUND.toLowerCase()).toBe(resolveToken('color-bg').toLowerCase())
+  })
+
+  it('the title strip colours and height in the main process match the tokens', () => {
+    expect(TITLE_BAR_COLOR.toLowerCase()).toBe(resolveToken('color-titlebar').toLowerCase())
+    expect(TITLE_BAR_SYMBOL_COLOR.toLowerCase()).toBe(resolveToken('color-text').toLowerCase())
+    expect(parseInt(resolveToken('titlebar-h'), 10)).toBe(TITLE_BAR_HEIGHT)
   })
 })

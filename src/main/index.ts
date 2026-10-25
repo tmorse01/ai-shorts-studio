@@ -1,12 +1,12 @@
-import { app, BrowserWindow, dialog, protocol, safeStorage, shell } from 'electron'
+import { app, BrowserWindow, dialog, Menu, protocol, safeStorage, shell } from 'electron'
 import { AiService } from './ai/aiService'
 import { createAiStateFile } from './ai/aiStateFile'
 import { createSafeStorageSecretStore } from './ai/secretStore'
 import { createAnthropicClient } from './ai/anthropicClient'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
-import { APP_NAME } from '@shared/app'
-import { APP_BACKGROUND } from '@shared/theme'
+import { APP_USER_MODEL_ID } from '@shared/app'
+import { createMainWindow } from './window/mainWindow'
 import { MEDIA_SCHEME } from '@shared/media/previewSource'
 import { registerIpcHandlers } from './ipc/register'
 import { createIpcHandlers } from './ipc/handlers'
@@ -19,6 +19,11 @@ import { detectEncoder, unknownEncoder } from './export/encoderDetection'
 import { resolveBinary, type BinaryLocation } from './media/binaries'
 import type { EncoderInfo } from '@shared/export/exportSettings'
 
+// Windows groups the taskbar button and notifications under the brand, not Electron.
+app.setAppUserModelId(APP_USER_MODEL_ID)
+// The window has its own title strip, so the default File/Edit/View menu is removed.
+Menu.setApplicationMenu(null)
+
 // Footage reaches the preview through this scheme, never through file://. It must be declared as
 // privileged before the app is ready. `stream` lets the video element seek with byte ranges.
 protocol.registerSchemesAsPrivileged([
@@ -28,27 +33,18 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-function createWindow(): void {
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 720,
-    minWidth: 1280,
-    minHeight: 720,
-    title: APP_NAME,
-    backgroundColor: APP_BACKGROUND,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+function openMainWindow(): void {
+  void createMainWindow({
+    preload: join(__dirname, '../preload/index.js'),
+    rendererUrl: process.env.ELECTRON_RENDERER_URL,
+    rendererFile: join(__dirname, '../renderer/index.html'),
+    // Packaged builds read the icon from resources (see extraResources in package.json).
+    iconPath: app.isPackaged
+      ? join(process.resourcesPath, 'icon.png')
+      : join(app.getAppPath(), 'build', 'icon.png'),
+    stateFile: join(app.getPath('userData'), 'window-state.json'),
+    isPackaged: app.isPackaged
   })
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(process.env.ELECTRON_RENDERER_URL)
-  } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
 }
 
 void app.whenReady().then(async () => {
@@ -153,10 +149,10 @@ void app.whenReady().then(async () => {
       }
     })
   )
-  createWindow()
+  openMainWindow()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) openMainWindow()
   })
 })
 
