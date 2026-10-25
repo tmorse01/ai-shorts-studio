@@ -213,7 +213,8 @@ test('a file moved on disk shows as offline and Relink fixes it', async ({ sessi
   )
   await page.getByRole('button', { name: 'Relink folder…' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'offline.' })).toBeHidden()
-  await expect(page.getByText('Relinked 1 file')).toBeVisible()
+  // The message shows both in the dialog title and in the live status region, so take the title.
+  await expect(page.getByText('Relinked 1 file', { exact: true })).toBeVisible()
 })
 
 test('an edit is autosaved and survives closing and relaunching the app', async ({ session }) => {
