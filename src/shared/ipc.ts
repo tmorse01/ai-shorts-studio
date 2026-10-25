@@ -11,6 +11,13 @@ import { posterFrameRefSchema } from './shorts/poster'
 import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
+import {
+  speechEstimateSchema,
+  speechStatusSchema,
+  speechTextSchema,
+  ttsVoiceSchema
+} from './tts/speech'
+import { speechSettingsSchema } from './tts/speechSettings'
 import { importCandidateSchema } from './media/importFiles'
 import { analysisFileSchema, analysisStageSchema, visionDecisionSchema } from './analysis/analysis'
 import { batchSchema, MAX_BATCH_ITEMS } from './batch/batch'
@@ -546,6 +553,56 @@ export const ipcChannels = {
   'ai:scripts:rewriteLine': {
     input: lineRewriteInputSchema,
     output: lineRewriteOutputSchema
+  },
+  // Text-to-speech status: whether an ElevenLabs key is saved. Never the key itself.
+  'tts:status': {
+    input: z.object({}),
+    output: speechStatusSchema
+  },
+  'tts:key:save': {
+    input: z.object({ apiKey: z.string().trim().min(20).max(300).regex(/^\S+$/) }),
+    output: speechStatusSchema
+  },
+  'tts:key:clear': {
+    input: z.object({}),
+    output: speechStatusSchema
+  },
+  // The provider's voices, and the project's default voice (null when none is set).
+  'tts:voices': {
+    input: z.object({ projectFolder: z.string().trim().min(1) }),
+    output: z.object({
+      voices: z.array(ttsVoiceSchema),
+      defaultVoiceId: z.string().min(1).nullable()
+    })
+  },
+  'tts:defaultVoice:set': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      defaultVoiceId: z.string().min(1).nullable()
+    }),
+    output: speechSettingsSchema
+  },
+  // What speaking the text would cost. A cached result costs nothing. Sends nothing to the provider.
+  'tts:estimate': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      voiceId: z.string().min(1),
+      text: speechTextSchema
+    }),
+    output: speechEstimateSchema
+  },
+  // Speaks the text, or returns the cached audio file (an MP3 in the project's cache folder).
+  'tts:generate': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      voiceId: z.string().min(1),
+      text: speechTextSchema
+    }),
+    output: z.object({
+      audioPath: z.string().min(1),
+      characters: z.number().int().nonnegative(),
+      cached: z.boolean()
+    })
   }
 } satisfies Record<string, { input: z.ZodType; output: z.ZodType }>
 

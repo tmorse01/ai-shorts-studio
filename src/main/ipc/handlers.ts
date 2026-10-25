@@ -52,6 +52,8 @@ import { estimateScriptRun, generateScripts } from '../ai/scriptGenerator'
 import { rewriteScriptLine } from '../ai/lineRewriter'
 import { matchFootageRequest } from '../ai/footageMatcher'
 import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage'
+import { SpeechService } from '../tts/speechService'
+import { createElevenLabsProvider } from '../tts/elevenLabsProvider'
 import {
   dismissSuggestions,
   findMomentSuggestions,
@@ -105,6 +107,8 @@ export interface IpcHandlerOptions {
    * queue. The default keeps nothing on disk and has no key, so tests never reach the network.
    */
   ai?: AiService
+  /** Text-to-speech service. Defaults to one that reads the key from `ai` and has no provider. */
+  speech?: SpeechService
   /** Reads the footage that script drafting is grounded in. Tests pass a fake, so no disk is read. */
   scriptFootage?: ScriptFootageSource
   /** Reads the transcript, shots and descriptions that clip suggestions are based on. Tests pass a fake. */
@@ -132,6 +136,10 @@ export function createIpcHandlers({
     secrets: unavailableSecretStore,
     state: memoryAiStateStorage(),
     createClient: (apiKey) => createAnthropicClient({ apiKey })
+  }),
+  speech = new SpeechService({
+    keys: ai,
+    createProvider: (apiKey) => createElevenLabsProvider({ apiKey })
   }),
   scriptFootage = readScriptFootage,
   suggestionFootage = readSuggestionFootage,
@@ -346,6 +354,14 @@ export function createIpcHandlers({
     }),
     'ai:scripts:rewriteLine': (input) => rewriteScriptLine(ai, input),
     'ai:footage:match': (input) => matchFootageRequest(ai, input),
+    'tts:status': () => speech.status(),
+    'tts:key:save': ({ apiKey }) => speech.saveKey(apiKey),
+    'tts:key:clear': () => speech.clearKey(),
+    'tts:voices': ({ projectFolder }) => speech.voices(projectFolder),
+    'tts:defaultVoice:set': ({ projectFolder, defaultVoiceId }) =>
+      speech.setDefaultVoice(projectFolder, defaultVoiceId),
+    'tts:estimate': (input) => speech.estimate(input),
+    'tts:generate': (input) => speech.generate(input),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })
