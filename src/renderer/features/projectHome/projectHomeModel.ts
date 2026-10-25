@@ -76,3 +76,21 @@ export function activeSection(tops: readonly SectionTop[], threshold = 48): Proj
   }
   return active
 }
+
+export interface ShortTimestamp {
+  id: string
+  createdAt: string
+}
+
+export type ClipFinderTarget = { kind: 'create' } | { kind: 'open'; shortId: string }
+
+// Clip Finder lives in the editor. With no short yet, the link makes one. Otherwise it opens the
+// most recently created short.
+export function clipFinderTarget(shorts: readonly ShortTimestamp[]): ClipFinderTarget {
+  if (shorts.length === 0) return { kind: 'create' }
+  let newest = shorts[0]
+  for (const short of shorts) {
+    if (short.createdAt >= newest.createdAt) newest = short
+  }
+  return { kind: 'open', shortId: newest.id }
+}

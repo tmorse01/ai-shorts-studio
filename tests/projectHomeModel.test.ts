@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   activeSection,
+  clipFinderTarget,
   guideSteps,
   showGuide
 } from '../src/renderer/features/projectHome/projectHomeModel'
@@ -77,5 +78,21 @@ describe('activeSection', () => {
         { id: 'project-scripts', top: Number.POSITIVE_INFINITY }
       ])
     ).toBe('project-footage')
+  })
+})
+
+describe('clipFinderTarget', () => {
+  it('creates a short when the project has none', () => {
+    expect(clipFinderTarget([])).toEqual({ kind: 'create' })
+  })
+
+  it('opens the most recently created short', () => {
+    expect(
+      clipFinderTarget([
+        { id: 'old', createdAt: '2026-10-01T00:00:00.000Z' },
+        { id: 'newest', createdAt: '2026-10-20T00:00:00.000Z' },
+        { id: 'middle', createdAt: '2026-10-10T00:00:00.000Z' }
+      ])
+    ).toEqual({ kind: 'open', shortId: 'newest' })
   })
 })

@@ -10,6 +10,9 @@ import { pickAndImportMedia } from '../media/importMedia'
 import { reanalyzeMedia, syncAnalysis } from '../analysis/analysisSync'
 import { uiStore } from '../layout/useUiStore'
 import { useProjectStore } from '../project/useProjectStore'
+import { applyProjectCommand } from '../shorts/shortActions'
+import { createShortCommand } from '../shorts/shortCommands'
+import { clipFinderTarget } from './projectHomeModel'
 import styles from './FootageSection.module.css'
 
 const NO_MEDIA: MediaRef[] = []
@@ -28,8 +31,6 @@ export function FootageSection(): JSX.Element {
 
   const selected = media.filter((ref) => selectedIds.includes(ref.id))
   const hasFootage = media.length > 0
-  // Clip Finder lives in the editor, so the shortcut opens the newest short with that tool selected.
-  const clipFinderShort = shorts[0]
 
   function analyseAll() {
     if (folderPath) void syncAnalysis(window.api, folderPath, media)
@@ -40,12 +41,22 @@ export function FootageSection(): JSX.Element {
     void Promise.all(selected.map((ref) => reanalyzeMedia(window.api, folderPath, ref)))
   }
 
+  // Clip Finder lives in the editor. With no short yet, the link makes one (the normal undoable new
+  // short), then opens it with the Clip Finder panel selected.
   function openClipFinder() {
-    if (!projectId || !clipFinderShort) return
+    if (!projectId) return
+    const target = clipFinderTarget(shorts)
+    let shortId: string
+    if (target.kind === 'create') {
+      shortId = crypto.randomUUID()
+      applyProjectCommand(createShortCommand(shortId, new Date().toISOString()))
+    } else {
+      shortId = target.shortId
+    }
     uiStore.getState().setLeftTool('ai-clip-finder')
     void router.navigate({
       to: '/project/$projectId/short/$shortId',
-      params: { projectId, shortId: clipFinderShort.id }
+      params: { projectId, shortId }
     })
   }
 
@@ -78,13 +89,7 @@ export function FootageSection(): JSX.Element {
             >
               {selected.length > 1 ? `Analyse ${selected.length} selected` : 'Analyse selected'}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!clipFinderShort}
-              title={clipFinderShort ? undefined : 'Make a short to open Clip Finder'}
-              onClick={openClipFinder}
-            >
+            <Button variant="ghost" size="sm" onClick={openClipFinder}>
               Clip Finder
             </Button>
           </div>
