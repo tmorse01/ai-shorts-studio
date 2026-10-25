@@ -62,4 +62,32 @@ describe('audioClipForDrop', () => {
     const result = audioClipForDrop(clipPayload('gone', 1_000), media, 'c5', 0)
     expect(result.ok).toBe(false)
   })
+
+  it('places audio on the Narration lane as an imported narration clip', () => {
+    const result = audioClipForDrop(clipPayload('song', 3_000), media, 'n1', 1_200, 'narration')
+    expect(result).toEqual({
+      ok: true,
+      clip: {
+        id: 'n1',
+        mediaId: 'song',
+        startMs: 1200,
+        durationMs: 3_000,
+        sourceInMs: 0,
+        transform: { x: 0, y: 0, scale: 1, rotationDeg: 0 },
+        narration: { source: 'imported' }
+      }
+    })
+  })
+
+  it('names the Narration lane in refusals', () => {
+    expect(audioClipForDrop(clipPayload('clip', 1_000), media, 'n2', 0, 'narration')).toEqual({
+      ok: false,
+      reason: 'Only audio files can go on the Narration lane.'
+    })
+  })
+
+  it('leaves music clips without a narration key', () => {
+    const result = audioClipForDrop(clipPayload('song', 1_000), media, 'm1', 0, 'music')
+    expect(result.ok && 'narration' in result.clip).toBe(false)
+  })
 })
