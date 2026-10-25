@@ -16,11 +16,20 @@ export interface DropdownMenuProps {
   trigger: ReactElement
   items: DropdownMenuItem[]
   align?: 'start' | 'center' | 'end'
+  /** Set with onOpenChange to control the menu from outside, for example a right-click menu. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function DropdownMenu({ trigger, items, align = 'end' }: DropdownMenuProps) {
+export function DropdownMenu({
+  trigger,
+  items,
+  align = 'end',
+  open,
+  onOpenChange
+}: DropdownMenuProps) {
   return (
-    <RadixDropdown.Root>
+    <RadixDropdown.Root open={open} onOpenChange={onOpenChange}>
       <RadixDropdown.Trigger asChild>{trigger}</RadixDropdown.Trigger>
       <RadixDropdown.Portal>
         <RadixDropdown.Content className={styles.content} sideOffset={4} align={align}>
