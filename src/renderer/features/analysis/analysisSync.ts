@@ -8,12 +8,15 @@ import type { MediaRef } from '@shared/project/schema'
 import { toast } from '../toasts/toast'
 import { analysisStore } from './analysisStore'
 
-// Media paths as main needs them. Relative refs resolve against the project folder.
-function analysisItems(folderPath: string, media: readonly MediaRef[]) {
-  return media.map((ref) => ({
-    id: ref.id,
-    path: ref.pathKind === 'absolute' ? ref.path : `${folderPath}/${ref.path}`
-  }))
+// Media paths as main needs them. Relative refs resolve against the project folder. Stills are left
+// out: analysis reads a video's duration and audio, so a PNG would only fail with a duration error.
+export function analysisItems(folderPath: string, media: readonly MediaRef[]) {
+  return media
+    .filter((ref) => ref.kind !== 'image')
+    .map((ref) => ({
+      id: ref.id,
+      path: ref.pathKind === 'absolute' ? ref.path : `${folderPath}/${ref.path}`
+    }))
 }
 
 function applyResult(
