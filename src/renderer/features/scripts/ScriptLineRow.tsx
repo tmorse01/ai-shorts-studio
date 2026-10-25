@@ -1,5 +1,5 @@
 import type { DragEvent, JSX, KeyboardEvent } from 'react'
-import { GripVertical, Loader2, Sparkles, Trash2 } from 'lucide-react'
+import { GripVertical, Loader2, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import {
   LINE_REWRITE_ACTIONS,
   LINE_REWRITE_ACTION_LABELS,
@@ -27,6 +27,9 @@ export interface ScriptLineRowProps {
   suggestion: { text: string; action: LineRewriteAction } | null
   onAcceptSuggestion: () => void
   onDiscardSuggestion: () => void
+  // Re-assembles this line on the attached short (#142). Omitted when no short has footage to put it on.
+  onReassemble?: () => void
+  reassembling?: boolean
 }
 
 // One numbered line of a script. The grip handle drags the line to a new place. Alt+Up and Alt+Down
@@ -44,7 +47,9 @@ export function ScriptLineRow({
   rewriting,
   suggestion,
   onAcceptSuggestion,
-  onDiscardSuggestion
+  onDiscardSuggestion,
+  onReassemble,
+  reassembling = false
 }: ScriptLineRowProps): JSX.Element {
   const empty = text.trim() === ''
 
@@ -91,6 +96,14 @@ export function ScriptLineRow({
         onKeyDown={onKeyDown}
       />
       <div className={styles.actions}>
+        {onReassemble && (
+          <IconButton
+            icon={reassembling ? Loader2 : RefreshCw}
+            label={`Re-assemble line ${index + 1}`}
+            disabled={reassembling || empty}
+            onClick={onReassemble}
+          />
+        )}
         <DropdownMenu
           align="end"
           trigger={

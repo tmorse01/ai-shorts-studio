@@ -14,6 +14,8 @@ export interface ApplyFootagePlanInput {
   plan: AssemblyPlan
   now: string
   newId: () => string
+  /** The undo label. Defaults to the count of lines in the plan. Re-assembly passes its own (#142). */
+  label?: string
   /**
    * Set when the script has no short yet (#146). The draft short is created from the script in the same
    * step, with a main video track for the footage, so one undo removes both.
@@ -27,7 +29,8 @@ export interface ApplyFootagePlanInput {
 
 export function applyFootagePlanCommand(input: ApplyFootagePlanInput): Command<Project> {
   const lineCount = input.plan.lines.length
-  const label = `Apply footage for ${lineCount} ${lineCount === 1 ? 'line' : 'lines'}`
+  const label =
+    input.label ?? `Apply footage for ${lineCount} ${lineCount === 1 ? 'line' : 'lines'}`
   const apply = timelineCommand(input.shortId, label, input.now, (timeline) =>
     applyAssemblyPlan(timeline, input.plan, { trackId: input.trackId, newId: input.newId })
   )
