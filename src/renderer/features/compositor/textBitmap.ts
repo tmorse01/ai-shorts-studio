@@ -19,7 +19,7 @@ function lookKey(render: TextRender): string {
 }
 
 // True when the font is loaded. Otherwise it starts loading, and the caller draws with the fallback.
-function fontLoaded(fontCss: string): boolean {
+export function fontLoaded(fontCss: string): boolean {
   if (!document.fonts) return true
   if (document.fonts.check(fontCss)) return true
   void document.fonts.load(fontCss)
