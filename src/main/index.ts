@@ -18,6 +18,16 @@ import { setupErrorReporting } from './errors/setupErrorReporting'
 import { detectEncoder, unknownEncoder } from './export/encoderDetection'
 import { resolveBinary, type BinaryLocation } from './media/binaries'
 import type { EncoderInfo } from '@shared/export/exportSettings'
+import { isE2eMode, isolatedProfile, readDialogPicks } from './e2e/e2eMode'
+import { createFakeAnthropicClient } from './e2e/fakes'
+
+// A test can give the app its own profile and documents folder through AISS_USER_DATA. This must run
+// before anything reads those paths.
+const profile = isolatedProfile()
+if (profile) {
+  app.setPath('userData', profile.userData)
+  app.setPath('documents', profile.documents)
+}
 
 // Footage reaches the preview through this scheme, never through file://. It must be declared as
 // privileged before the app is ready. `stream` lets the video element seek with byte ranges.
@@ -63,7 +73,8 @@ void app.whenReady().then(async () => {
       safeStorage
     ),
     state: createAiStateFile(join(app.getPath('userData'), 'ai-state.json')),
-    createClient: (apiKey) => createAnthropicClient({ apiKey }),
+    createClient: (apiKey) =>
+      isE2eMode() ? createFakeAnthropicClient() : createAnthropicClient({ apiKey }),
     onChange: (status) => emitIpcEvent('ai:changed', { status })
   })
   await ai.ready()
@@ -102,6 +113,7 @@ void app.whenReady().then(async () => {
       mediaSources,
       system: {
         pickFolder: async () => {
+          if (isE2eMode()) return readDialogPicks(app.getPath('userData')).folder
           const result = await dialog.showOpenDialog({
             properties: ['openDirectory', 'createDirectory']
           })
@@ -111,6 +123,7 @@ void app.whenReady().then(async () => {
         trashFolder: (folderPath) => shell.trashItem(folderPath),
         documentsDir: () => app.getPath('documents'),
         pickMediaFiles: async () => {
+          if (isE2eMode()) return readDialogPicks(app.getPath('userData')).media
           const result = await dialog.showOpenDialog({
             properties: ['openFile', 'multiSelections'],
             filters: [

@@ -77,6 +77,7 @@ export function CreateProjectDialog({
             variant="primary"
             type="submit"
             form="create-project-form"
+            data-testid="create-project-submit"
             loading={busy}
             disabled={!name.trim() || !folderPath.trim()}
           >

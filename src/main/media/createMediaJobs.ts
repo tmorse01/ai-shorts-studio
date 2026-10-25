@@ -17,11 +17,19 @@ import type { AiService } from '../ai/aiService'
 import { visionStageRunner } from '../ai/visionStage'
 import { transcriptStageRunner } from '../transcription/transcriptStage'
 import { realTranscriptTools } from '../transcription/transcriptTools'
+import { isE2eMode } from '../e2e/e2eMode'
+import { withFakeSpeech } from '../e2e/fakes'
 import { generateScripts } from '../ai/scriptGenerator'
 import { readScriptFootage } from '../ai/scriptFootage'
 import { matchFootageRequest } from '../ai/footageMatcher'
 import { usedRangesOfPlan } from '@shared/assembly/footageSpread'
 import { createAssemblySpreads } from './assemblySpread'
+
+// The real transcript tools. In E2E mode only the speech model and engine are faked; FFmpeg stays real.
+function speechTools(paths: Parameters<typeof realTranscriptTools>[0]) {
+  const tools = realTranscriptTools(paths)
+  return isE2eMode() ? withFakeSpeech(tools) : tools
+}
 
 export function createMediaJobs(ai: AiService): JobQueue {
   const location: BinaryLocation = {
@@ -77,7 +85,7 @@ export function createMediaJobs(ai: AiService): JobQueue {
         }),
         visionStageRunner(ai),
         transcriptStageRunner(
-          realTranscriptTools({
+          speechTools({
             ffmpeg: () => resolveBinary('ffmpeg', location),
             ffprobe: () => resolveBinary('ffprobe', location),
             modelsRoot: join(app.getPath('userData'), 'models')

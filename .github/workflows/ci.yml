@@ -41,6 +41,48 @@ jobs:
       - name: Build
         run: pnpm build
 
+  e2e:
+    name: E2E (Playwright on Electron)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # Not a required check yet. A red run reports but does not block merges.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.13.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install FFmpeg
+        shell: pwsh
+        run: |
+          choco install ffmpeg -y --no-progress
+          $ffmpeg = (Get-Command ffmpeg.exe).Source
+          "FFMPEG_DIR=$(Split-Path $ffmpeg)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Copy FFmpeg into resources/bin
+        run: pnpm fetch:bin
+
+      - name: E2E (builds the app, then runs e2e/*.spec.ts)
+        run: pnpm e2e
+
+      - name: Upload traces and screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: test-results/
+          if-no-files-found: ignore
+
   site:
     name: Site (build)
     runs-on: ubuntu-latest
