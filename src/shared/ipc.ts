@@ -14,6 +14,7 @@ import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
 import { transcriptSchema } from './analysis/transcript'
 import { visionShotSchema } from './analysis/vision'
 import { suggestionsOutputSchema } from './analysis/suggestions'
+import { footageMatchRequestSchema, footageMatchResultSchema } from './assembly/footageMatchRequest'
 import {
   aiStatusSchema,
   MAX_CAP_USD,
@@ -443,6 +444,12 @@ export const ipcChannels = {
   'ai:scripts:generate': {
     input: scriptRunInputSchema,
     output: z.object({ scripts: z.array(generatedScriptSchema).min(1) })
+  },
+  // Matches each script line to footage from the search index. The reply is a plan the renderer shows for
+  // review; it reaches the timeline only when the user applies it through a project command.
+  'ai:footage:match': {
+    input: footageMatchRequestSchema,
+    output: footageMatchResultSchema
   },
   // Rewrites one line. The reply is text only; the renderer shows it as a suggestion and saves it
   // through a project command when the user accepts it.

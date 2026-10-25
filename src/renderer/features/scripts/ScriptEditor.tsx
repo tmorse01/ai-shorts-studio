@@ -20,6 +20,7 @@ import {
 } from './scriptCommands'
 import { rewriteLine } from './scriptDrafts'
 import { ScriptLineRow } from './ScriptLineRow'
+import { AssemblyReviewDialog } from '../assembly/AssemblyReviewDialog'
 import { estimatedReadSeconds, formatReadTime, scriptWordCount } from './scriptStats'
 import styles from './ScriptEditor.module.css'
 
@@ -64,6 +65,7 @@ function ScriptEditorBody({ script }: { script: Script }): JSX.Element {
   const draggedIdRef = useRef<string | null>(null)
   const [rewritingLineId, setRewritingLineId] = useState<string | null>(null)
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
+  const [reviewingFootage, setReviewingFootage] = useState(false)
   const now = () => new Date().toISOString()
 
   const words = scriptWordCount(script)
@@ -183,6 +185,14 @@ function ScriptEditorBody({ script }: { script: Script }): JSX.Element {
         >
           Add line
         </Button>
+        <Button variant="ai" onClick={() => setReviewingFootage(true)}>
+          Match footage
+        </Button>
+        <AssemblyReviewDialog
+          open={reviewingFootage}
+          onOpenChange={setReviewingFootage}
+          scriptId={script.id}
+        />
       </div>
 
       <section aria-label="Shorts from this script" className={styles.shorts}>

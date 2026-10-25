@@ -1,0 +1,92 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.start {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-2);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--color-subtle-border);
+}
+
+.lineHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.lineText {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+}
+
+.cuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.thumb,
+.thumbEmpty {
+  width: 56px;
+  height: 32px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--color-bg);
+}
+
+.cutLabel {
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
