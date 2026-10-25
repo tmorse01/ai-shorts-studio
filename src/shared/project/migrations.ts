@@ -164,16 +164,29 @@ export function migrateV12ToV13(data: unknown): unknown {
   return { ...data, schemaVersion: 13, shorts: upgradedShorts }
 }
 
-// v13 text items had no colour or backdrop. A text item keeps no such key until one is set, so only the
+function upgradeTextClip(clip: unknown): unknown {
+  if (!isRecord(clip) || typeof clip.text !== 'string' || clip.text.trim() === '') return clip
+  return { ...clip, textItem: { text: clip.text, styleId: 'caption', x: 0.5, y: 0.85, scale: 1 } }
+}
+
+// v13 clips had no lock and no assembly metadata. Clips keep no such keys until one is set, so only the
 // version changes.
 export function migrateV13ToV14(data: unknown): unknown {
   if (!isRecord(data)) throw new Error('the file is not a JSON object')
   return { ...data, schemaVersion: 14 }
 }
 
-function upgradeTextClip(clip: unknown): unknown {
-  if (!isRecord(clip) || typeof clip.text !== 'string' || clip.text.trim() === '') return clip
-  return { ...clip, textItem: { text: clip.text, styleId: 'caption', x: 0.5, y: 0.85, scale: 1 } }
+// v14 had no caption presets and no per-short caption preset. Both keys are optional and read as their
+// defaults when unset, so only the version changes.
+export function migrateV14ToV15(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 15 }
+}
+
+// v15 had no change that needs a key. Only the version changes.
+export function migrateV15ToV16(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 16 }
 }
 
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
@@ -200,7 +213,9 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 10, to: 11, up: migrateV10ToV11 },
   { from: 11, to: 12, up: migrateV11ToV12 },
   { from: 12, to: 13, up: migrateV12ToV13 },
-  { from: 13, to: 14, up: migrateV13ToV14 }
+  { from: 13, to: 14, up: migrateV13ToV14 },
+  { from: 14, to: 15, up: migrateV14ToV15 },
+  { from: 15, to: 16, up: migrateV15ToV16 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

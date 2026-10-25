@@ -13,6 +13,7 @@ import { importCandidateSchema } from './media/importFiles'
 import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
 import { transcriptSchema } from './analysis/transcript'
 import { visionShotSchema } from './analysis/vision'
+import { suggestionsOutputSchema } from './analysis/suggestions'
 import {
   aiStatusSchema,
   MAX_CAP_USD,
@@ -341,6 +342,22 @@ export const ipcChannels = {
     }),
     output: z.object({ transcript: transcriptSchema.nullable() })
   },
+  // Makes sure each media item has a transcript, transcribing the ones that do not yet. An item whose
+  // transcription fails comes back with a null transcript. Used by caption generation.
+  'captions:transcribe': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      items: z.array(analysisItemSchema).max(500)
+    }),
+    output: z.object({
+      transcripts: z.array(
+        z.object({
+          mediaId: z.string().min(1),
+          transcript: transcriptSchema.nullable()
+        })
+      )
+    })
+  },
   // One media item's vision descriptions, one per described shot. Empty until the vision stage has run
   // for it. The search index reads them to find shots by what is on screen.
   'analysis:vision:read': {
@@ -351,6 +368,34 @@ export const ipcChannels = {
     output: z.object({
       shots: z.array(visionShotSchema.pick({ shotIndex: true, description: true, tags: true }))
     })
+  },
+  // One clip's AI suggestions: tags from its analysis and the moments found by the last search, minus the
+  // ones the user dismissed. Reads only; it sends nothing to the API.
+  'analysis:suggestions:read': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/)
+    }),
+    output: suggestionsOutputSchema
+  },
+  // Asks Claude for candidate moments of one clip. Costs a request, so only the user starts it.
+  'analysis:suggestions:findMoments': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/),
+      fileName: z.string().trim().min(1).max(260),
+      durationMs: z.number().nonnegative().optional()
+    }),
+    output: suggestionsOutputSchema
+  },
+  // Dismisses suggestions by key. Dismissed suggestions do not come back on re-analysis.
+  'analysis:suggestions:dismiss': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      mediaId: z.string().regex(/^[A-Za-z0-9_-]+$/),
+      keys: z.array(z.string().min(1).max(200)).min(1).max(200)
+    }),
+    output: suggestionsOutputSchema
   },
   // Tells main that playback started or stopped. Analysis pauses while playback runs.
   'analysis:playback': {

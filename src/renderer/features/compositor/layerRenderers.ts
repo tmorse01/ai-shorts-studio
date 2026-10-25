@@ -5,6 +5,7 @@ import { LayerRegistry } from '@shared/compositor/layerRegistry'
 import type { FrameLayer } from '@shared/compositor/frame'
 import type { FrameBackend } from './frameBackend'
 import { textBitmap } from './textBitmap'
+import { captionBitmap } from './captionBitmap'
 
 // A video layer's source. "pending" means the element has not decoded its frame yet, so the
 // compositor holds the last frame instead of drawing a partial one.
@@ -67,6 +68,24 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
     },
     { transformable: true }
   )
+  // A caption block is drawn as a bitmap at its description's centre, scaled by its pop-in. Like text,
+  // it is not transformable: its position comes from the captions layout, not from a clip transform.
+  registry.register('caption', (layer, context) => {
+    const captions = layer.captions
+    if (!captions) return
+    const bitmap = captionBitmap(captions)
+    context.backend.drawBitmap(
+      bitmap,
+      {
+        centerX: captions.centerX,
+        centerY: captions.centerY,
+        width: bitmap.width * captions.scale,
+        height: bitmap.height * captions.scale,
+        rotationDeg: 0
+      },
+      1
+    )
+  })
   return registry
 }
 

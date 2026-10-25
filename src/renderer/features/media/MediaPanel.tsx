@@ -20,6 +20,8 @@ import { Dialog } from '@renderer/ui/Dialog'
 import { IconButton } from '@renderer/ui/IconButton'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { applyProjectCommand } from '../shorts/shortActions'
+import { recordSummary } from '@shared/analysis/analysis'
+import { MediaSuggestions } from '../suggestions/MediaSuggestions'
 import { analysisStore } from '../analysis/analysisStore'
 import { reanalyzeMedia, setAnalyzeAutomatically } from '../analysis/analysisSync'
 import { analysisErrorText, analysisStatusLabel } from '../analysis/analysisStatus'
@@ -96,6 +98,7 @@ export function MediaPanel(): JSX.Element {
     selectedIds.length === 1
       ? current.project.media.find((ref) => ref.id === selectedIds[0])
       : undefined
+  const selectedRecord = selectedRef ? analysisFile?.records[selectedRef.id] : undefined
 
   const onItemClick = (id: string, event: MouseEvent) => {
     mediaPanelStore
@@ -321,6 +324,17 @@ export function MediaPanel(): JSX.Element {
           {items.map(renderRow)}
         </div>
       )}
+
+      {selectedRef && searchText.trim() === '' ? (
+        <MediaSuggestions
+          folderPath={current.folderPath}
+          project={current.project}
+          ref={selectedRef}
+          analysisState={
+            selectedRecord ? `${selectedRecord.version}:${recordSummary(selectedRecord)}` : 'none'
+          }
+        />
+      ) : null}
 
       <Dialog
         open={confirmOpen}

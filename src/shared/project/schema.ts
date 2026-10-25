@@ -2,9 +2,10 @@
 // (#2). Scripts come from Epic 14 (#14). `timeline` comes from Epic 06.
 import { z } from 'zod'
 import { timelineSchema } from '../timeline/timeline'
+import { captionPresetSchema } from '../captions/captionPreset'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 14
+export const CURRENT_SCHEMA_VERSION = 16
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -114,6 +115,8 @@ export const shortSchema = z.object({
   posterMs: z.number().int().nonnegative().optional(),
   // The script this short is written from. Unset until one is attached (schema 8).
   scriptId: nonEmptyString.optional(),
+  // The caption preset this short uses by default. Unset means the project's default preset (schema 14).
+  captionPresetId: nonEmptyString.optional(),
   exportedAt: isoTimestamp.optional(),
   // Set when an Exported short is edited. Cleared by the next export (Epic 17).
   editedSinceExport: z.boolean(),
@@ -153,6 +156,8 @@ export const projectSchema = z.object({
   moments: z.array(momentSchema),
   defaults: shortDefaultsSchema,
   shorts: z.array(shortSchema),
-  scripts: z.array(scriptSchema)
+  scripts: z.array(scriptSchema),
+  // Caption style presets this project offers. Unset means the shipped defaults (schema 14).
+  captionPresets: z.array(captionPresetSchema).optional()
 })
 export type Project = z.infer<typeof projectSchema>
