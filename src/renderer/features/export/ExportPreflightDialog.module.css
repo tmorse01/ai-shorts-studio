@@ -1,0 +1,35 @@
+.list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-small-size);
+}
+
+.list li {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning .icon {
+  color: var(--color-text-2);
+}
+
+.blocking {
+  color: var(--color-destructive);
+}
+
+.blocking .icon {
+  color: var(--color-destructive);
+}
+
+.name {
+  font-weight: 600;
+}

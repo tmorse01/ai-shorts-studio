@@ -214,10 +214,16 @@ export function migrateV19ToV20(data: unknown): unknown {
   return { ...data, schemaVersion: 20 }
 }
 
-// Moments gain an optional AI score. Older moments have none, so nothing else changes.
+// Schema 21 adds an optional approval state on scripts. Unset reads as a draft, so only the version changes.
 export function migrateV20ToV21(data: unknown): unknown {
   if (!isRecord(data)) throw new Error('the file is not a JSON object')
   return { ...data, schemaVersion: 21 }
+}
+
+// Schema 22 adds an optional AI score on moments. Older moments have none, so only the version changes.
+export function migrateV21ToV22(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 22 }
 }
 
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
@@ -251,7 +257,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 17, to: 18, up: migrateV17ToV18 },
   { from: 18, to: 19, up: migrateV18ToV19 },
   { from: 19, to: 20, up: migrateV19ToV20 },
-  { from: 20, to: 21, up: migrateV20ToV21 }
+  { from: 20, to: 21, up: migrateV20ToV21 },
+  { from: 21, to: 22, up: migrateV21ToV22 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

@@ -6,6 +6,7 @@ import { isJobFinished, type JobKind, type JobSnapshot } from '@shared/media/job
 import type { MediaKind } from '@shared/project/schema'
 import type { ProbeResult } from '@shared/media/probe'
 import type { AnalysisStage, StageResult } from '@shared/analysis/analysis'
+import type { GeneratedScript, ScriptRunInput } from '@shared/ai/scriptGeneration'
 import { UserFacingError } from '../errors'
 import type { ExportJobInput } from '../export/exportJob'
 
@@ -25,6 +26,8 @@ export interface JobInput {
   stage?: AnalysisStage
   /** The file an analysis stage keeps its results in, outside cache/. Set for the vision stage. */
   resultFile?: string
+  /** The script draft request a script job runs. Set for script jobs only. */
+  scriptRequest?: ScriptRunInput
   /** What an export job renders: the short, its footage and the encoder settings. Set for export jobs. */
   export?: ExportJobInput
 }
@@ -44,6 +47,7 @@ export interface JobResults {
   proxy: void
   poster: void
   analysis: StageResult
+  script: GeneratedScript[]
   /** The file the export wrote, after it was renamed into place. */
   export: { outPath: string }
 }
@@ -61,6 +65,7 @@ export const JOB_PRIORITY: Record<JobKind, number> = {
   proxy: 3,
   poster: 1,
   analysis: 4,
+  script: 4,
   // Exports are user-started and long. They run after probing and thumbnails, ahead of analysis.
   export: 3
 }
@@ -72,6 +77,7 @@ const JOB_TITLES: Record<JobKind, string> = {
   proxy: 'Making a proxy file',
   poster: 'Making a poster frame',
   analysis: 'Analyzing the footage',
+  script: 'Drafting a script',
   export: 'Exporting the short'
 }
 
@@ -293,6 +299,7 @@ export function unavailableExecutors(): JobExecutors {
     proxy: unavailable('proxy'),
     poster: unavailable('poster'),
     analysis: unavailable('analysis'),
+    script: unavailable('script'),
     export: unavailable('export')
   }
 }

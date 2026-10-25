@@ -6,7 +6,7 @@ import { captionPresetSchema } from '../captions/captionPreset'
 import { batchSchema } from '../batch/batch'
 
 // Bump this when the shape changes, and add a migration in ./migrations.ts from the old version.
-export const CURRENT_SCHEMA_VERSION = 21
+export const CURRENT_SCHEMA_VERSION = 22
 
 const nonEmptyString = z.string().trim().min(1)
 const isoTimestamp = z.iso.datetime()
@@ -137,12 +137,18 @@ export const scriptLineSchema = z.object({
 })
 export type ScriptLine = z.infer<typeof scriptLineSchema>
 
+// Whether a script is still a draft or has been approved for assembly. Unset reads as a draft.
+export const scriptApprovalSchema = z.enum(['draft', 'approved'])
+export type ScriptApproval = z.infer<typeof scriptApprovalSchema>
+
 // A script stored in the project. Shorts reference one by `scriptId`. Schema 8 changed this shape.
+// `approval` is optional from schema 21; unset means a draft.
 export const scriptSchema = z.object({
   id: nonEmptyString,
   title: nonEmptyString,
   topic: z.string(),
-  lines: z.array(scriptLineSchema)
+  lines: z.array(scriptLineSchema),
+  approval: scriptApprovalSchema.optional()
 })
 export type Script = z.infer<typeof scriptSchema>
 

@@ -2,7 +2,7 @@
 // a script to a short. Each is a Command<Project>, so it runs through the project history and can be
 // undone. The caller supplies ids and timestamps, which keeps every command deterministic in tests.
 import type { Draft } from 'immer'
-import type { Project, Script, ScriptLine } from '@shared/project/schema'
+import type { Project, Script, ScriptApproval, ScriptLine } from '@shared/project/schema'
 import type { Command } from '../history/historyStore'
 import { createShortCommand, markEdited } from '../shorts/shortCommands'
 
@@ -178,6 +178,55 @@ export function rewriteScriptLineCommand(
       const next = text.trim()
       if (next === '') throw new Error('A line needs some text.')
       script.lines[lineIndex(script, lineId)].text = next
+    }
+  }
+}
+
+// Marks a script approved or back to draft. Unset approval reads as a draft.
+export function setScriptApprovalCommand(
+  scriptId: string,
+  approval: ScriptApproval,
+  title: string
+): Command<Project> {
+  return {
+    label: approval === 'approved' ? `Approve ${title.trim()}` : `Unapprove ${title.trim()}`,
+    produce: (draft) => {
+      findScript(draft, scriptId).approval = approval
+    }
+  }
+}
+
+// Removes a script. Shorts written from it are detached, so they stay in the project.
+export function discardScriptCommand(scriptId: string, title: string): Command<Project> {
+  return {
+    label: `Discard ${title.trim()}`,
+    produce: (draft) => {
+      const index = draft.scripts.findIndex((item) => item.id === scriptId)
+      if (index === -1) throw new Error('This script no longer exists.')
+      draft.scripts.splice(index, 1)
+      for (const short of draft.shorts) {
+        if (short.scriptId === scriptId) delete short.scriptId
+      }
+    }
+  }
+}
+
+// Replaces a script's title, topic and lines with a new draft, keeping its id and shorts. The lines
+// need fresh ids from the caller. The script goes back to draft, since it has not been reviewed.
+export function replaceScriptDraftCommand(
+  scriptId: string,
+  draftScript: Pick<Script, 'title' | 'topic' | 'lines'>
+): Command<Project> {
+  const title = draftScript.title.trim()
+  if (title === '') throw new Error('A script needs a title.')
+  return {
+    label: `Regenerate ${title}`,
+    produce: (draft) => {
+      const script = findScript(draft, scriptId)
+      script.title = title
+      script.topic = draftScript.topic.trim()
+      script.lines = draftScript.lines.map((line) => ({ ...line }))
+      script.approval = 'draft'
     }
   }
 }
