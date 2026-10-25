@@ -1161,6 +1161,7 @@ export function TimelinePane({
         key={`${role}-${track?.id ?? 'none'}`}
         className={styles.lane}
         style={{ height: LANE_HEIGHT_PX }}
+        data-testid={`lane-${role}`}
       >
         <div className={styles.header} style={{ width: HEADER_PX }}>
           <span className={styles.name}>{label}</span>
@@ -1189,6 +1190,7 @@ export function TimelinePane({
           ) : (
             <Button
               variant="ghost"
+              data-testid={`lane-add-${role}`}
               onClick={() =>
                 addLaneTrack({ id: newTrackId(), kind, role, muted: false, clips: [] })
               }
@@ -1265,6 +1267,7 @@ export function TimelinePane({
         />
         <Button
           variant="secondary"
+          data-testid="timeline-loop-fill"
           disabled={!loopable}
           title="Repeat the selected music clip to the length of the short"
           onClick={loopSelectedClip}

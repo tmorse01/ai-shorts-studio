@@ -173,6 +173,7 @@ export function TimelineClip({
       {gainLine !== undefined ? (
         <svg
           className={styles.gainLine}
+          data-testid="timeline-gain-line"
           viewBox={`0 0 ${box.widthPx} ${CLIP_HEIGHT_PX}`}
           preserveAspectRatio="none"
           aria-hidden="true"

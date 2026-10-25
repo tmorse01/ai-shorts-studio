@@ -10,7 +10,13 @@ import type { SpeechProvider } from '../tts/speechProvider'
 
 export const FAKE_CLAUDE_REPLY = '[]'
 export const FAKE_VOICE: TtsVoice = { id: 'e2e-voice', name: 'E2E Voice' }
-export const FAKE_TRANSCRIPT: RawSpeechResult = { text: '', tokens: [], timestamps: [] }
+// Five words, one every few tenths of a second from 0 s, so captions appear at the start of the short.
+export const FAKE_TRANSCRIPT: RawSpeechResult = {
+  text: 'Hello there from the narration',
+  tokens: ['▁Hello', '▁there', '▁from', '▁the', '▁narration'],
+  timestamps: [0, 0.4, 0.8, 1.1, 1.4],
+  durations: [0.4, 0.4, 0.3, 0.3, 0.6]
+}
 
 export function createFakeAnthropicClient(): AnthropicClient {
   return {

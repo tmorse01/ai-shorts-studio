@@ -9,6 +9,7 @@ import { setAudioClock } from '../playback/usePlaybackClock'
 import { useProjectStore } from '../project/useProjectStore'
 import { mediaSourceStore } from '../preview/mediaSourceStore'
 import { AudioGraph } from './audioGraph'
+import { publishAudioLevel } from '@shared/e2e/previewHook'
 import { useAudioSettings } from './audioSettingsStore'
 
 // `enabled` is false while a source clip is in view: the timeline is then silent and its clock is not
@@ -38,13 +39,17 @@ export function useAudioPreview(timeline: Timeline, enabled = true): void {
   }, [enabled])
 
   useEffect(() => {
-    graphRef.current?.update({
+    const graph = graphRef.current
+    if (!graph) return
+    graph.update({
       timeline,
       playheadMs,
       playing,
       masterVolume,
       hasAudio: (mediaId) => soundIds.has(mediaId) && sources[mediaId]?.online !== false
     })
+    // The E2E hook reads the level of the master output. Off unless the app runs in E2E mode.
+    publishAudioLevel(window, window.api?.e2eMode === true, graph.level())
   }, [timeline, playheadMs, playing, masterVolume, soundIds, sources])
 
   useEffect(
