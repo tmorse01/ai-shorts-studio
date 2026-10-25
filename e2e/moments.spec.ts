@@ -1,10 +1,39 @@
 // Epic 18, spec #272: a moment marked in the source viewer reaches the timeline. Covers In/Out marks,
 // saving a moment, adding it from the Clip Finder, dragging the moment and the marked range, the clip
-// label, renaming, and the two ways to start a short from Project home.
+// label, renaming, and the ways to start a short from Project home.
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { expect, test } from './test'
 import { FIXTURES } from './generateFixtures'
 
 const MOMENT = 'Jump'
+
+// The enabled New short button. The guided start has a New short button too, disabled until the
+// footage is analysed, so the enabled one is the shorts grid's.
+function newShortButton(page: import('@playwright/test').Page) {
+  return page.locator('button:not([disabled])', { hasText: 'New short' }).first()
+}
+
+// Every object in the saved project that carries a clip's source fields.
+function collectClips(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  if (Array.isArray(node)) node.forEach((item) => collectClips(item, out))
+  else if (node && typeof node === 'object') {
+    const record = node as Record<string, unknown>
+    if ('sourceInMs' in record) out.push(record)
+    Object.values(record).forEach((value) => collectClips(value, out))
+  }
+  return out
+}
+
+async function findProjectFiles(dir: string): Promise<string[]> {
+  const found: string[] = []
+  for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) found.push(...(await findProjectFiles(path)))
+    else if (entry.name === 'project.json') found.push(path)
+  }
+  return found
+}
 
 test('marks a moment and adds it to the timeline', async ({ session }) => {
   const { page } = session
@@ -16,7 +45,7 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
   })
 
   await test.step('open a short and the clip in the source viewer', async () => {
-    await page.getByRole('button', { name: 'New short' }).first().click()
+    await newShortButton(page).click()
     await expect(page.getByLabel('Playhead')).toBeVisible()
     await page.getByText('clip-a.mp4').first().click()
     await expect(page.getByLabel('Source: clip-a.mp4')).toBeVisible()
@@ -62,14 +91,27 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
     await expect(page.locator(`[aria-label^="${MOMENT}"]`)).toHaveCount(3)
   })
 
+  await test.step('each clip has sourceInMs 5000 and durationMs 3000', async () => {
+    const files = await findProjectFiles(session.profileDir)
+    expect(files.length).toBeGreaterThan(0)
+    const project: unknown = JSON.parse(await readFile(files[0], 'utf8'))
+    const clips = collectClips(project).filter((clip) => clip.durationMs === 3000)
+    expect(clips).toHaveLength(3)
+    for (const clip of clips) expect(clip.sourceInMs).toBe(5000)
+  })
+
   await test.step('TODO(source-time hook): preview at clip start shows 00:05', async () => {
     // Pending: needs the source-time test hook from another worker. Not on origin/rebuild yet.
     // Once it lands, read the preview's source time at the first clip's start and expect 00:05.
   })
 
   await test.step('the timeline label follows a renamed moment', async () => {
-    await page.getByRole('list', { name: 'Moments' }).getByRole('listitem').first()
-      .getByRole('button', { name: 'Rename moment' }).click()
+    await page
+      .getByRole('list', { name: 'Moments' })
+      .getByRole('listitem')
+      .first()
+      .getByRole('button', { name: 'Rename moment' })
+      .click()
     await page.getByRole('list', { name: 'Moments' }).getByLabel('Moment name').fill('Jump renamed')
     await page.keyboard.press('Enter')
     await expect(page.locator('[aria-label^="Jump renamed"]').first()).toBeVisible()
@@ -79,7 +121,17 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
 test('New short from Project home opens a short', async ({ session }) => {
   const { page } = session
   await session.createProject('Short project')
-  await page.getByRole('button', { name: 'New short' }).first().click()
+  await newShortButton(page).click()
+  await expect(page).toHaveURL(/\/short\//)
+  await expect(page.getByLabel('Playhead')).toBeVisible()
+})
+
+test('Clip Finder link with no shorts creates and opens one', async ({ session }) => {
+  const { page } = session
+  await session.createProject('Finder project')
+  await session.importMedia([FIXTURES.clipA])
+  await expect(page.getByText('clip-a.mp4').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Clip Finder' }).click()
   await expect(page).toHaveURL(/\/short\//)
   await expect(page.getByLabel('Playhead')).toBeVisible()
 })
