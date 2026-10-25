@@ -39,11 +39,27 @@ export interface SherpaModule {
 }
 
 /**
+ * Loads sherpa-onnx-node and returns its exports. The package is CommonJS, so a dynamic import puts
+ * the exports on `.default`; a bundled or ESM-style build puts them on the namespace itself.
+ * Accepts both shapes.
+ */
+export async function loadSherpaModule(
+  importModule: () => Promise<unknown> = () => import('sherpa-onnx-node')
+): Promise<SherpaModule> {
+  const namespace = (await importModule()) as { default?: unknown }
+  const candidate = (namespace.default ?? namespace) as Partial<SherpaModule>
+  if (typeof candidate.OfflineRecognizer !== 'function') {
+    throw new Error('sherpa-onnx-node did not export OfflineRecognizer')
+  }
+  return candidate as SherpaModule
+}
+
+/**
  * Builds the Parakeet engine from downloaded files. The sherpa-onnx addon is imported here, not at
  * app start, so the app loads it only when a transcript is first made.
  */
 export const loadParakeetEngine: SpeechEngineLoader = async (files) => {
-  const sherpa = (await import('sherpa-onnx-node')) as unknown as SherpaModule
+  const sherpa = await loadSherpaModule()
   const recognizer = new sherpa.OfflineRecognizer({
     featConfig: { sampleRate: SPEECH_SAMPLE_RATE, featureDim: 80 },
     modelConfig: {
