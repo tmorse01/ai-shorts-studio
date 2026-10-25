@@ -117,12 +117,8 @@ describe('tabs', () => {
     expect(names(filterClipFinderTab(items, 'topics'))).toEqual(['sunset', 'Harbour laugh'])
   })
 
-  it('Emotional matches emotional words in the name or note', () => {
-    expect(names(filterClipFinderTab(items, 'emotional'))).toEqual(['Harbour laugh', 'Quiet tear'])
-  })
-
   it('applies the filter before the tab', () => {
-    const shown = visibleClipFinderItems(items, 'mine', 'emotional')
+    const shown = visibleClipFinderItems(items, 'mine', 'topics')
     expect(names(shown)).toEqual(['Harbour laugh'])
     expect(visibleClipFinderItems(items, 'ai', 'topics').map((item) => item.name)).toEqual([
       'sunset'

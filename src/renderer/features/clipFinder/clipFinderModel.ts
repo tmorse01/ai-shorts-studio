@@ -17,13 +17,12 @@ export const CLIP_FINDER_FILTERS: readonly { value: ClipFinderFilter; label: str
   { value: 'ai', label: 'AI suggested' }
 ]
 
-export type ClipFinderTab = 'suggested' | 'highlights' | 'topics' | 'emotional'
+export type ClipFinderTab = 'suggested' | 'highlights' | 'topics'
 
 export const CLIP_FINDER_TABS: readonly { value: ClipFinderTab; label: string }[] = [
   { value: 'suggested', label: 'Suggested' },
   { value: 'highlights', label: 'Highlights' },
-  { value: 'topics', label: 'Topics' },
-  { value: 'emotional', label: 'Emotional' }
+  { value: 'topics', label: 'Topics' }
 ]
 
 export type ClipFinderItem =
@@ -119,16 +118,6 @@ export function filterClipFinderItems(
   return items.filter((item) => item.kind !== 'moment' || item.createdBy === 'ai')
 }
 
-// Words that mark a moment as emotional. The tab is a keyword match on the name and note, so it
-// stays empty for clips whose moments say nothing emotional.
-const EMOTION_PATTERN =
-  /\b(laugh\w*|funny|joy\w*|happ\w*|cry\w*|tears?|tearful|angr\w*|fear\w*|scar\w*|surpris\w*|shock\w*|excit\w*|sad\w*|grie\w*|tense|heartfelt|touching|moving|emotion\w*|hope\w*)\b/i
-
-export function isEmotional(item: ClipFinderItem): boolean {
-  if (item.kind === 'tag') return false
-  return EMOTION_PATTERN.test(`${item.name} ${item.note ?? ''}`)
-}
-
 /** The items a tab shows. Suggested is everything; the other tabs narrow it. */
 export function filterClipFinderTab(
   items: readonly ClipFinderItem[],
@@ -143,8 +132,6 @@ export function filterClipFinderTab(
       return items.filter(
         (item) => item.kind === 'tag' || (item.kind === 'moment' && item.tagNames.length > 0)
       )
-    case 'emotional':
-      return items.filter(isEmotional)
   }
 }
 
