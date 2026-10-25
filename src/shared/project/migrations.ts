@@ -208,6 +208,12 @@ export function migrateV18ToV19(data: unknown): unknown {
   return { ...data, schemaVersion: 19 }
 }
 
+// Schema 20 adds an optional approval state on scripts. Unset reads as a draft, so only the version changes.
+export function migrateV19ToV20(data: unknown): unknown {
+  if (!isRecord(data)) throw new Error('the file is not a JSON object')
+  return { ...data, schemaVersion: 20 }
+}
+
 function scriptLineOrNone(scriptId: string, value: unknown, index: number): unknown[] {
   const generatedId = `${scriptId}_line_${index + 1}`
   if (typeof value === 'string') return [{ id: generatedId, text: value }]
@@ -237,7 +243,8 @@ export const projectMigrations: readonly ProjectMigration[] = [
   { from: 15, to: 16, up: migrateV15ToV16 },
   { from: 16, to: 17, up: migrateV16ToV17 },
   { from: 17, to: 18, up: migrateV17ToV18 },
-  { from: 18, to: 19, up: migrateV18ToV19 }
+  { from: 18, to: 19, up: migrateV18ToV19 },
+  { from: 19, to: 20, up: migrateV19ToV20 }
 ]
 
 function withTrackRoles(value: unknown): unknown {

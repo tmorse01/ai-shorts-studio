@@ -50,6 +50,9 @@ export function ScriptsSection(): JSX.Element {
                   <span className={styles.title}>{script.title}</span>
                   {script.topic && <span className={styles.topic}>{script.topic}</span>}
                   <span className={styles.meta}>
+                    {script.approval === 'approved' && (
+                      <span className={styles.approved}>Approved · </span>
+                    )}
                     {script.lines.length} {script.lines.length === 1 ? 'line' : 'lines'} · {words}{' '}
                     {words === 1 ? 'word' : 'words'} · about {read} read
                   </span>
