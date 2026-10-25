@@ -82,6 +82,7 @@ export function MediaTile({
         <button
           type="button"
           aria-pressed={selected}
+          aria-label={fileName}
           title={tooltip}
           className={styles.item}
           {...itemProps}
