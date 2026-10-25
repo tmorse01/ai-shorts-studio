@@ -7,9 +7,12 @@ import type { AnthropicClient } from '../ai/anthropicClient'
 import type { SpeechEngineLoader } from '../transcription/speechEngine'
 import type { TranscriptTools } from '../transcription/transcriptStage'
 import type { SpeechProvider } from '../tts/speechProvider'
+import type { SpeechKeyStore } from '../tts/speechService'
 
 export const FAKE_CLAUDE_REPLY = '[]'
 export const FAKE_VOICE: TtsVoice = { id: 'e2e-voice', name: 'E2E Voice' }
+// The key the fake speech provider is given when no ElevenLabs key is saved. The fake never sends it anywhere.
+export const E2E_SPEECH_KEY = 'e2e-speech-key'
 // Five words, one every few tenths of a second from 0 s, so captions appear at the start of the short.
 export const FAKE_TRANSCRIPT: RawSpeechResult = {
   text: 'Hello there from the narration',
@@ -24,6 +27,17 @@ export function createFakeAnthropicClient(): AnthropicClient {
       text: FAKE_CLAUDE_REPLY,
       usage: { inputTokens: 0, outputTokens: 0 }
     })
+  }
+}
+
+// Without a saved key the speech service refuses to list voices, so E2E runs would never reach the fake
+// provider. This store answers with the fake key when none is saved and delegates everything else.
+export function withFakeSpeechKey(keys: SpeechKeyStore): SpeechKeyStore {
+  return {
+    speechKeyStorageAvailable: () => keys.speechKeyStorageAvailable(),
+    speechKey: async () => (await keys.speechKey()) ?? E2E_SPEECH_KEY,
+    saveSpeechKey: (apiKey) => keys.saveSpeechKey(apiKey),
+    clearSpeechKey: () => keys.clearSpeechKey()
   }
 }
 
