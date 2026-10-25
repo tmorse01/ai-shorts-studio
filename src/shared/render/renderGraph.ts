@@ -29,6 +29,7 @@ import {
 } from '../timeline/resolveFrame'
 import { isCut, transitionMotion, type MotionRange } from '../timeline/transitions'
 import type { Clip, Timeline, Track, Transform } from '../timeline/timeline'
+import { imageOverlayMotion, num, sec, type ImageMotion } from './motionExpressions'
 
 export const DEFAULT_RENDER_FPS = 30
 
@@ -38,6 +39,9 @@ export interface RenderGraphOptions {
   sizeOf?: (mediaId: string) => SourceSize | null
   // Whether a media item has a sound track. Without it every media item is treated as having one.
   hasAudio?: (mediaId: string) => boolean
+  // The ASS script of the text overlays and captions (see overlaySubtitles.ts), written to disk. The graph
+  // burns it in over the video. Without it the graph has no subtitle step.
+  subtitlesPath?: string
 }
 
 export interface RenderGraph {
@@ -45,10 +49,26 @@ export interface RenderGraph {
   filterComplex: string
   // Media ids in ffmpeg input order: input N is inputs[N] (pass them with -i, in this order).
   inputs: string[]
+  // The options that go before each input's -i, in the same order as inputs. A still image has
+  // stillInputOptions; every other input has none.
+  inputOptions: string[][]
   // The labels to map with -map, or null when the output has no video or no sound.
   videoLabel: string | null
   audioLabel: string | null
   durationMs: number
+}
+
+// The input options for a still picture: loop it, and read it only as long as the timeline runs. The graph
+// trims it to its clip, so the loop never runs past the output.
+export function stillInputOptions(durationMs: number): string[] {
+  return ['-loop', '1', '-t', sec(durationMs)]
+}
+
+// A file path as the ass filter reads it inside filter_complex. Backslashes become slashes, and the colon
+// of a drive letter is escaped, as the filter option parser needs.
+export function filterPath(path: string): string {
+  const escaped = path.replace(/\\/g, '/').replace(/:/g, '\\:').replace(/'/g, "\\'")
+  return `'${escaped}'`
 }
 
 // A clip that appears in the graph, with its span on the timeline. The span is wider than the clip
@@ -77,17 +97,6 @@ interface OverlapFade {
   side: 'in' | 'out'
   startMs: number
   durationMs: number
-}
-
-// A number as ffmpeg reads it: at most six decimals, never exponent form.
-function num(value: number): string {
-  const fixed = Number(value.toFixed(6))
-  return String(fixed === 0 ? 0 : fixed)
-}
-
-// Milliseconds as the seconds that filter options and expressions take.
-function sec(ms: number): string {
-  return num(ms / 1000)
 }
 
 // The scale and overlay position of a layer that moves during its clip (an eased pan). Each is an
@@ -329,6 +338,43 @@ function videoLayerChain(
   return { parts, out }
 }
 
+// The filters that draw one image overlay. The still picture is trimmed to its span, then sized and given its
+// alpha per frame from its motion (see motionExpressions.ts), and faded by any transition ramps. Its centre
+// moves per frame too, through overlay expressions, so an image slides and pops in export as in the preview.
+// A transition's own motion is added on top, as it is for a video layer.
+function imageLayerChain(
+  item: Item,
+  motion: ImageMotion,
+  rotationDeg: number,
+  input: string,
+  out: string,
+  transition: MotionExpressions | null
+): { parts: string[]; out: string; position: string } {
+  const trim = `trim=duration=${sec(item.endMs - item.startMs)},setpts=PTS-STARTPTS+${sec(item.startMs)}/TB,format=rgba`
+  const sized = (expr: string): string =>
+    `round(max(1,(${expr})${transition ? `*(${transition.scale})` : ''}))`
+  const filters = [trim, `scale=w='${sized(motion.width)}':h='${sized(motion.height)}':eval=frame`]
+  if (rotationDeg !== 0) {
+    const radians = num((rotationDeg * Math.PI) / 180)
+    filters.push(`rotate=${radians}:c=none:ow=rotw(${radians}):oh=roth(${radians})`)
+  }
+  if (motion.alpha) {
+    filters.push(`geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(${motion.alpha})'`)
+  }
+  filters.push(
+    ...transitionRamps(item.roles)
+      .filter((ramp) => ramp.video)
+      .map(
+        (ramp) =>
+          `fade=t=${ramp.direction}:st=${sec(ramp.startMs)}:d=${sec(ramp.durationMs)}:alpha=1`
+      )
+  )
+  const position = transition
+    ? motionPosition(motion.centreX, motion.centreY, transition)
+    : `x='round(${motion.centreX})-w/2':y='round(${motion.centreY})-h/2'`
+  return { parts: [`${input}${filters.join(',')}[${out}]`], out, position }
+}
+
 // The layer the compositor draws for a clip at its start. The graph reads its placement and render mode.
 function layerFor(
   timeline: Timeline,
@@ -423,6 +469,8 @@ export function buildRenderGraph(
   const hasAudio = options.hasAudio ?? (() => true)
   const durationMs = timelineDurationMs(timeline)
   const inputs: string[] = []
+  // The inputs that hold a still picture (an image overlay), which need looping.
+  const stills = new Set<number>()
   const inputOf = (mediaId: string): number => {
     const known = inputs.indexOf(mediaId)
     if (known !== -1) return known
@@ -430,7 +478,14 @@ export function buildRenderGraph(
     return inputs.length - 1
   }
   if (durationMs === 0) {
-    return { filterComplex: '', inputs, videoLabel: null, audioLabel: null, durationMs }
+    return {
+      filterComplex: '',
+      inputs,
+      inputOptions: [],
+      videoLabel: null,
+      audioLabel: null,
+      durationMs
+    }
   }
 
   const roles = transitionRoles(timeline)
@@ -456,6 +511,7 @@ export function buildRenderGraph(
         input: inputOf(clip.mediaId),
         incoming: clipRoles.some((role) => role.role === 'in')
       }
+      if (clip.imageItem) stills.add(item.input)
       if (isVisual) trackVisual.push(item)
       if (isSound) sound.push(item)
     }
@@ -474,34 +530,55 @@ export function buildRenderGraph(
   )
   let current = 'base0'
   visual.forEach((item, index) => {
-    const layer = layerFor(timeline, item, sizeOf)
     const layerOut = `vl${index}`
     const source = item.clip.mediaId ? sizeOf(item.clip.mediaId) : null
-    const pan =
-      item.track.kind === 'video' && layer.render.mode === 'direct'
-        ? panPlacement(item.clip, source)
-        : null
     const motion = motionExpressions(item.roles)
-    const chain = videoLayerChain(item, layer, videoTaps.take(item.input), layerOut, pan, motion)
+    const imageMotion = imageOverlayMotion(item.clip, source, fps)
+    let chain: { parts: string[]; out: string }
+    let position: string
+    if (imageMotion) {
+      const image = imageLayerChain(
+        item,
+        imageMotion,
+        item.clip.transform.rotationDeg,
+        videoTaps.take(item.input),
+        layerOut,
+        motion
+      )
+      chain = image
+      position = image.position
+    } else {
+      const layer = layerFor(timeline, item, sizeOf)
+      const pan =
+        item.track.kind === 'video' && layer.render.mode === 'direct'
+          ? panPlacement(item.clip, source)
+          : null
+      chain = videoLayerChain(item, layer, videoTaps.take(item.input), layerOut, pan, motion)
+      position =
+        layer.render.mode === 'direct'
+          ? motion
+            ? motionPosition(
+                pan?.centreX ?? num(layer.placement.centerX),
+                pan?.centreY ?? num(layer.placement.centerY),
+                motion
+              )
+            : (pan?.position ?? overlayPosition(layer.placement))
+          : motion
+            ? motionPosition(num(CANVAS_WIDTH / 2), num(CANVAS_HEIGHT / 2), motion)
+            : 'x=0:y=0'
+    }
     parts.push(...chain.parts)
-    const position =
-      layer.render.mode === 'direct'
-        ? motion
-          ? motionPosition(
-              pan?.centreX ?? num(layer.placement.centerX),
-              pan?.centreY ?? num(layer.placement.centerY),
-              motion
-            )
-          : (pan?.position ?? overlayPosition(layer.placement))
-        : motion
-          ? motionPosition(num(CANVAS_WIDTH / 2), num(CANVAS_HEIGHT / 2), motion)
-          : 'x=0:y=0'
     const next = `vc${index}`
     parts.push(
       `[${current}][${chain.out}]overlay=${position}:eof_action=pass:enable='between(t,${sec(item.startMs)},${sec(item.endMs)})'[${next}]`
     )
     current = next
   })
+  // Text overlays and captions are burnt in above the layers, from the ASS script (see overlaySubtitles.ts).
+  if (options.subtitlesPath) {
+    parts.push(`[${current}]ass=${filterPath(options.subtitlesPath)}[vtext]`)
+    current = 'vtext'
+  }
   parts.push(`[${current}]format=yuv420p,fps=${num(fps)}[vout]`)
 
   // Sound. Each sounding clip is delayed to its span and the clips are summed.
@@ -531,6 +608,9 @@ export function buildRenderGraph(
   return {
     filterComplex: parts.join(';'),
     inputs,
+    inputOptions: inputs.map((_, index) =>
+      stills.has(index) ? stillInputOptions(durationMs) : []
+    ),
     videoLabel: '[vout]',
     audioLabel,
     durationMs
