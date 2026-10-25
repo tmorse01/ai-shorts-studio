@@ -45,12 +45,14 @@ export function newlyFinishedScriptDrafts(
 export function watchBatches(
   api: BatchEvents,
   store: { getState: () => BatchSyncTarget },
-  onScriptDrafts?: (projectFolder: string, drafts: GeneratedScript[]) => void
+  onScriptDrafts?: (projectFolder: string, drafts: GeneratedScript[]) => void,
+  onAssemblyBatch?: (batch: Batch) => void
 ): Unsubscribe {
   const lastStatus = new Map<string, BatchItemStatus>()
   return api.on('batch:changed', ({ projectFolder, batch }) => {
     store.getState().applyBatch(projectFolder, batch)
     const drafts = newlyFinishedScriptDrafts(batch, lastStatus)
     if (drafts.length > 0) onScriptDrafts?.(projectFolder, drafts)
+    if (batch.kind === 'assembly') onAssemblyBatch?.(batch)
   })
 }

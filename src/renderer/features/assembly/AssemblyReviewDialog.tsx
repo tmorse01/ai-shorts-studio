@@ -66,7 +66,8 @@ function ReviewBody({ scriptId, onDone }: { scriptId: string; onDone: () => void
     return <p className={styles.note}>This script no longer exists.</p>
   }
   const short = attachedShort(project, script.id)
-  const trackId = short ? videoTrackId(short) : undefined
+  // With no short yet, the footage goes on the main track of the draft short that Apply creates.
+  const trackId = short ? videoTrackId(short) : crypto.randomUUID()
   const textByLine = new Map(script.lines.map((line) => [line.id, line.text]))
 
   async function runMatch(): Promise<void> {
@@ -101,18 +102,23 @@ function ReviewBody({ scriptId, onDone }: { scriptId: string; onDone: () => void
   }
 
   function apply(): void {
-    if (!result || !short || !trackId) return
+    if (!result || (short && !trackId)) return
     try {
+      // A script with no short gets its draft short here, in the same step as the footage (#146).
       applyProjectCommand(
         applyFootagePlanCommand({
-          shortId: short.id,
-          trackId,
+          shortId: short?.id ?? crypto.randomUUID(),
+          trackId: trackId ?? crypto.randomUUID(),
           plan: acceptedPlan(result.plan, accepted),
           now: new Date().toISOString(),
-          newId: () => crypto.randomUUID()
+          newId: () => crypto.randomUUID(),
+          ...(short ? {} : { createFromScript: { scriptId } })
         })
       )
-      toast.success({ title: 'Footage applied', description: 'Undo restores the timeline.' })
+      toast.success({
+        title: short ? 'Footage applied' : 'Draft short created',
+        description: 'Undo restores the timeline.'
+      })
       onDone()
     } catch (applyError) {
       setError(
@@ -121,11 +127,11 @@ function ReviewBody({ scriptId, onDone }: { scriptId: string; onDone: () => void
     }
   }
 
-  const applyDisabled = !result || accepted.size === 0 || !short || !trackId
+  const applyDisabled = !result || accepted.size === 0 || (short !== undefined && !trackId)
 
   return (
     <div className={styles.body}>
-      {!short && <p className={styles.note}>Attach this script to a short to apply its footage.</p>}
+      {!short && <p className={styles.note}>Applying creates a draft short from this script.</p>}
       {short && !trackId && (
         <p className={styles.note}>The short has no unlocked video track to put footage on.</p>
       )}
