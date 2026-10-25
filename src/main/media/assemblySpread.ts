@@ -1,6 +1,7 @@
 // Runs the footage matches of one assembly batch in order, so each match sees the cuts the ones before it
-// chose (Epic 16, #146). The spread is held in memory: a restart starts it again, and the batch's saved
-// plans are not read back for it. No Electron imports here, so the job executor and the tests share it.
+// chose (Epic 16, #146). The spread is held in memory. When a batch has no spread yet (after a restart), the
+// caller seeds it with the ranges its saved plans use (#254). No Electron imports here, so the job executor
+// and the tests share it.
 import type { FootageMatchRequest } from '@shared/assembly/footageMatchRequest'
 import type { UsedRange } from '@shared/assembly/footageSpread'
 import { UserFacingError } from '../errors'
@@ -9,6 +10,8 @@ export interface AssemblyRunInput {
   footage: FootageMatchRequest
   /** Ignore the footage earlier items used, so this match may reuse it. */
   reuse: boolean
+  /** Ranges the batch already uses, applied only when the batch has no spread in memory yet. */
+  seed?: readonly UsedRange[]
 }
 
 export interface AssemblySpreadOptions<T> {
@@ -30,10 +33,10 @@ export interface AssemblySpreads<T> {
 export function createAssemblySpreads<T>(options: AssemblySpreadOptions<T>): AssemblySpreads<T> {
   const spreads = new Map<string, Spread>()
 
-  function spreadFor(batchId: string): Spread {
+  function spreadFor(batchId: string, seed: readonly UsedRange[]): Spread {
     let spread = spreads.get(batchId)
     if (!spread) {
-      spread = { chain: Promise.resolve(), used: [] }
+      spread = { chain: Promise.resolve(), used: [...seed] }
       spreads.set(batchId, spread)
     }
     return spread
@@ -41,7 +44,7 @@ export function createAssemblySpreads<T>(options: AssemblySpreadOptions<T>): Ass
 
   return {
     run(batchId, input, signal) {
-      const spread = spreadFor(batchId)
+      const spread = spreadFor(batchId, input.seed ?? [])
       // Each match waits for the ones before it in the batch, so it sees the cuts they chose.
       const run = spread.chain.then(async () => {
         if (signal.aborted) throw new UserFacingError('Footage matching was cancelled.')

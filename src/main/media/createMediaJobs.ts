@@ -29,7 +29,8 @@ export function createMediaJobs(ai: AiService): JobQueue {
     appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath
   }
-  // The matches of each assembly batch, in order. The spread is held in memory (see assemblySpread).
+  // The matches of each assembly batch, in order. The spread is held in memory; a batch run after a restart
+  // is seeded from its saved plans (see assemblySpread).
   const assemblySpreads = createAssemblySpreads({
     match: (footage, used) => matchFootageRequest(ai, footage, used),
     usedOf: (result) => usedRangesOfPlan(result.plan)
@@ -92,7 +93,7 @@ export function createMediaJobs(ai: AiService): JobQueue {
       if (!assembly) throw new UserFacingError('The footage job lost its request.')
       return assemblySpreads.run(
         assembly.batchId,
-        { footage: assembly.footage, reuse: assembly.reuse },
+        { footage: assembly.footage, reuse: assembly.reuse, seed: assembly.priorUsed },
         signal
       )
     },

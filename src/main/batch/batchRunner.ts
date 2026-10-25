@@ -9,6 +9,7 @@ import type {
   FootageMatchRequest,
   FootageMatchResultData
 } from '@shared/assembly/footageMatchRequest'
+import { usedRangesOfPlan, type UsedRange } from '@shared/assembly/footageSpread'
 import {
   cancelBatchItem,
   createBatch,
@@ -224,7 +225,12 @@ export class BatchRunner {
     const footage = run.footages.get(itemId)
     if (!footage) throw new Error('An assembly item has no footage.')
     return this.options.queue.enqueue('assembly', run.projectFolder, {
-      assembly: { batchId: run.batch.id, reuse: run.reuse, footage }
+      assembly: {
+        batchId: run.batch.id,
+        reuse: run.reuse,
+        footage,
+        priorUsed: usedRangesOfOtherItems(run.batch, itemId)
+      }
     })
   }
 
@@ -332,6 +338,16 @@ function retryInputMessage(kind: Batch['kind']): string {
   if (kind === 'script') return 'Retrying an item needs its draft request.'
   if (kind === 'assembly') return 'Retrying an item needs its footage request.'
   return 'Retrying an item needs its current file path.'
+}
+
+// The footage the other matched items of a batch already use. The spread is held in memory, so a match
+// that runs after a restart starts from the cuts the saved plans use.
+function usedRangesOfOtherItems(batch: Batch, itemId: string): UsedRange[] {
+  return batch.items.flatMap((item) =>
+    item.id !== itemId && item.status === 'done' && item.plan
+      ? usedRangesOfPlan(item.plan.plan)
+      : []
+  )
 }
 
 function requireItem(batch: Batch, itemId: string): BatchItem {

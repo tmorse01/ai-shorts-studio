@@ -11,6 +11,7 @@ import type {
   FootageMatchRequest,
   FootageMatchResultData
 } from '@shared/assembly/footageMatchRequest'
+import type { UsedRange } from '@shared/assembly/footageSpread'
 import { UserFacingError } from '../errors'
 import type { ExportJobInput } from '../export/exportJob'
 
@@ -44,6 +45,8 @@ export interface AssemblyJobInput {
   /** Whether this match may use footage an earlier item in the batch already used. */
   reuse: boolean
   footage: FootageMatchRequest
+  /** The ranges the batch's other saved plans use. Seeds the spread when a batch runs first after a restart. */
+  priorUsed: UsedRange[]
 }
 
 export interface JobContext {

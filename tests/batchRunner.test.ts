@@ -219,7 +219,7 @@ describe('BatchRunner assembly batches', () => {
     expect(batch.kind).toBe('assembly')
     const [job] = [...fake.jobs.values()]
     expect(job.extra).toEqual({
-      assembly: { batchId: batch.id, reuse: false, footage: footage('l1') }
+      assembly: { batchId: batch.id, reuse: false, footage: footage('l1'), priorUsed: [] }
     })
 
     const plan = { plan: { lines: [] }, unmatchedLineIds: ['l1'], totalMs: 0, targetHit: null }
@@ -256,6 +256,91 @@ describe('BatchRunner assembly batches', () => {
     const retried = await restarted.retry('/p', 'batch-1', [{ id: 's1', footage: footage('l1') }])
     expect(retried.retried).toEqual(['s1'])
     expect(retried.batch.items[0]).toMatchObject({ status: 'queued', attempts: 2 })
+  })
+})
+
+const matchedPlan = (mediaId: string) => ({
+  plan: {
+    lines: [
+      {
+        lineId: 'l1',
+        cuts: [{ sourceId: mediaId, inMs: 0, outMs: 2000, role: 'a', alternatives: [] }]
+      }
+    ]
+  },
+  unmatchedLineIds: [],
+  totalMs: 2000,
+  targetHit: null
+})
+
+describe('BatchRunner assembly round trips', () => {
+  it('regenerates a match as a new batch through the queue, and keeps the earlier plan', async () => {
+    const { fake, runner, stored } = setup()
+    await runner.start({
+      projectFolder: '/p',
+      kind: 'assembly',
+      items: [{ id: 's1', footage: footage('l1') }]
+    })
+    fake.finishWith('job-1', matchedPlan('m1'))
+    await flush()
+    expect(stored.get('batch-1')?.items[0]).toMatchObject({ status: 'done' })
+
+    // Regenerate starts footage matching for the same script again, as its own batch.
+    const regenerated = await runner.start({
+      projectFolder: '/p',
+      kind: 'assembly',
+      reuseFootage: false,
+      items: [{ id: 's1', footage: footage('l1') }]
+    })
+    expect(regenerated.id).toBe('batch-2')
+    const job = fake.jobs.get('job-2')
+    expect(job?.extra).toEqual({
+      assembly: {
+        batchId: 'batch-2',
+        reuse: false,
+        footage: footage('l1'),
+        priorUsed: []
+      }
+    })
+    fake.finishWith('job-2', matchedPlan('m9'))
+    await flush()
+    expect(stored.get('batch-2')?.items[0]).toMatchObject({
+      status: 'done',
+      plan: matchedPlan('m9')
+    })
+    expect(stored.get('batch-1')?.items[0]).toMatchObject({ plan: matchedPlan('m1') })
+  })
+
+  it('seeds a retried match after a restart with the footage the other saved plans use', async () => {
+    const { fake, runner, stored } = setup()
+    await runner.start({
+      projectFolder: '/p',
+      kind: 'assembly',
+      items: [
+        { id: 's1', footage: footage('l1') },
+        { id: 's2', footage: footage('l2') }
+      ]
+    })
+    fake.finishWith('job-1', matchedPlan('m1'))
+    fake.fail('job-2', new UserFacingError('The footage could not be read.'))
+    await flush()
+
+    // The app restarts: a new runner holds nothing, and only the saved batch remains.
+    const restarted = new BatchRunner({
+      queue: fake.queue,
+      jobExtras: () => ({}),
+      load: async (_folder, batchId) => stored.get(batchId),
+      save: async () => undefined
+    })
+    await restarted.retry('/p', 'batch-1', [{ id: 's2', footage: footage('l2') }])
+    expect(fake.jobs.get('job-3')?.extra).toEqual({
+      assembly: {
+        batchId: 'batch-1',
+        reuse: false,
+        footage: footage('l2'),
+        priorUsed: [{ mediaId: 'm1', startMs: 0, endMs: 2000 }]
+      }
+    })
   })
 })
 
