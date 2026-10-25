@@ -84,3 +84,8 @@
   line-height: var(--type-small-line);
   color: var(--color-text-2);
 }
+
+.approved {
+  color: var(--color-success);
+  font-weight: 600;
+}

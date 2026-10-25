@@ -8,6 +8,7 @@ export const jobKindSchema = z.enum([
   'proxy',
   'poster',
   'analysis',
+  'script',
   'export'
 ])
 export type JobKind = z.infer<typeof jobKindSchema>

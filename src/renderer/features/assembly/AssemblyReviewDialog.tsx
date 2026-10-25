@@ -14,6 +14,7 @@ import { toast } from '../toasts/toast'
 import { useProjectStore } from '../project/useProjectStore'
 import { applyFootagePlanCommand } from './assemblyCommands'
 import { matchScriptFootage } from './assemblyActions'
+import { useAssemblyQueueStore } from './assemblyQueueStore'
 import {
   acceptedPlan,
   attachedShort,
@@ -50,8 +51,13 @@ export function AssemblyReviewDialog({
 function ReviewBody({ scriptId, onDone }: { scriptId: string; onDone: () => void }): JSX.Element {
   const project = useProjectStore((state) => state.current?.project)
   const folderPath = useProjectStore((state) => state.current?.folderPath)
-  const [result, setResult] = useState<FootageMatchResultData | null>(null)
-  const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set())
+  // A match queued from the scripts list is shown here, ready to review. Showing it applies nothing.
+  const queued = useAssemblyQueueStore((state) => state.plans[scriptId])
+  const queuedResult = queued?.status === 'ready' ? queued.result : null
+  const [result, setResult] = useState<FootageMatchResultData | null>(queuedResult)
+  const [accepted, setAccepted] = useState<ReadonlySet<string>>(
+    () => new Set(queuedResult ? queuedResult.plan.lines.map((line) => line.lineId) : [])
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

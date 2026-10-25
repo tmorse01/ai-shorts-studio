@@ -12,7 +12,7 @@ const NOW = '2026-10-24T10:00:00.000Z'
 
 function projectWith(extra: Partial<Project> = {}): Project {
   return {
-    schemaVersion: 20,
+    schemaVersion: 21,
     id: 'p1',
     name: 'Project',
     createdAt: NOW,

@@ -58,7 +58,7 @@ function short(id: string, name: string, timeline: Timeline, status = 'ready') {
 
 function projectWith(shorts: unknown[]): Project {
   return {
-    schemaVersion: 20,
+    schemaVersion: 21,
     id: 'p1',
     name: 'Demo',
     createdAt: '2026-10-01T00:00:00.000Z',

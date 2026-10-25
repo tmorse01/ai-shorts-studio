@@ -17,6 +17,8 @@ import type { AiService } from '../ai/aiService'
 import { visionStageRunner } from '../ai/visionStage'
 import { transcriptStageRunner } from '../transcription/transcriptStage'
 import { realTranscriptTools } from '../transcription/transcriptTools'
+import { generateScripts } from '../ai/scriptGenerator'
+import { readScriptFootage } from '../ai/scriptFootage'
 
 export function createMediaJobs(ai: AiService): JobQueue {
   const location: BinaryLocation = {
@@ -74,6 +76,10 @@ export function createMediaJobs(ai: AiService): JobQueue {
         )
       )
     ),
+    script: (input) => {
+      if (!input.scriptRequest) throw new UserFacingError('The script job lost its request.')
+      return generateScripts(ai, readScriptFootage, input.scriptRequest)
+    },
     // Renders a short to its MP4. The encode runs in FFmpeg, and the render queue records the result.
     export: ({ export: request }, { signal, reportProgress }) => {
       if (!request) throw new UserFacingError('The export job lost its details.')

@@ -42,6 +42,13 @@ const analysisItemSchema = z.object({
   id: z.string().min(1),
   path: z.string().trim().min(1)
 })
+
+// One batch item: an analysis item carries a path, a script item carries its draft request (#145).
+const batchItemInputSchema = z.object({
+  id: z.string().min(1),
+  path: z.string().trim().min(1).optional(),
+  request: scriptRunInputSchema.optional()
+})
 import { THUMB_READ_FILES } from './media/thumbs'
 import { mediaSourceInfoSchema, mediaSourceRefSchema } from './media/mediaSources'
 
@@ -246,17 +253,25 @@ export const ipcChannels = {
     input: z.object({ jobId: z.string().min(1) }),
     output: z.object({ cancelled: z.boolean() })
   },
-  // Starts a batch: one analysis stage over each item, run on the media queue. Returns the saved batch.
+  // Starts a batch on the job queue. With a stage it runs that analysis stage over each item (a path).
+  // Without one it drafts a script per item (a request). Returns the saved batch.
   'batch:run': {
     input: z
       .object({
         projectFolder: z.string().trim().min(1),
-        stage: analysisStageSchema,
-        items: z.array(analysisItemSchema).min(1).max(MAX_BATCH_ITEMS)
+        stage: analysisStageSchema.optional(),
+        items: z.array(batchItemInputSchema).min(1).max(MAX_BATCH_ITEMS)
       })
       .refine((input) => new Set(input.items.map((item) => item.id)).size === input.items.length, {
-        message: 'A media item can be in a batch only once.'
-      }),
+        message: 'An item can be in a batch only once.'
+      })
+      .refine(
+        (input) =>
+          input.items.every((item) =>
+            input.stage === undefined ? item.request !== undefined : item.path !== undefined
+          ),
+        { message: 'Each batch item needs the input for its kind of batch.' }
+      ),
     output: z.object({ batch: batchSchema })
   },
   // Cancels one queued or running item of a batch.
@@ -273,7 +288,7 @@ export const ipcChannels = {
     input: z.object({
       projectFolder: z.string().trim().min(1),
       batchId: z.string().min(1),
-      items: z.array(analysisItemSchema).min(1).max(MAX_BATCH_ITEMS)
+      items: z.array(batchItemInputSchema).min(1).max(MAX_BATCH_ITEMS)
     }),
     output: z.object({ retried: z.array(z.string()), batch: batchSchema })
   },
