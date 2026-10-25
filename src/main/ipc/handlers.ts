@@ -325,6 +325,9 @@ export function createIpcHandlers({
     'analysis:reanalyze': async ({ projectFolder, item }) => ({
       file: await analysis.reanalyze(projectFolder, item)
     }),
+    'analysis:cancel': async ({ projectFolder, item }) => ({
+      file: await analysis.cancel(projectFolder, item)
+    }),
     'analysis:visionDecision': async ({ projectFolder, decision }) => ({
       file: await analysis.setVisionDecision(projectFolder, decision)
     }),

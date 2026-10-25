@@ -4,6 +4,7 @@
 import type { ButtonHTMLAttributes, JSX, ReactNode } from 'react'
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   ChevronRight,
   Film,
@@ -62,7 +63,11 @@ export function MediaTile({
   momentRows
 }: MediaTileProps): JSX.Element {
   const Icon = KIND_ICON[kind]
-  const tooltip = [fileName, tagNames.length > 0 ? `Tags: ${tagNames.join(', ')}` : null]
+  const tooltip = [
+    fileName,
+    status.kind === 'busy' ? status.label : null,
+    tagNames.length > 0 ? `Tags: ${tagNames.join(', ')}` : null
+  ]
     .filter(Boolean)
     .join('\n')
 
@@ -135,6 +140,18 @@ export function MediaTile({
 // The status icon in the thumbnail's top-left corner. Text never appears in the tile itself.
 function TileStatusIcon({ status }: { status: TileStatus }): JSX.Element | null {
   if (status.kind === 'none') return null
+  if (status.kind === 'analysed') {
+    return (
+      <span
+        className={`${styles.status} ${styles.analysed}`}
+        role="img"
+        aria-label="Analysed"
+        title="Analysed"
+      >
+        <Check size={12} strokeWidth={2.25} aria-hidden="true" />
+      </span>
+    )
+  }
   if (status.kind === 'busy') {
     return (
       <span className={styles.status} role="img" aria-label={status.label} title={status.label}>

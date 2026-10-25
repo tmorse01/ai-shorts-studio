@@ -18,6 +18,8 @@ export interface ToastItem {
   details?: string
   /** A button such as Undo. It takes the place of Details when both are set. */
   action?: ToastAction
+  /** Several buttons, shown in order. When set, they take the place of action and Details. */
+  actions?: ToastAction[]
   /** Milliseconds before the toast closes itself. null means it stays until the user dismisses it. */
   dismissAfterMs: number | null
 }

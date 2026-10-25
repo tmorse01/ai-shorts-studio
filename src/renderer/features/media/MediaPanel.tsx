@@ -26,7 +26,9 @@ import { IconButton } from '@renderer/ui/IconButton'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { applyProjectCommand } from '../shorts/shortActions'
 import { analysisStore } from '../analysis/analysisStore'
-import { reanalyzeMedia, setAnalyzeAutomatically } from '../analysis/analysisSync'
+import { cancelAnalysis, reanalyzeMedia, setAnalyzeAutomatically } from '../analysis/analysisSync'
+import { AnalysisPanel } from '../analysis/AnalysisPanel'
+import { analysisJobFor } from '../analysis/analysisProgress'
 import { analysisErrorText, analysisStatusLabel } from '../analysis/analysisStatus'
 import { projectStore } from '../project/projectStore'
 import { sourceStore } from '../source/sourceStore'
@@ -71,9 +73,11 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
   const [tagsOpen, setTagsOpen] = useState(false)
   // Clips whose saved moments are shown under them. Moments start collapsed.
   const [openMomentIds, setOpenMomentIds] = useState<string[]>([])
+  const [analysisOpen, setAnalysisOpen] = useState(false)
   const analysisFile = useStore(analysisStore, (state) =>
     current ? state.filesByFolder[current.folderPath] : undefined
   )
+  const analysisJobs = useStore(analysisStore, (state) => state.jobs)
 
   if (!current) {
     return (
@@ -147,7 +151,7 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
   // One grid tile: a fixed-size card with its thumbnail, name, status, badges and moments.
   const renderTile = (ref: MediaRef) => {
     const record = analysisFile?.records[ref.id]
-    const status = tileStatus(record)
+    const status = tileStatus(record, analysisJobFor(analysisJobs, ref.fileName))
     const moments = momentsOfMedia(current.project.moments, ref.id)
     const showMoments = moments.length > 0 && openMomentIds.includes(ref.id)
     return (
@@ -267,6 +271,15 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
 
   return (
     <div className={styles.panel}>
+      <AnalysisPanel
+        open={analysisOpen}
+        onOpenChange={setAnalysisOpen}
+        sources={selectedRef ? [selectedRef] : current.project.media}
+        file={analysisFile}
+        jobs={analysisJobs}
+        onCancel={(ref) => void cancelAnalysis(window.api, folderPath, ref)}
+        onRetry={(ref) => void reanalyzeMedia(window.api, folderPath, ref)}
+      />
       <div className={styles.toolbar}>
         {showImport ? (
           <Button variant="primary" size="sm" onClick={() => void pickAndImportMedia()}>
@@ -286,6 +299,9 @@ export function MediaPanel({ showImport = true }: MediaPanelProps = {}): JSX.Ele
           </label>
           <Button variant="ghost" size="sm" disabled={!selectedRef} onClick={reanalyzeSelected}>
             Re-analyze
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setAnalysisOpen(true)}>
+            Analysis
           </Button>
         </div>
         {/* Shown instead of the three controls above when the toolbar is narrow (see the CSS). */}

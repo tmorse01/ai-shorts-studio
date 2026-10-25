@@ -441,6 +441,14 @@ export const ipcChannels = {
     }),
     output: z.object({ file: analysisFileSchema })
   },
+  // Stops the stage running for one media item. It is marked failed, so Retry starts it again.
+  'analysis:cancel': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      item: analysisItemSchema
+    }),
+    output: z.object({ file: analysisFileSchema })
+  },
   // The user's answer to the cost question before a project's first vision pass. Confirm starts the
   // vision stages that were waiting; skip marks them skipped for this project.
   'analysis:visionDecision': {

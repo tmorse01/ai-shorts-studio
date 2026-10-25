@@ -155,6 +155,28 @@ export class AnalysisService {
     return this.state.get(projectFolder) ?? file
   }
 
+  /**
+   * Stops the stage running for one media item. The stage is marked failed with a plain message, so
+   * Retry starts it again. Later stages wait for that retry. Does nothing when no stage is running.
+   */
+  async cancel(projectFolder: string, item: MediaTarget): Promise<AnalysisFile> {
+    const file = await this.ensure(projectFolder)
+    const key = keyOf(projectFolder, item.id)
+    const running = this.inflight.get(key)
+    if (!running) return this.state.get(projectFolder) ?? file
+    this.inflight.delete(key)
+    this.resumable.delete(key)
+    this.options.queue.cancel(running.jobId)
+    const record = this.currentRecord(projectFolder, item.id)
+    if (record && record.version === running.version) {
+      this.setRecord(
+        projectFolder,
+        withStageStatus(record, running.stage, 'failed', { message: 'Analysis was cancelled.' })
+      )
+    }
+    return this.state.get(projectFolder) ?? file
+  }
+
   /** Called when playback starts or stops. Playing holds analysis; stopping lets it continue. */
   setPlaybackActive(active: boolean): void {
     if (active === this.paused) return

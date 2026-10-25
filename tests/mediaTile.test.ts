@@ -117,7 +117,8 @@ describe('media tile status icon', () => {
         vision: { status: 'done' as const }
       }
     }
-    expect(tileStatus(done)).toEqual({ kind: 'none' })
+    // A finished clip shows the 'analysed' mark (#310).
+    expect(tileStatus(done)).toEqual({ kind: 'analysed' })
   })
 })
 

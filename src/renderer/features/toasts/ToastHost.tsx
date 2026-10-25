@@ -53,7 +53,23 @@ export function ToastHost() {
             description={item.description}
             duration={item.dismissAfterMs ?? Infinity}
             action={
-              item.action ? (
+              item.actions ? (
+                <>
+                  {item.actions.map((button) => (
+                    <Button
+                      key={button.label}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        button.run()
+                        toast.dismiss(item.id)
+                      }}
+                    >
+                      {button.label}
+                    </Button>
+                  ))}
+                </>
+              ) : item.action ? (
                 <Button
                   variant="ghost"
                   size="sm"
