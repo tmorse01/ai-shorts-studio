@@ -19,6 +19,7 @@ import { transcriptStageRunner } from '../transcription/transcriptStage'
 import { realTranscriptTools } from '../transcription/transcriptTools'
 import { isE2eMode } from '../e2e/e2eMode'
 import { withFakeSpeech } from '../e2e/fakes'
+import { encodeFailsByForce } from '../e2e/forcedEncoderFailure'
 import { generateScripts } from '../ai/scriptGenerator'
 import { readScriptFootage } from '../ai/scriptFootage'
 import { matchFootageRequest } from '../ai/footageMatcher'
@@ -112,7 +113,14 @@ export function createMediaJobs(ai: AiService): JobQueue {
         ffmpeg: resolveBinary('ffmpeg', location),
         probe: (path, probeSignal) =>
           probeMedia(path, { ffprobe: resolveBinary('ffprobe', location), signal: probeSignal }),
-        run: runTool,
+        run: (bin, args, runSignal, onStdout) => {
+          if (encodeFailsByForce(args)) {
+            return Promise.reject(
+              new UserFacingError('The hardware encoder failed (forced in E2E).')
+            )
+          }
+          return runTool(bin, args, runSignal, onStdout)
+        },
         signal,
         onProgress: reportProgress
       })
