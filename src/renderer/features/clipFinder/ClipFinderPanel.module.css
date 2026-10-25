@@ -48,8 +48,7 @@
   font-size: var(--type-small-size);
 }
 
-.accent,
-.addToTimeline {
+.accent {
   padding: 0 var(--space-2);
   border: none;
   border-radius: var(--radius);
@@ -58,20 +57,24 @@
   line-height: 24px;
   white-space: nowrap;
   cursor: pointer;
-}
-
-.accent {
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
 
-.addToTimeline {
-  background: var(--color-ai);
-  color: var(--color-on-ai);
-}
-
-.accent:disabled,
-.addToTimeline:disabled {
+.accent:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.iconRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Two classes, so the lavender accent wins over the IconButton's ghost variant, hover included. */
+.item .addToTimeline,
+.item .addToTimeline:hover:not(:disabled) {
+  background: var(--color-ai);
+  color: var(--color-on-ai);
 }

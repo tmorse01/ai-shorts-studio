@@ -4,13 +4,16 @@
 // timeline and any other change are project commands, so each one can be undone.
 import { useEffect, useState, type JSX } from 'react'
 import { useStore } from 'zustand'
+import { Play, Plus } from 'lucide-react'
 import { recordSummary } from '@shared/analysis/analysis'
 import type { MomentSuggestion, SuggestionsOutput } from '@shared/analysis/suggestions'
 import { thumbFileName } from '@shared/media/thumbs'
 import type { MediaRef, Project } from '@shared/project/schema'
 import { momentPayload, rangePayload } from '@shared/timeline/dragPayload'
 import { Button } from '@renderer/ui/Button'
+import { IconButton } from '@renderer/ui/IconButton'
 import { Tabs } from '@renderer/ui/Tabs'
+import { Tooltip } from '@renderer/ui/Tooltip'
 import { EmptyState } from '@renderer/features/layout/EmptyState'
 import { editorHistory } from '../history/editorHistory'
 import { analysisStore } from '../analysis/analysisStore'
@@ -264,16 +267,19 @@ export function ClipFinderPanel(): JSX.Element {
               </Button>
             </>
           ) : null}
-          <Button variant="ghost" size="sm" onClick={() => preview(item)}>
-            Preview
-          </Button>
-          <button
-            type="button"
-            className={styles.addToTimeline}
-            onClick={() => addToTimeline(item)}
-          >
-            Add to timeline
-          </button>
+          <span className={styles.iconRow}>
+            <Tooltip content="Preview">
+              <IconButton icon={Play} label="Preview" onClick={() => preview(item)} />
+            </Tooltip>
+            <Tooltip content="Add to timeline">
+              <IconButton
+                icon={Plus}
+                label="Add to timeline"
+                className={styles.addToTimeline}
+                onClick={() => addToTimeline(item)}
+              />
+            </Tooltip>
+          </span>
         </>
       )
     return (
