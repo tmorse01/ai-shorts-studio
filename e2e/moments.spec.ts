@@ -120,16 +120,28 @@ test('marks a moment and adds it to the timeline', async ({ session }) => {
     await page
       .getByRole('button', { name: 'Drag the marked range to the timeline' })
       .dragTo(lane, { targetPosition: { x: Math.max(0, width - 20), y: 20 } })
-    await expect(page.locator(`[aria-label^="${MOMENT}"]`)).toHaveCount(3)
+    // The timeline renders only the clips in view, and the drop scrolled it to the end. Fit it again.
+    await page.getByRole('button', { name: 'Fit timeline' }).click()
+    await expect(page.locator(`[aria-label^="${MOMENT}"]`)).toHaveCount(2)
+    // A marked range is plain footage, not the moment, so its clip takes the file name.
+    await expect(page.locator('[aria-label^="clip-a.mp4"]')).toHaveCount(1)
   })
 
   await test.step('each clip has sourceInMs 5000 and durationMs 3000', async () => {
+    // Saving is asynchronous, so poll the project file until the three clips are on it.
+    await expect
+      .poll(async () => {
+        const files = await findProjectFiles(session.profileDir)
+        if (files.length === 0) return []
+        const project: unknown = JSON.parse(await readFile(files[0], 'utf8'))
+        return collectClips(project).filter((clip) => clip.durationMs === 3000)
+      })
+      .toHaveLength(3)
     const files = await findProjectFiles(session.profileDir)
-    expect(files.length).toBeGreaterThan(0)
     const project: unknown = JSON.parse(await readFile(files[0], 'utf8'))
-    const clips = collectClips(project).filter((clip) => clip.durationMs === 3000)
-    expect(clips).toHaveLength(3)
-    for (const clip of clips) expect(clip.sourceInMs).toBe(5000)
+    for (const clip of collectClips(project).filter((clip) => clip.durationMs === 3000)) {
+      expect(clip.sourceInMs).toBe(5000)
+    }
   })
 
   await test.step('TODO(source-time hook): preview at clip start shows 00:05', async () => {
