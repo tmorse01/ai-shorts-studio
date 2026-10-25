@@ -4,7 +4,10 @@
 import type { JSX, ReactNode } from 'react'
 import { Star } from 'lucide-react'
 import type { ThumbReadFile } from '@shared/media/thumbs'
+import { IconButton } from '@renderer/ui/IconButton'
+import { Tooltip } from '@renderer/ui/Tooltip'
 import { useThumb } from '../timeline/useThumb'
+import { clipStarLabel } from './clipFinderModel'
 import styles from './ClipRow.module.css'
 
 export interface ClipRowProps {
@@ -87,21 +90,16 @@ export function ClipRow({
         </span>
       </button>
       {star ? (
-        <button
-          type="button"
-          className={styles.star}
-          aria-pressed={star.starred}
-          aria-label={star.starred ? 'Unstar clip' : 'Star clip'}
-          title={star.starred ? 'Unstar clip' : 'Star clip'}
-          onClick={star.onToggle}
-        >
-          <Star
-            size={14}
-            strokeWidth={1.75}
-            fill={star.starred ? 'currentColor' : 'none'}
-            aria-hidden="true"
+        <Tooltip content={clipStarLabel(star.starred)}>
+          <IconButton
+            icon={Star}
+            label={clipStarLabel(star.starred)}
+            filled={star.starred}
+            className={styles.star}
+            aria-pressed={star.starred}
+            onClick={star.onToggle}
           />
-        </button>
+        </Tooltip>
       ) : null}
       {actions ? <span className={styles.actions}>{actions}</span> : null}
     </div>

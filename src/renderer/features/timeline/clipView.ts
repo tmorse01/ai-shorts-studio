@@ -1,6 +1,7 @@
 // Pure layout for timeline clips (Epic 07, #86): where a clip sits, which clips are on screen, the
 // label, and which part of a filmstrip or waveform each clip shows. No DOM, so each rule is tested.
 import type { FilmstripPlan } from '@shared/media/thumbs'
+import type { Moment } from '@shared/project/schema'
 import type { Clip } from '@shared/timeline/timeline'
 import { envelopeWithin, type EnvelopePoint } from '@shared/timeline/ducking'
 import { timeToX } from './timelineView'
@@ -44,9 +45,13 @@ export function clipsInRange(clips: readonly Clip[], pxPerMs: number, range: Lan
   })
 }
 
-// The moment name when the clip has one, then its text, then the source file name.
-export function clipLabel(clip: Clip, mediaName?: string): string {
-  return clip.label?.trim() || clip.text?.trim() || mediaName || 'Clip'
+// The label of a clip: the manual label, then the name of the moment it came from (looked up live from
+// clip.momentId, so a rename shows on the clip), then its text, then the source file name.
+export function clipLabel(clip: Clip, mediaName?: string, moments: readonly Moment[] = []): string {
+  const momentName = clip.momentId
+    ? moments.find((moment) => moment.id === clip.momentId)?.name
+    : undefined
+  return clip.label?.trim() || momentName?.trim() || clip.text?.trim() || mediaName || 'Clip'
 }
 
 export interface FilmTile {
