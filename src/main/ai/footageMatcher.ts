@@ -12,6 +12,8 @@ import {
   type FootageMatchInput,
   type FootageMatchResult
 } from '@shared/assembly/footageMatch'
+import { SearchIndex, type SearchDoc } from '@shared/search/searchIndex'
+import type { FootageMatchRequest } from '@shared/assembly/footageMatchRequest'
 import { UserFacingError } from '../errors'
 import type { AiService } from './aiService'
 
@@ -79,4 +81,30 @@ export async function matchFootage(
     throw new UserFacingError('Claude sent a reply the app could not read. Try again.')
   }
   return buildFootagePlan(prepared.request, picks, input)
+}
+
+/**
+ * Runs a match from the renderer's request. The search index is rebuilt here from the documents it sent,
+ * one group per media item, then the same matchFootage path runs as for any other caller.
+ */
+export async function matchFootageRequest(
+  ai: AiService,
+  request: FootageMatchRequest
+): Promise<FootageMatchResult> {
+  const index = new SearchIndex()
+  const byMedia = new Map<string, SearchDoc[]>()
+  for (const doc of request.docs) {
+    const docs = byMedia.get(doc.mediaId) ?? []
+    docs.push(doc)
+    byMedia.set(doc.mediaId, docs)
+  }
+  for (const [mediaId, docs] of byMedia) index.replaceGroup(mediaId, docs)
+  return matchFootage(ai, {
+    lines: request.lines,
+    targetMs: request.targetMs,
+    index,
+    mediaNames: request.mediaNames,
+    shots: request.shots,
+    durationsMs: request.durationsMs
+  })
 }

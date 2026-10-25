@@ -36,6 +36,7 @@ import { unavailableSecretStore } from '../ai/secretStore'
 import { createAnthropicClient } from '../ai/anthropicClient'
 import { estimateScriptRun, generateScripts } from '../ai/scriptGenerator'
 import { rewriteScriptLine } from '../ai/lineRewriter'
+import { matchFootageRequest } from '../ai/footageMatcher'
 import { readScriptFootage, type ScriptFootageSource } from '../ai/scriptFootage'
 import {
   dismissSuggestions,
@@ -239,6 +240,7 @@ export function createIpcHandlers({
       scripts: await generateScripts(ai, scriptFootage, input)
     }),
     'ai:scripts:rewriteLine': (input) => rewriteScriptLine(ai, input),
+    'ai:footage:match': (input) => matchFootageRequest(ai, input),
     'media:sources': async ({ projectFolder, media }) => ({
       sources: await describeMediaSources(projectFolder, media, mediaSources)
     })
