@@ -17,7 +17,12 @@ export async function readExportSettingsFile(file: string): Promise<ExportSettin
   } catch {
     return null
   }
-  const parsed = exportSettingsSchema.safeParse(json)
+  // Files saved before the SRT option existed have no includeSrt, so it reads as off.
+  const withDefaults =
+    typeof json === 'object' && json !== null && !Array.isArray(json)
+      ? { includeSrt: false, ...json }
+      : json
+  const parsed = exportSettingsSchema.safeParse(withDefaults)
   return parsed.success ? parsed.data : null
 }
 

@@ -1,6 +1,7 @@
-import { useEffect, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { useStore } from 'zustand'
 import type { MediaRef, Project, Short } from '@shared/project/schema'
+import { canContinueExport, type PreflightIssue } from '@shared/export/exportPreflight'
 import {
   EXPORT_EXTENSION,
   EXPORT_FPS_OPTIONS,
@@ -28,6 +29,8 @@ import { projectStore } from '../project/projectStore'
 import { useShortPosters } from '../shorts/useShortPosters'
 import { toast } from '../toasts/toast'
 import { exportStore } from './exportStore'
+import { checkShortsBeforeExport } from './checkShortsBeforeExport'
+import { ExportPreflightDialog } from './ExportPreflightDialog'
 import { ExportQueuePanel } from './ExportQueuePanel'
 import { renderQueueStore } from './renderQueueStore'
 import styles from './ExportPanel.module.css'
@@ -52,6 +55,11 @@ export function ExportPanel(): JSX.Element {
   const encoder = useStore(exportStore, (state) => state.encoder)
   const settings = useStore(exportStore, (state) => state.settings)
   const loaded = useStore(exportStore, (state) => state.loaded)
+  // The export waiting on the pre-flight check: its shorts and the problems found, until the user answers.
+  const [preflight, setPreflight] = useState<{
+    shortIds: string[]
+    issues: PreflightIssue[]
+  } | null>(null)
 
   useEffect(() => {
     void exportStore.getState().load()
@@ -75,11 +83,26 @@ export function ExportPanel(): JSX.Element {
   const poster = posters[short.id]
   const readyIds = shorts.filter((item) => item.status === 'ready').map((item) => item.id)
 
-  // Saves pending edits first, so the export renders the timeline the user sees.
+  // Saves pending edits first, so the export renders the timeline the user sees. Problems found by the
+  // pre-flight check are shown first; the export starts only when the user continues.
   async function exportShorts(shortIds: string[]): Promise<void> {
     if (!folderPath || shortIds.length === 0) return
     await projectStore.getState().flush()
-    await renderQueueStore.getState().start(folderPath, shortIds)
+    const latest = projectStore.getState().current?.project
+    if (!latest) return
+    const issues = await checkShortsBeforeExport(folderPath, latest, shortIds)
+    if (issues.length === 0) {
+      await renderQueueStore.getState().start(folderPath, shortIds)
+      return
+    }
+    setPreflight({ shortIds, issues })
+  }
+
+  async function continuePreflight(): Promise<void> {
+    const pending = preflight
+    setPreflight(null)
+    if (!folderPath || !pending || !canContinueExport(pending.issues)) return
+    await renderQueueStore.getState().start(folderPath, pending.shortIds)
   }
 
   async function chooseFolder(): Promise<void> {
@@ -132,6 +155,12 @@ export function ExportPanel(): JSX.Element {
           onCheckedChange={(checked) => update({ includeCaptions: checked })}
         >
           Include captions
+        </Switch>
+        <Switch
+          checked={settings.includeSrt}
+          onCheckedChange={(checked) => update({ includeSrt: checked })}
+        >
+          Save SRT file next to video
         </Switch>
         <label className={styles.field}>
           <span className={styles.label}>File name</span>
@@ -199,6 +228,11 @@ export function ExportPanel(): JSX.Element {
         Export all Ready ({readyIds.length})
       </Button>
       <ExportQueuePanel />
+      <ExportPreflightDialog
+        issues={preflight?.issues ?? null}
+        onContinue={() => void continuePreflight()}
+        onCancel={() => setPreflight(null)}
+      />
     </div>
   )
 }

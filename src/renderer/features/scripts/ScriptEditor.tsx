@@ -1,5 +1,6 @@
 import { useRef, useState, type JSX } from 'react'
 import type { LineRewriteAction } from '@shared/ai/lineRewrite'
+import type { ScriptRunInput } from '@shared/ai/scriptGeneration'
 import type { Script, Short } from '@shared/project/schema'
 import { X } from 'lucide-react'
 import { Button } from '@renderer/ui/Button'
@@ -13,12 +14,15 @@ import {
   addScriptLineCommand,
   attachScriptCommand,
   createShortFromScriptCommand,
+  discardScriptCommand,
   editScriptLineCommand,
   moveScriptLineCommand,
   removeScriptLineCommand,
-  rewriteScriptLineCommand
+  replaceScriptDraftCommand,
+  rewriteScriptLineCommand,
+  setScriptApprovalCommand
 } from './scriptCommands'
-import { rewriteLine } from './scriptDrafts'
+import { draftScripts, estimateScriptDrafts, rewriteLine, scriptsFromDrafts } from './scriptDrafts'
 import { ScriptLineRow } from './ScriptLineRow'
 import { AssemblyReviewDialog } from '../assembly/AssemblyReviewDialog'
 import { estimatedReadSeconds, formatReadTime, scriptWordCount } from './scriptStats'
@@ -46,7 +50,7 @@ export function ScriptEditor({ scriptId, onOpenChange }: ScriptEditorProps): JSX
       description={script?.topic || undefined}
       wide
     >
-      {script && <ScriptEditorBody script={script} />}
+      {script && <ScriptEditorBody script={script} onDiscarded={() => onOpenChange(false)} />}
     </Dialog>
   )
 }
@@ -60,13 +64,77 @@ interface Suggestion {
   text: string
 }
 
-function ScriptEditorBody({ script }: { script: Script }): JSX.Element {
+function ScriptEditorBody({
+  script,
+  onDiscarded
+}: {
+  script: Script
+  onDiscarded: () => void
+}): JSX.Element {
   const shorts = useProjectStore((state) => state.current?.project.shorts ?? NO_SHORTS)
+  const current = useProjectStore((state) => state.current)
   const draggedIdRef = useRef<string | null>(null)
   const [rewritingLineId, setRewritingLineId] = useState<string | null>(null)
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null)
   const [reviewingFootage, setReviewingFootage] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const now = () => new Date().toISOString()
+  const approved = script.approval === 'approved'
+
+  function toggleApproval() {
+    applyProjectCommand(
+      setScriptApprovalCommand(script.id, approved ? 'draft' : 'approved', script.title)
+    )
+  }
+
+  // Drafts a new version of this script from the same topic. It needs a cost check first, the same as
+  // the Draft with AI dialog. The new draft replaces the lines and goes back to draft; Undo restores it.
+  async function regenerate() {
+    if (!current || regenerating) return
+    const input: ScriptRunInput = {
+      projectFolder: current.folderPath,
+      media: current.project.media.map((item) => ({ id: item.id, fileName: item.fileName })),
+      request: {
+        topic: (script.topic || script.title).trim(),
+        count: 1,
+        targetSeconds: null,
+        tone: '',
+        notes: '',
+        reuseFootage: true
+      }
+    }
+    setRegenerating(true)
+    const estimate = await estimateScriptDrafts(window.api, input)
+    if (!estimate || estimate.capStatus === 'reached') {
+      if (estimate) {
+        toast.error({
+          title: 'Cannot regenerate the script',
+          description: "This month's AI spend cap is reached. Raise the cap in Settings."
+        })
+      }
+      setRegenerating(false)
+      return
+    }
+    const drafts = await draftScripts(window.api, input)
+    setRegenerating(false)
+    if (!drafts || drafts.length === 0) return
+    const [fresh] = scriptsFromDrafts(drafts)
+    applyProjectCommand(replaceScriptDraftCommand(script.id, fresh))
+    toast.info({
+      title: 'Regenerated the script',
+      description: 'It is back to draft for review.',
+      action: { label: 'Undo', run: () => undoProjectEdit() }
+    })
+  }
+
+  function discard() {
+    applyProjectCommand(discardScriptCommand(script.id, script.title))
+    onDiscarded()
+    toast.info({
+      title: 'Discarded the script',
+      action: { label: 'Undo', run: () => undoProjectEdit() }
+    })
+  }
 
   const words = scriptWordCount(script)
   const readTime = formatReadTime(estimatedReadSeconds(words))
@@ -136,9 +204,22 @@ function ScriptEditorBody({ script }: { script: Script }): JSX.Element {
   return (
     <div className={styles.body}>
       <p className={styles.stats}>
-        {script.lines.length} {script.lines.length === 1 ? 'line' : 'lines'} · {words}{' '}
-        {words === 1 ? 'word' : 'words'} · about {readTime} read
+        {approved ? 'Approved' : 'Draft'} · {script.lines.length}{' '}
+        {script.lines.length === 1 ? 'line' : 'lines'} · {words} {words === 1 ? 'word' : 'words'} ·
+        about {readTime} read
       </p>
+
+      <div className={styles.actions}>
+        <Button variant={approved ? 'secondary' : 'primary'} onClick={toggleApproval}>
+          {approved ? 'Unapprove' : 'Approve'}
+        </Button>
+        <Button variant="ai" onClick={() => void regenerate()} loading={regenerating}>
+          Regenerate
+        </Button>
+        <Button variant="destructive" onClick={discard}>
+          Discard
+        </Button>
+      </div>
 
       {script.lines.length === 0 ? (
         <p className={styles.none}>No lines yet. Add the first line below.</p>

@@ -10,6 +10,7 @@ import {
 import { RenderQueueService, type RenderQueueDeps } from '../src/main/export/renderQueue'
 import type { ExportJobInput } from '../src/main/export/exportJob'
 import { DEFAULT_EXPORT_SETTINGS, type EncoderInfo } from '@shared/export/exportSettings'
+import type { ExportSettings } from '@shared/export/exportSettings'
 import type { Project } from '@shared/project/schema'
 import type { Timeline } from '@shared/timeline/timeline'
 import { setShortExported } from '@shared/export/shortExport'
@@ -57,7 +58,7 @@ function short(id: string, name: string, timeline: Timeline, status = 'ready') {
 
 function projectWith(shorts: unknown[]): Project {
   return {
-    schemaVersion: 20,
+    schemaVersion: 21,
     id: 'p1',
     name: 'Demo',
     createdAt: '2026-10-01T00:00:00.000Z',
@@ -91,7 +92,12 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 // The export job is held by the test, so each step of the queue can be checked. No FFmpeg runs.
 function setup(
-  options: { concurrency?: number; encoder?: EncoderInfo | null; project?: Project } = {}
+  options: {
+    concurrency?: number
+    encoder?: EncoderInfo | null
+    project?: Project
+    settings?: ExportSettings
+  } = {}
 ) {
   const started: Pending[] = []
   const executors: JobExecutors = {
@@ -105,19 +111,24 @@ function setup(
   let clock = 1000
   const exported: { shortId: string; exportedAt: string }[] = []
   const written: Project[] = []
+  const texts: { path: string; text: string }[] = []
   const revealed: string[] = []
   const existing = new Set<string>()
   const encoder = options.encoder === undefined ? ENCODER : options.encoder
   const project = options.project ?? projectWith([short('s1', 'Hook', footage)])
+  const settings = options.settings ?? DEFAULT_EXPORT_SETTINGS
   const deps: RenderQueueDeps = {
     queue,
     readProject: async () => project,
     writeProject: async (_folder, saved) => {
       written.push(saved)
     },
-    readSettings: async () => DEFAULT_EXPORT_SETTINGS,
+    readSettings: async () => settings,
     encoder: () => encoder,
     fileExists: async (path) => existing.has(path),
+    writeText: async (path, text) => {
+      texts.push({ path, text })
+    },
     reveal: (path) => revealed.push(path),
     onExported: (event) => exported.push({ shortId: event.shortId, exportedAt: event.exportedAt }),
     now: () => clock
@@ -129,6 +140,7 @@ function setup(
     started,
     exported,
     written,
+    texts,
     revealed,
     existing,
     advance: (ms: number) => {
@@ -163,6 +175,70 @@ describe('RenderQueueService', () => {
     expect(input?.videoKbps).toBe(10000)
     expect(input?.outPath).toBe(join(FOLDER, 'exports', 'Demo - Hook.mp4'))
     expect(input?.media).toEqual([{ id: 'm1', path: join(FOLDER, 'cam.mp4') }])
+  })
+
+  it('writes the SRT next to the video once the export is in place, when it is switched on', async () => {
+    const captioned: Timeline = {
+      tracks: [
+        ...footage.tracks,
+        {
+          id: 'captions',
+          kind: 'text',
+          role: 'captions',
+          muted: false,
+          clips: [],
+          captions: [
+            { id: 'b1', words: [{ text: 'Hello', startMs: 0, endMs: 1000 }] },
+            { id: 'b2', words: [{ text: 'there', startMs: 1500, endMs: 2500 }] }
+          ]
+        } as unknown as Timeline['tracks'][number]
+      ]
+    }
+    const { service, started, texts } = setup({
+      project: projectWith([short('s1', 'Hook', captioned)]),
+      settings: { ...DEFAULT_EXPORT_SETTINGS, includeSrt: true }
+    })
+    await service.start(FOLDER, ['s1'])
+    await tick()
+    started[0]?.resolve({ outPath: join(FOLDER, 'exports', 'Demo - Hook.mp4') })
+    await tick()
+    await tick()
+    await tick()
+
+    expect(texts).toEqual([
+      {
+        path: join(FOLDER, 'exports', 'Demo - Hook.srt'),
+        text: '1\n00:00:00,000 --> 00:00:01,000\nHello\n\n2\n00:00:01,500 --> 00:00:02,500\nthere\n'
+      }
+    ])
+  })
+
+  it('writes no SRT when the option is off, or when the short has no captions', async () => {
+    const off = setup({ settings: { ...DEFAULT_EXPORT_SETTINGS, includeSrt: false } })
+    await off.service.start(FOLDER, ['s1'])
+    await tick()
+    off.started[0]?.resolve({ outPath: join(FOLDER, 'exports', 'Demo - Hook.mp4') })
+    await tick()
+    await tick()
+    expect(off.texts).toEqual([])
+
+    const noCaptions = setup({ settings: { ...DEFAULT_EXPORT_SETTINGS, includeSrt: true } })
+    await noCaptions.service.start(FOLDER, ['s1'])
+    await tick()
+    noCaptions.started[0]?.resolve({ outPath: join(FOLDER, 'exports', 'Demo - Hook.mp4') })
+    await tick()
+    await tick()
+    expect(noCaptions.texts).toEqual([])
+    expect(noCaptions.exported).toHaveLength(1)
+  })
+
+  it('does not reuse a name whose SRT file already exists', async () => {
+    const { service, existing } = setup({
+      settings: { ...DEFAULT_EXPORT_SETTINGS, includeSrt: true }
+    })
+    existing.add(join(FOLDER, 'exports', 'Demo - Hook.srt'))
+    const [job] = await service.start(FOLDER, ['s1'])
+    expect(job?.fileName).toBe('Demo - Hook (2).mp4')
   })
 
   it('shows progress and time left from the time the encode started', async () => {

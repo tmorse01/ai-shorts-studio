@@ -3,7 +3,7 @@ import { readExportSettingsFile, writeExportSettingsFile } from '../export/expor
 import { RenderQueueService, type ShortExportedEvent } from '../export/renderQueue'
 import type { EncoderInfo, ExportSettings } from '@shared/export/exportSettings'
 import type { RenderJob } from '@shared/export/renderQueue'
-import { access } from 'node:fs/promises'
+import { access, writeFile } from 'node:fs/promises'
 import {
   createProject,
   openProject,
@@ -201,6 +201,7 @@ export function createIpcHandlers({
         () => true,
         () => false
       ),
+    writeText: (path, text) => writeFile(path, text, 'utf8'),
     reveal: (path) => actions.revealFolder(path),
     onChange: onRenderQueueChanged,
     onExported: onShortExported,

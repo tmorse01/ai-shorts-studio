@@ -17,7 +17,8 @@ function analysisRunner() {
       started.push({ ctx, resolve: resolve as () => void })
     })
   const executors = {
-    analysis: run as JobExecutors['analysis']
+    analysis: run as JobExecutors['analysis'],
+    script: run as JobExecutors['script']
   } as unknown as JobExecutors
   return { executors, started }
 }
@@ -64,6 +65,7 @@ describe('JobQueue hold', () => {
         proxy: async () => undefined,
         poster: async () => undefined,
         analysis: () => new Promise<never>(() => undefined),
+        script: async () => [],
         export: async () => ({ outPath: 'clip.mp4' })
       } as JobExecutors,
       2

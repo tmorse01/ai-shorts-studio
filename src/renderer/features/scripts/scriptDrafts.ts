@@ -21,6 +21,30 @@ export async function estimateScriptDrafts(
   return null
 }
 
+/**
+ * Starts a persisted batch that drafts one script per item (#145). Each item is a one-script request
+ * with the same footage and brief. Returns whether the batch started. The drafts are imported when
+ * their items finish.
+ */
+export async function startScriptBatch(
+  api: RendererInvokeApi,
+  input: ScriptRunInput,
+  count: number
+): Promise<boolean> {
+  const items = Array.from({ length: count }, () => ({
+    id: `script-${crypto.randomUUID()}`,
+    request: { ...input, request: { ...input.request, count: 1 } }
+  }))
+  const result = await api.invoke('batch:run', { projectFolder: input.projectFolder, items })
+  if (result.ok) return true
+  toast.error({
+    title: 'Could not start the script batch',
+    description: result.error.message,
+    details: result.error.details
+  })
+  return false
+}
+
 /** Drafts the scripts. Null after a shown error. */
 export async function draftScripts(
   api: RendererInvokeApi,

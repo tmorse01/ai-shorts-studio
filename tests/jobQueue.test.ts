@@ -31,6 +31,7 @@ function manualExecutors() {
     proxy: run as JobExecutors['proxy'],
     poster: run as JobExecutors['poster'],
     analysis: run as JobExecutors['analysis'],
+    script: run as JobExecutors['script'],
     export: run as JobExecutors['export']
   }
   return { executors, started }
