@@ -5,7 +5,9 @@ import { z } from 'zod'
 import { clipFramingSchema } from './framing'
 import { duckingSchema } from './ducking'
 import { textItemSchema } from '../text/textItem'
+import { imageItemSchema } from '../image/imageItem'
 import { captionBlockSchema } from '../captions/captionBlock'
+import { clipAssemblySchema } from './clipAssembly'
 
 const nonEmptyString = z.string().trim().min(1)
 
@@ -55,6 +57,8 @@ export const clipSchema = z.object({
   text: z.string().optional(),
   // The overlay of a text clip on a text track (see ../text/textItem.ts). Schema 13 added this key.
   textItem: textItemSchema.optional(),
+  // The overlay of an image clip on an overlay track (see ../image/imageItem.ts). Schema 17 added this key.
+  imageItem: imageItemSchema.optional(),
   label: z.string().optional(),
   // The moment (Epic 14 script beat) this clip was dropped from, when it came from one.
   momentId: nonEmptyString.optional(),
@@ -62,7 +66,13 @@ export const clipSchema = z.object({
   linkedAudio: nonEmptyString.optional(),
   // How the clip's source fills the vertical frame (see ./framing.ts). Unset means no framing.
   // Schema 8 added this key.
-  framing: clipFramingSchema.optional()
+  framing: clipFramingSchema.optional(),
+  // A locked clip keeps its place when an assembly plan is applied again. Optional so existing clips
+  // need no key. Read it as `?? false`. Schema 14 added this key.
+  locked: z.boolean().optional(),
+  // The script line this clip was assembled for, and the takes it could swap to (see ./clipAssembly.ts).
+  // Unset for clips not placed by an assembly plan. Schema 14 added this key.
+  assembly: clipAssemblySchema.optional()
 })
 export type Clip = z.infer<typeof clipSchema>
 
@@ -80,7 +90,7 @@ export const trackSchema = z.object({
 })
 export type Track = z.infer<typeof trackSchema>
 
-export const transitionKindSchema = z.enum(['crossfade', 'dip-to-black'])
+export const transitionKindSchema = z.enum(['crossfade', 'dip-to-black', 'whip', 'zoom'])
 export type TransitionKind = z.infer<typeof transitionKindSchema>
 
 // A transition on the cut between two adjacent clips on the same track. It is centred on the cut and

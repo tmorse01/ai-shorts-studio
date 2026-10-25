@@ -1,4 +1,5 @@
 import type { JSX, PointerEvent } from 'react'
+import { Lock } from 'lucide-react'
 import { filmstripPlan, FILMSTRIP_FILE } from '@shared/media/thumbs'
 import type { MediaRef } from '@shared/project/schema'
 import type { Clip, TrackKind } from '@shared/timeline/timeline'
@@ -30,6 +31,8 @@ export interface TimelineClipProps {
   clip: Clip
   kind: TrackKind
   locked: boolean
+  // The clip itself is locked (see setClipLocked). Shows a lock badge on the clip.
+  clipLocked?: boolean
   selected: boolean
   pxPerMs: number
   // The part of the lane on screen. Filmstrip tiles are only built for this range.
@@ -58,6 +61,7 @@ export function TimelineClip({
   clip,
   kind,
   locked,
+  clipLocked = false,
   selected,
   pxPerMs,
   range,
@@ -135,7 +139,7 @@ export function TimelineClip({
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={`${label}${offline ? ', offline' : ''}${locked ? ', locked' : ''}`}
+      aria-label={`${label}${offline ? ', offline' : ''}${locked ? ', locked' : ''}${clipLocked ? ', clip locked' : ''}`}
       className={classes}
       data-kind={kind}
       style={{ left: box.leftPx, width: box.widthPx, height: CLIP_HEIGHT_PX }}
@@ -148,6 +152,11 @@ export function TimelineClip({
       }}
     >
       {pieces}
+      {clipLocked ? (
+        <span className={styles.lockBadge} aria-hidden="true">
+          <Lock size={12} strokeWidth={1.75} />
+        </span>
+      ) : null}
       {bodyWave ? (
         <div
           className={styles.wave}

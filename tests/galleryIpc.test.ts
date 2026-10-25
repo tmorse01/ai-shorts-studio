@@ -37,6 +37,7 @@ function setup(overrides: Partial<SystemActions> = {}) {
       trashed.push(path)
     },
     documentsDir: () => join(root, 'Documents'),
+    saveSrtFile: async () => null,
     ...overrides
   }
   const handlers = createIpcHandlers({

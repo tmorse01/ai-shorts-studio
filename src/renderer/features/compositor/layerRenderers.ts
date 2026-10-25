@@ -3,8 +3,9 @@
 // renderers register against the same registry in Epics 11 and 13.
 import { LayerRegistry } from '@shared/compositor/layerRegistry'
 import type { FrameLayer } from '@shared/compositor/frame'
-import type { FrameBackend } from './frameBackend'
+import type { BitmapSource, FrameBackend } from './frameBackend'
 import { textBitmap } from './textBitmap'
+import { captionBitmap } from './captionBitmap'
 
 // A video layer's source. "pending" means the element has not decoded its frame yet, so the
 // compositor holds the last frame instead of drawing a partial one.
@@ -14,6 +15,8 @@ export type LayerSource =
 export interface LayerContext {
   backend: FrameBackend
   sourceOf(layer: FrameLayer): LayerSource
+  // The loaded image of an image overlay layer, or null while it is not ready (Epic 13, #129).
+  imageOf(layer: FrameLayer): BitmapSource | null
 }
 
 export function createLayerRegistry(): LayerRegistry<LayerContext> {
@@ -45,22 +48,55 @@ export function createLayerRegistry(): LayerRegistry<LayerContext> {
     },
     { transformable: true }
   )
-  // A text overlay is drawn as a bitmap at the position its description gives. It is not transformable:
-  // its position lives on the text item, not on the clip's transform.
-  registry.register('text', (layer, context) => {
-    const text = layer.text
-    if (!text) return
-    const bitmap = textBitmap(text)
+  // A text overlay is drawn as a bitmap at the position its description gives. It is transformable, but the
+  // gizmo moves and scales its text item, not the clip's transform (see useCanvasGizmo).
+  registry.register(
+    'text',
+    (layer, context) => {
+      const text = layer.text
+      if (!text) return
+      const bitmap = textBitmap(text)
+      context.backend.drawBitmap(
+        bitmap,
+        {
+          centerX: text.centerX,
+          centerY: text.centerY,
+          width: bitmap.width * text.motionScale,
+          height: bitmap.height * text.motionScale,
+          rotationDeg: 0
+        },
+        text.alpha
+      )
+    },
+    { transformable: true }
+  )
+  // An image overlay is drawn at the placement its description gives, which already has the motion. Like text,
+  // the gizmo moves its clip transform, so it is transformable.
+  registry.register(
+    'overlay',
+    (layer, context) => {
+      const image = context.imageOf(layer)
+      if (!image || !layer.image) return
+      context.backend.drawBitmap(image, layer.placement, layer.image.alpha)
+    },
+    { transformable: true }
+  )
+  // A caption block is drawn as a bitmap at its description's centre, scaled by its pop-in. Like text,
+  // it is not transformable: its position comes from the captions layout, not from a clip transform.
+  registry.register('caption', (layer, context) => {
+    const captions = layer.captions
+    if (!captions) return
+    const bitmap = captionBitmap(captions)
     context.backend.drawBitmap(
       bitmap,
       {
-        centerX: text.centerX,
-        centerY: text.centerY,
-        width: bitmap.width,
-        height: bitmap.height,
+        centerX: captions.centerX,
+        centerY: captions.centerY,
+        width: bitmap.width * captions.scale,
+        height: bitmap.height * captions.scale,
         rotationDeg: 0
       },
-      text.alpha
+      1
     )
   })
   return registry

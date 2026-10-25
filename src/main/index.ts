@@ -4,6 +4,7 @@ import { createAiStateFile } from './ai/aiStateFile'
 import { createSafeStorageSecretStore } from './ai/secretStore'
 import { createAnthropicClient } from './ai/anthropicClient'
 import { join } from 'node:path'
+import { writeFile } from 'node:fs/promises'
 import { APP_NAME } from '@shared/app'
 import { APP_BACKGROUND } from '@shared/theme'
 import { MEDIA_SCHEME } from '@shared/media/previewSource'
@@ -14,6 +15,9 @@ import { createMediaJobs } from './media/createMediaJobs'
 import { MediaSourceRegistry } from './media/mediaSources'
 import { serveMediaRequest } from './media/mediaProtocol'
 import { setupErrorReporting } from './errors/setupErrorReporting'
+import { detectEncoder, unknownEncoder } from './export/encoderDetection'
+import { resolveBinary, type BinaryLocation } from './media/binaries'
+import type { EncoderInfo } from '@shared/export/exportSettings'
 
 // Footage reaches the preview through this scheme, never through file://. It must be declared as
 // privileged before the app is ready. `stream` lets the video element seek with byte ranges.
@@ -63,13 +67,31 @@ void app.whenReady().then(async () => {
   jobs.subscribe((job) => emitIpcEvent('media:job:changed', job))
   const mediaSources = new MediaSourceRegistry()
   protocol.handle(MEDIA_SCHEME, (request) => serveMediaRequest(request, mediaSources))
+  // The encoder is found in the background, so the window does not wait for FFmpeg to start.
+  let exportEncoder: EncoderInfo | null = null
+  const binaryLocation: BinaryLocation = {
+    isPackaged: app.isPackaged,
+    appPath: app.getAppPath(),
+    resourcesPath: process.resourcesPath
+  }
+  void (async () => {
+    try {
+      exportEncoder = await detectEncoder(resolveBinary('ffmpeg', binaryLocation))
+    } catch {
+      exportEncoder = unknownEncoder()
+    }
+  })()
   registerIpcHandlers(
     createIpcHandlers({
       layoutFile: join(app.getPath('userData'), 'ui-layout.json'),
       recentFile: join(app.getPath('userData'), 'recent-projects.json'),
+      exportSettingsFile: join(app.getPath('userData'), 'export-settings.json'),
+      exportEncoder: () => exportEncoder,
       jobs,
       ai,
       onAnalysisChanged: (change) => emitIpcEvent('analysis:changed', change),
+      onBatchChanged: (projectFolder, batch) =>
+        emitIpcEvent('batch:changed', { projectFolder, batch }),
       mediaSources,
       system: {
         pickFolder: async () => {
@@ -111,6 +133,15 @@ void app.whenReady().then(async () => {
             ]
           })
           return result.canceled ? [] : result.filePaths
+        },
+        saveSrtFile: async ({ suggestedName, text }) => {
+          const result = await dialog.showSaveDialog({
+            defaultPath: join(app.getPath('documents'), suggestedName),
+            filters: [{ name: 'SubRip subtitles', extensions: ['srt'] }]
+          })
+          if (result.canceled || !result.filePath) return null
+          await writeFile(result.filePath, text, 'utf8')
+          return result.filePath
         }
       }
     })

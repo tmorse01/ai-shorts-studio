@@ -10,12 +10,22 @@ import type { Clip, Timeline, Transition, TransitionKind } from './timeline'
 
 export const DEFAULT_TRANSITION_MS = 300
 
-export const TRANSITION_KINDS: readonly TransitionKind[] = ['crossfade', 'dip-to-black']
+export const TRANSITION_KINDS: readonly TransitionKind[] = [
+  'crossfade',
+  'dip-to-black',
+  'whip',
+  'zoom'
+]
 
 export const TRANSITION_LABELS: Record<TransitionKind, string> = {
   crossfade: 'Crossfade',
-  'dip-to-black': 'Dip to black'
+  'dip-to-black': 'Dip to black',
+  whip: 'Whip',
+  zoom: 'Zoom'
 }
+
+// The scale a zoom reaches at its peak: the outgoing clip grows to it and the incoming clip settles from it.
+export const ZOOM_PEAK_SCALE = 1.5
 
 export function kindOf(transition: Transition): TransitionKind {
   return transition.kind ?? 'crossfade'
@@ -45,11 +55,60 @@ export function transitionWindow(transition: Transition, cutMs: number): Transit
 
 // How one clip is drawn and mixed during a transition. opacity is the picture's alpha over what is
 // already drawn. gain is the linear sound level before the clip's own gain. overBlack means the frame
-// is drawn over black, which a dip needs at its lowest point.
+// is drawn over black, which a dip needs at its lowest point. scale and offsetX, when set, move the
+// picture: scale about the canvas centre, and offsetX as a fraction of the canvas width.
 export interface TransitionFade {
   opacity: number
   gain: number
   overBlack: boolean
+  scale?: number
+  offsetX?: number
+}
+
+// A value that moves linearly from `from` at the start of the window to `to` at its end.
+export interface MotionRange {
+  from: number
+  to: number
+}
+
+// The picture motion one side of a transition has: a scale and a horizontal offset, each linear in the
+// progress through the window. A kind with no motion on a side leaves that side out.
+export interface TransitionMotion {
+  scale?: MotionRange
+  offsetX?: MotionRange
+}
+
+// The motion of a kind's outgoing or incoming clip. Whip slides the outgoing picture off to the left and
+// the incoming one in from the right. Zoom pushes the outgoing picture in and settles the incoming one
+// from a zoomed-in size. Preview and export both read these ranges, so they move the same way.
+export function transitionMotion(
+  kind: TransitionKind,
+  side: 'outgoing' | 'incoming'
+): TransitionMotion | null {
+  if (kind === 'whip') {
+    return side === 'outgoing' ? { offsetX: { from: 0, to: -1 } } : { offsetX: { from: 1, to: 0 } }
+  }
+  if (kind === 'zoom') {
+    return side === 'outgoing'
+      ? { scale: { from: 1, to: ZOOM_PEAK_SCALE } }
+      : { scale: { from: ZOOM_PEAK_SCALE, to: 1 } }
+  }
+  return null
+}
+
+// The value of a motion range at a progress through the window, 0 to 1.
+export function motionValue(range: MotionRange, progress: number): number {
+  return range.from + (range.to - range.from) * clamp01(progress)
+}
+
+function withMotion(
+  fade: TransitionFade,
+  motion: TransitionMotion | null,
+  p: number
+): TransitionFade {
+  if (motion?.scale) fade.scale = motionValue(motion.scale, p)
+  if (motion?.offsetX) fade.offsetX = motionValue(motion.offsetX, p)
+  return fade
 }
 
 export interface TransitionLevels {
@@ -66,6 +125,8 @@ function clamp01(value: number): number {
 // Crossfade keeps the outgoing picture fully opaque underneath and fades the incoming one over it, so
 // the picture is an exact blend. The sound fades linearly both ways. A dip fades the outgoing clip to
 // black in the first half and the incoming clip up from black in the second.
+// Whip keeps both pictures opaque and moves them, so the incoming one covers the outgoing one as it
+// slides in. Zoom keeps the outgoing picture under the incoming one, as crossfade does, and moves both.
 export function transitionLevels(kind: TransitionKind, progress: number): TransitionLevels {
   const p = clamp01(progress)
   if (kind === 'dip-to-black') {
@@ -76,9 +137,31 @@ export function transitionLevels(kind: TransitionKind, progress: number): Transi
       incoming: { opacity: incoming, gain: incoming, overBlack: true }
     }
   }
+  if (kind === 'whip') {
+    return {
+      outgoing: withMotion(
+        { opacity: 1, gain: 1 - p, overBlack: false },
+        transitionMotion(kind, 'outgoing'),
+        p
+      ),
+      incoming: withMotion(
+        { opacity: 1, gain: p, overBlack: false },
+        transitionMotion(kind, 'incoming'),
+        p
+      )
+    }
+  }
   return {
-    outgoing: { opacity: 1, gain: 1 - p, overBlack: false },
-    incoming: { opacity: p, gain: p, overBlack: false }
+    outgoing: withMotion(
+      { opacity: 1, gain: 1 - p, overBlack: false },
+      transitionMotion(kind, 'outgoing'),
+      p
+    ),
+    incoming: withMotion(
+      { opacity: p, gain: p, overBlack: false },
+      transitionMotion(kind, 'incoming'),
+      p
+    )
   }
 }
 

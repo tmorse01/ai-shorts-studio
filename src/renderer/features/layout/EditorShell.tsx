@@ -41,7 +41,7 @@ export function EditorShell({ timeline, shortId }: EditorShellProps) {
           <ToolRail />
           <PaneFrame pane="left" title={toolDef.label} accent={toolDef.ai ? 'ai' : 'default'}>
             {renderPanel ? (
-              renderPanel()
+              renderPanel({ shortId })
             ) : (
               <EmptyState
                 title={toolDef.label}

@@ -9,8 +9,17 @@ import {
   type FramingPose
 } from '../timeline/framing'
 import { resolveFrame, type ResolvedLayer } from '../timeline/resolveFrame'
-import type { Timeline, Transform } from '../timeline/timeline'
+import type { TransitionFade } from '../timeline/transitions'
+import { IDENTITY_TRANSFORM, type Timeline, type Transform } from '../timeline/timeline'
+import type { TextItem } from '../text/textItem'
 import { describeText, type TextRender } from '../text/textRender'
+import { describeImageOverlay } from '../image/imageOverlay'
+import {
+  describeCaptions,
+  type CaptionOptions,
+  type CaptionRender
+} from '../captions/captionLayout'
+import { DEFAULT_CAPTION_PRESETS } from '../captions/captionPreset'
 
 export const CANVAS_WIDTH = 1080
 export const CANVAS_HEIGHT = 1920
@@ -59,6 +68,18 @@ export interface FrameLayer extends ResolvedLayer {
   source?: SourceSize
   // The text overlay to draw, for a text layer with a textItem. Opacity includes any transition fade.
   text?: TextRender
+  // The image overlay to draw, for an image layer. Its placement already includes the motion, and alpha
+  // includes the item's opacity and any transition fade. Set only on layers with an imageItem.
+  image?: { alpha: number }
+  // The caption block to draw, for a caption layer. Set only on the layers made from caption blocks,
+  // which have trackKind 'text' and no clip. Their placement is unused: the caption sizes itself.
+  captions?: CaptionRender
+}
+
+// Caption defaults for a frame when the caller gives none: the shipped presets, safe zones on.
+const DEFAULT_CAPTION_OPTIONS: CaptionOptions = {
+  presets: DEFAULT_CAPTION_PRESETS,
+  safeZones: true
 }
 
 // Places a fill-mode framed video: the crop of the source (see framingCropRect) is scaled to cover the
@@ -145,6 +166,27 @@ export function placeTransform(transform: Transform, source: SourceSize | null):
   }
 }
 
+// A placement moved by a transition's motion (whip, zoom). The picture scales about the canvas centre and
+// then shifts by offsetX of the canvas width. Without motion the placement is returned as it is. Export
+// applies the same maths per frame (see renderGraph.ts), so both draw the same place.
+export function applyTransitionMotion(
+  placement: Placement,
+  fade: TransitionFade | undefined
+): Placement {
+  if (!fade || (fade.scale === undefined && fade.offsetX === undefined)) return placement
+  const scale = fade.scale ?? 1
+  return {
+    centerX:
+      CANVAS_WIDTH / 2 +
+      (placement.centerX - CANVAS_WIDTH / 2) * scale +
+      (fade.offsetX ?? 0) * CANVAS_WIDTH,
+    centerY: CANVAS_HEIGHT / 2 + (placement.centerY - CANVAS_HEIGHT / 2) * scale,
+    width: placement.width * scale,
+    height: placement.height * scale,
+    rotationDeg: placement.rotationDeg
+  }
+}
+
 // The background for a blurFit layer: the source scaled to cover the canvas, centred and unrotated.
 // It is padded by `marginPx` on every side, so the blur does not fade out at the canvas edge. A source
 // of unknown size fills the padded area.
@@ -196,30 +238,108 @@ function describeLayerText(layer: ResolvedLayer, canvas: SourceSize): TextRender
   return { ...text, alpha: text.alpha * (layer.fade?.opacity ?? 1) }
 }
 
+// The placement of a text overlay: its text block when it has words, else a zero-size box at its anchor.
+function textPlacement(item: TextItem, text: TextRender | null): Placement {
+  if (text) {
+    return {
+      centerX: text.centerX,
+      centerY: text.centerY,
+      width: text.boxWidthPx,
+      height: text.boxHeightPx,
+      rotationDeg: 0
+    }
+  }
+  return {
+    centerX: item.x * CANVAS_WIDTH,
+    centerY: item.y * CANVAS_HEIGHT,
+    width: 0,
+    height: 0,
+    rotationDeg: 0
+  }
+}
+
+// The placement and opacity of an image overlay: its clip transform, with the entry and exit motion. Null
+// for a layer with no imageItem or no known time within its clip.
+function describeLayerImage(
+  layer: ResolvedLayer,
+  source: SourceSize | null
+): { placement: Placement; alpha: number } | null {
+  if (!layer.imageItem || layer.clipElapsedMs === undefined || layer.clipDurationMs === undefined) {
+    return null
+  }
+  return describeImageOverlay(
+    placeTransform(layer.transform, source),
+    layer.imageItem,
+    layer.clipElapsedMs,
+    layer.clipDurationMs,
+    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    layer.fade?.opacity ?? 1
+  )
+}
+
 // What is on the canvas at tMs. `sizeOf` gives the pixel size of a media item once it is known, so
-// video fits at its own aspect ratio. Until then the layer fills the canvas.
+// video fits at its own aspect ratio. Until then the layer fills the canvas. Caption blocks on captions
+// tracks draw last, over everything else, with the given caption options.
 export function describeFrame(
   timeline: Timeline,
   tMs: number,
-  sizeOf: (mediaId: string) => SourceSize | null = () => null
+  sizeOf: (mediaId: string) => SourceSize | null = () => null,
+  captionOptions: CaptionOptions = DEFAULT_CAPTION_OPTIONS
 ): FrameDescription {
   const layers = resolveFrame(timeline, tMs).map((layer) => {
     const source = layer.mediaId ? sizeOf(layer.mediaId) : null
     const framing = layer.trackKind === 'video' ? layer.framing : undefined
-    const placement =
-      framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
-        ? placeFramed(layer.transform, framing, source)
-        : placeTransform(layer.transform, source)
+    const text = describeLayerText(layer, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
+    const image = describeLayerImage(layer, source)
+    // A text overlay sits where its item says, and its box is the text block. Off its clip, or with no
+    // words, it has no box: a zero-size placement at its anchor, so it cannot be picked by accident.
+    const placed = layer.textItem
+      ? textPlacement(layer.textItem, text)
+      : image
+        ? image.placement
+        : framing?.mode === 'fill' && source && source.width > 0 && source.height > 0
+          ? placeFramed(layer.transform, framing, source)
+          : placeTransform(layer.transform, source)
+    // A transition's motion moves a picture, never a text box (its text is placed by its own item).
+    const moving = layer.textItem ? undefined : layer.fade
+    const placement = applyTransitionMotion(placed, moving)
+    let render = describeLayerRender(placement, framing, source)
+    if (render.mode === 'blurFit') {
+      render = { ...render, background: applyTransitionMotion(render.background, moving) }
+    }
     const description: FrameLayer = {
       ...layer,
       placement,
-      render: describeLayerRender(placement, framing, source),
+      render,
       ...(source && source.width > 0 && source.height > 0 ? { source } : {})
     }
-    const text = describeLayerText(layer, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT })
     if (text) description.text = text
+    if (image) description.image = { alpha: image.alpha }
     return description
   })
+  for (const caption of describeCaptions(
+    timeline,
+    tMs,
+    { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    captionOptions
+  )) {
+    layers.push({
+      trackId: caption.trackId,
+      trackKind: 'text',
+      clipId: caption.block.id,
+      sourceTimeMs: tMs,
+      transform: { ...IDENTITY_TRANSFORM },
+      placement: {
+        centerX: caption.render.centerX,
+        centerY: caption.render.centerY,
+        width: 0,
+        height: 0,
+        rotationDeg: 0
+      },
+      render: { mode: 'direct' },
+      captions: caption.render
+    })
+  }
   return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT, tMs, layers }
 }
 

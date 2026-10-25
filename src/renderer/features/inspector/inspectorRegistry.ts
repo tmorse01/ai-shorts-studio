@@ -8,6 +8,10 @@ import { ShortPropertiesSection } from '@renderer/features/shorts/ShortPropertie
 import { TranscriptSection } from '@renderer/features/transcript/TranscriptSection'
 import { FramingSection } from '@renderer/features/framing/FramingSection'
 import { TransitionSection } from '@renderer/features/transition/TransitionSection'
+import { TextSection } from '@renderer/features/text/TextSection'
+import { ImageSection } from '@renderer/features/image/ImageSection'
+import { CaptionStyleSection } from '@renderer/features/captions/CaptionStyleSection'
+import { ClipTakesSection } from '@renderer/features/takes/ClipTakesSection'
 import { SELECTION_TYPES, type InspectorSectionDef } from './inspectorModel'
 
 export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
@@ -59,6 +63,39 @@ export const INSPECTOR_SECTIONS: readonly InspectorSectionDef[] = [
     order: 10,
     selections: ['video-clip'],
     Component: FramingSection
+  },
+  {
+    id: 'clip-takes',
+    title: 'Takes',
+    tab: 'video',
+    order: 30,
+    selections: ['video-clip'],
+    Component: ClipTakesSection
+  },
+  {
+    id: 'text',
+    title: 'Text',
+    tab: 'video',
+    order: 10,
+    selections: ['text-clip'],
+    Component: TextSection
+  },
+  {
+    id: 'image',
+    title: 'Image',
+    tab: 'video',
+    order: 10,
+    selections: ['image-clip'],
+    Component: ImageSection
+  },
+  {
+    // The short's caption style: preset picker, and the fields of the preset it uses (Epic 11, #121).
+    id: 'caption-style',
+    title: 'Captions',
+    tab: 'video',
+    order: 30,
+    selections: ['short'],
+    Component: CaptionStyleSection
   },
   {
     id: 'transition',

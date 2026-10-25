@@ -12,6 +12,7 @@ import {
   type TransitionWindow
 } from './transitions'
 import type { TextItem } from '../text/textItem'
+import type { ImageItem } from '../image/imageItem'
 import type { Clip, Timeline, TrackKind, Transform, TransitionKind } from './timeline'
 
 export type ClipAt = {
@@ -32,6 +33,8 @@ export type ResolvedLayer = {
   // A text clip's overlay, with how far into the clip this frame is and the clip's length. Set only
   // on clips that have a textItem.
   textItem?: TextItem
+  // An image overlay's item (Epic 13, #129). Its elapsed time and length come from the same fields.
+  imageItem?: ImageItem
   clipElapsedMs?: number
   clipDurationMs?: number
   // The source time to show for this layer, in ms.
@@ -149,6 +152,11 @@ export function resolveFrame(timeline: Timeline, tMs: number): ResolvedLayer[] {
       }
       if (clip.textItem) {
         layer.textItem = clip.textItem
+        layer.clipElapsedMs = tMs - clip.startMs
+        layer.clipDurationMs = clip.durationMs
+      }
+      if (clip.imageItem) {
+        layer.imageItem = clip.imageItem
         layer.clipElapsedMs = tMs - clip.startMs
         layer.clipDurationMs = clip.durationMs
       }

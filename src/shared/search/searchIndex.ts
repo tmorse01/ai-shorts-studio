@@ -67,6 +67,11 @@ export class SearchIndex {
     return this.entries.size
   }
 
+  /** Every document in the index, in no particular order. Used to send the index to main. */
+  docs(): SearchDoc[] {
+    return [...this.entries.values()].map((entry) => entry.doc)
+  }
+
   /** Replaces every document of one group with the given documents. */
   replaceGroup(group: string, docs: readonly SearchDoc[]): void {
     this.removeGroup(group)

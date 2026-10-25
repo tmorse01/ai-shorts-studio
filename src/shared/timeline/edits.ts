@@ -2,6 +2,8 @@
 // input is never mutated. The renderer wraps these as undoable commands. Every edit ends with settle(),
 // which runs the Main-track check and keeps linked audio on its video clip's time (#91).
 import { CENTRED_FILL, clipFramingSchema, type ClipFraming } from './framing'
+import { textItemSchema, type TextItem } from '../text/textItem'
+import { imageItemSchema, type ImageItem } from '../image/imageItem'
 import type { Clip, Timeline, Track, Transform, Transition, TransitionKind } from './timeline'
 import { loopLayout } from './loopFill'
 import { duckingFor, duckingSchema, type DuckingSettings } from './ducking'
@@ -561,6 +563,50 @@ export function updateClipTransform(
   })
 }
 
+// Changes one text overlay's item (its text, look, position and scale; see ../text/textItem.ts). The update
+// gets the stored item, so a caller can nudge or drag from what is stored when the edit runs. Refused on a
+// locked track, and when the clip has no text item.
+export function updateClipTextItem(
+  timeline: Timeline,
+  clipId: string,
+  update: (item: TextItem) => TextItem
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  if (!clip.textItem) throw new TimelineEditError(`Clip "${clipId}" is not a text overlay.`)
+  const next = textItemSchema.parse(update(clip.textItem))
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? { ...item, textItem: next } : item))
+  })
+}
+
+// Changes an image overlay's item (opacity and motion). The result is checked against the schema, as text is.
+export function updateClipImageItem(
+  timeline: Timeline,
+  clipId: string,
+  update: (item: ImageItem) => ImageItem
+): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  if (!clip.imageItem) throw new TimelineEditError(`Clip "${clipId}" is not an image overlay.`)
+  const next = imageItemSchema.parse(update(clip.imageItem))
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? { ...item, imageItem: next } : item))
+  })
+}
+
+// Adds a text overlay clip at its start time. It goes on the first text track, or on a new text track with
+// newTrackId when there is none. Text tracks are free layers, so the clip may overlap others.
+export function addTextClip(timeline: Timeline, clip: Clip, newTrackId: string): Timeline {
+  const hasTextTrack = timeline.tracks.some((item) => item.kind === 'text' && item.role === 'text')
+  const withTrack = hasTextTrack
+    ? timeline
+    : addTrack(timeline, { id: newTrackId, kind: 'text', role: 'text', muted: false, clips: [] })
+  const track = withTrack.tracks.find((item) => item.kind === 'text' && item.role === 'text')
+  if (!track) throw new TimelineEditError('No text track to add the text to.')
+  return insertClip(withTrack, track.id, clip, clip.startMs)
+}
+
 // Changes one clip's framing (the crop of a vertical short, see ./framing.ts). The update gets the
 // stored framing, or a centred fill when the clip has none. Refused on a locked track.
 export function updateClipFraming(
@@ -711,4 +757,63 @@ export function loopFillClip(
   const { copies, transitions } = loopLayout(clip, untilMs, newId)
   const next = replaceTrack(timeline, { ...track, clips: [...track.clips, ...copies] })
   return { ...next, transitions: [...(timeline.transitions ?? []), ...transitions] }
+}
+
+// Swaps a clip to one of its alternative takes (Epic 15, #141). The clip plays the take from its start
+// and keeps its slot length where the take is long enough; a shorter take shortens the clip. The clip's
+// current take takes the alternative's place in the list, so swapping back is one more swap. Linked audio
+// moves to the same source. Refused when the clip has no alternative at that index, and on a locked track.
+export function swapClipAlternative(timeline: Timeline, clipId: string, index: number): Timeline {
+  refuseLinked(timeline, clipId)
+  const { track, clip } = locate(timeline, clipId)
+  const assembly = clip.assembly
+  const take = assembly?.alternatives[index]
+  if (!assembly || !take || !Number.isInteger(index)) {
+    throw new TimelineEditError(`Clip "${clipId}" has no alternative take ${index + 1}.`)
+  }
+  if (clip.mediaId === undefined) throw new TimelineEditError(`Clip "${clipId}" has no footage.`)
+
+  const current = {
+    sourceId: clip.mediaId,
+    inMs: clip.sourceInMs,
+    outMs: clip.sourceInMs + clip.durationMs
+  }
+  const swapped: Clip = {
+    ...clip,
+    mediaId: take.sourceId,
+    sourceInMs: take.inMs,
+    durationMs: Math.min(clip.durationMs, take.outMs - take.inMs),
+    assembly: {
+      lineId: assembly.lineId,
+      alternatives: assembly.alternatives.map((item, position) =>
+        position === index ? current : { ...item }
+      )
+    }
+  }
+  let next = replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? swapped : item))
+  })
+  if (clip.linkedAudio) {
+    const audioTrack = trackHolding(next, clip.linkedAudio)
+    if (audioTrack) {
+      next = replaceTrack(next, {
+        ...audioTrack,
+        clips: audioTrack.clips.map((item) =>
+          item.id === clip.linkedAudio ? { ...item, mediaId: take.sourceId } : item
+        )
+      })
+    }
+  }
+  return settle(next)
+}
+
+// Locks or unlocks one clip (Epic 15, #141). A locked clip keeps its place when an assembly plan is applied
+// again. Refused on a locked track, like every clip edit.
+export function setClipLocked(timeline: Timeline, clipId: string, locked: boolean): Timeline {
+  const { track, clip } = locate(timeline, clipId)
+  return replaceTrack(timeline, {
+    ...track,
+    clips: track.clips.map((item) => (item.id === clip.id ? { ...item, locked } : item))
+  })
 }

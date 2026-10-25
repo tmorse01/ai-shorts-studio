@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildScriptPrompt,
   estimateScriptCostUsd,
+  estimateScriptSeconds,
   parseScriptReply,
   scriptRequestSchema,
   type ScriptRequest
@@ -73,6 +74,25 @@ describe('parseScriptReply', () => {
     expect(parseScriptReply('{"scripts": []}')).toBeNull()
     expect(parseScriptReply('{"scripts": [{"title": "", "topic": "", "lines": []}]}')).toBeNull()
     expect(parseScriptReply('{"scripts":[')).toBeNull()
+  })
+})
+
+describe('footage reuse and time estimate', () => {
+  it('asks for varied footage only when reuse is switched off for several scripts', () => {
+    const off = buildScriptPrompt({ ...request, reuseFootage: false }, 'notes')
+    expect(off).toMatch(/Do not use the same footage clip in more than one script/)
+    expect(buildScriptPrompt({ ...request, reuseFootage: true }, 'notes')).not.toMatch(
+      /same footage clip/
+    )
+    expect(buildScriptPrompt(request, 'notes')).not.toMatch(/same footage clip/)
+    expect(buildScriptPrompt({ ...request, count: 1, reuseFootage: false }, 'notes')).not.toMatch(
+      /same footage clip/
+    )
+  })
+
+  it('estimates more time for more scripts', () => {
+    expect(estimateScriptSeconds(3)).toBeGreaterThan(estimateScriptSeconds(1))
+    expect(estimateScriptSeconds(1)).toBeGreaterThan(0)
   })
 })
 

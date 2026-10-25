@@ -4,16 +4,19 @@
 import { z } from 'zod'
 import { appErrorSchema } from './errors'
 import { uiLayoutSchema } from './layout'
+import { encoderInfoSchema, exportSettingsSchema } from './export/exportSettings'
 import { mediaKindSchema, pathKindSchema, projectSchema } from './project/schema'
 import { posterFrameRefSchema } from './shorts/poster'
 import { recentProjectSchema } from './project/recentProjects'
 import { probeResultSchema } from './media/probe'
 import { jobSnapshotSchema } from './media/jobs'
 import { importCandidateSchema } from './media/importFiles'
-import { analysisFileSchema, visionDecisionSchema } from './analysis/analysis'
+import { analysisFileSchema, analysisStageSchema, visionDecisionSchema } from './analysis/analysis'
+import { batchSchema, MAX_BATCH_ITEMS } from './batch/batch'
 import { transcriptSchema } from './analysis/transcript'
 import { visionShotSchema } from './analysis/vision'
 import { suggestionsOutputSchema } from './analysis/suggestions'
+import { footageMatchRequestSchema, footageMatchResultSchema } from './assembly/footageMatchRequest'
 import {
   aiStatusSchema,
   MAX_CAP_USD,
@@ -179,6 +182,19 @@ export const ipcChannels = {
     input: z.object({ layout: uiLayoutSchema }),
     output: z.object({ saved: z.literal(true) })
   },
+  // Export state: the encoder found at startup (null until detection ends) and the shared export
+  // settings (presets, naming, output folder). Saved by main as a JSON file in user data.
+  'export:state:get': {
+    input: z.object({}),
+    output: z.object({
+      encoder: encoderInfoSchema.nullable(),
+      settings: exportSettingsSchema.nullable()
+    })
+  },
+  'export:settings:save': {
+    input: z.object({ settings: exportSettingsSchema }),
+    output: z.object({ saved: z.literal(true) })
+  },
   // Reads a media file's streams with ffprobe. Runs as a probe job, ahead of other media jobs.
   'media:probe': {
     input: z.object({ path: z.string().trim().min(1) }),
@@ -192,6 +208,37 @@ export const ipcChannels = {
   'media:job:cancel': {
     input: z.object({ jobId: z.string().min(1) }),
     output: z.object({ cancelled: z.boolean() })
+  },
+  // Starts a batch: one analysis stage over each item, run on the media queue. Returns the saved batch.
+  'batch:run': {
+    input: z
+      .object({
+        projectFolder: z.string().trim().min(1),
+        stage: analysisStageSchema,
+        items: z.array(analysisItemSchema).min(1).max(MAX_BATCH_ITEMS)
+      })
+      .refine((input) => new Set(input.items.map((item) => item.id)).size === input.items.length, {
+        message: 'A media item can be in a batch only once.'
+      }),
+    output: z.object({ batch: batchSchema })
+  },
+  // Cancels one queued or running item of a batch.
+  'batch:cancel': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      batchId: z.string().min(1),
+      itemId: z.string().min(1)
+    }),
+    output: z.object({ cancelled: z.boolean(), batch: batchSchema })
+  },
+  // Runs again the given items that failed or were cancelled. Other items are skipped.
+  'batch:retry': {
+    input: z.object({
+      projectFolder: z.string().trim().min(1),
+      batchId: z.string().min(1),
+      items: z.array(analysisItemSchema).min(1).max(MAX_BATCH_ITEMS)
+    }),
+    output: z.object({ retried: z.array(z.string()), batch: batchSchema })
   },
   // Native multi-select file dialog for importing media. Empty when the user cancels.
   'media:pick': {
@@ -358,6 +405,20 @@ export const ipcChannels = {
       )
     })
   },
+  // Saves a short's captions as an SRT file. The renderer builds the text (src/shared/captions/srt.ts)
+  // and main shows the save dialog and writes it. Null savedPath means the user cancelled.
+  'captions:exportSrt': {
+    input: z.object({
+      suggestedName: z
+        .string()
+        .trim()
+        .min(1)
+        .max(200)
+        .refine((name) => !/[\\/]/.test(name), { message: 'A file name cannot hold a folder.' }),
+      srt: z.string().max(2_000_000)
+    }),
+    output: z.object({ savedPath: z.string().min(1).nullable() })
+  },
   // One media item's vision descriptions, one per described shot. Empty until the vision stage has run
   // for it. The search index reads them to find shots by what is on screen.
   'analysis:vision:read': {
@@ -444,6 +505,12 @@ export const ipcChannels = {
     input: scriptRunInputSchema,
     output: z.object({ scripts: z.array(generatedScriptSchema).min(1) })
   },
+  // Matches each script line to footage from the search index. The reply is a plan the renderer shows for
+  // review; it reaches the timeline only when the user applies it through a project command.
+  'ai:footage:match': {
+    input: footageMatchRequestSchema,
+    output: footageMatchResultSchema
+  },
   // Rewrites one line. The reply is text only; the renderer shows it as a suggestion and saves it
   // through a project command when the user accepts it.
   'ai:scripts:rewriteLine': {
@@ -468,6 +535,10 @@ export const ipcEvents = {
   'app:error': { payload: appErrorSchema },
   // Sent whenever a media job changes status or progress.
   'media:job:changed': { payload: jobSnapshotSchema },
+  // Sent whenever a batch changes: an item's status, its progress, or the batch itself.
+  'batch:changed': {
+    payload: z.object({ projectFolder: z.string().min(1), batch: batchSchema })
+  },
   // Sent whenever a project's analysis records change.
   'analysis:changed': {
     payload: z.object({ projectFolder: z.string().min(1), file: analysisFileSchema })
